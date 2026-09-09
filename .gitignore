@@ -35,3 +35,9 @@ desktop.ini
 tmp/
 temp/
 .cache/
+
+#AI
+.agents
+.claude
+.windsurf
+skills-lock.json

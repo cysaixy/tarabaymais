@@ -38,5 +38,6 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "skipLibCheck": true
-  }
+  },
+  "exclude": ["node_modules", "prisma.config.ts", "prisma7.config.ts"]
 }

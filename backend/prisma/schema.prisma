@@ -1,0 +1,92 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  FARMER     @map("farmer")
+  TECHNICIAN @map("technician")
+  OFFICER    @map("officer")
+
+  @@map("user_role")
+}
+
+enum CropStatus {
+  ACTIVE    @map("active")
+  HARVESTED @map("harvested")
+  FAILED    @map("failed")
+  CANCELLED @map("cancelled")
+
+  @@map("crop_status")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  firstName    String   @map("first_name") @db.VarChar(100)
+  lastName     String   @map("last_name") @db.VarChar(100)
+  phone        String   @unique @db.VarChar(30)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         Role     @default(FARMER)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  farmerProfile FarmerProfile?
+  farms         Farm[]
+
+  @@map("users")
+}
+
+model FarmerProfile {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  rsbsaNumber       String?  @map("rsbsa_number") @db.VarChar(50)
+  preferredLanguage String   @default("filipino") @map("preferred_language") @db.VarChar(20)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("farmer_profiles")
+}
+
+model Farm {
+  id           String   @id @default(uuid()) @db.Uuid
+  farmerId     String   @map("farmer_id") @db.Uuid
+  name         String   @db.VarChar(150)
+  municipality String   @db.VarChar(100)
+  barangay     String   @db.VarChar(100)
+  areaHectares Decimal  @map("area_hectares") @db.Decimal(10, 2)
+  latitude     Decimal? @db.Decimal(9, 6)
+  longitude    Decimal? @db.Decimal(9, 6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  farmer     User        @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  cropCycles CropCycle[]
+
+  @@map("farms")
+}
+
+model CropCycle {
+  id                  String     @id @default(uuid()) @db.Uuid
+  farmId              String     @map("farm_id") @db.Uuid
+  cropType            String     @default("corn") @map("crop_type") @db.VarChar(50)
+  variety             String?    @db.VarChar(100)
+  plantingDate        DateTime   @map("planting_date") @db.Date
+  expectedHarvestDate DateTime?  @map("expected_harvest_date") @db.Date
+  areaHectares        Decimal    @map("area_hectares") @db.Decimal(10, 2)
+  status              CropStatus @default(ACTIVE)
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  farm Farm @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@map("crop_cycles")
+}
