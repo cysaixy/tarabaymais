@@ -41,3 +41,5 @@ temp/
 .claude
 .windsurf
 skills-lock.json
+
+backend/firebase-service-account.json
