@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { syncUser } from "../controllers/authController";
-import { authenticate } from "../middleware/authMiddleware";
+import { authenticate } from "../middlewares/authMiddleware";
 
 const router = Router();
 
