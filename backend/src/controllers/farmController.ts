@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
+import prisma from "../config/prisma";
 
 export const createFarm = async (req: Request, res: Response) => {
   const { name, municipality, barangay, areaHectares, latitude, longitude } =

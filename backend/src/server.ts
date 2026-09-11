@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 
 import authRoutes from "./routes/authRoutes";
+import farmRoutes from "./routes/farmRoutes";
 
 const app = express();
 const port = process.env.PORT ?? 3000;
@@ -11,6 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
+app.use("/api/farm", farmRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
