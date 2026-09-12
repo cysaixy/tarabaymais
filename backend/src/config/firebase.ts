@@ -1,5 +1,6 @@
 import { initializeApp, cert, getApps, App } from "firebase-admin/app";
 import { getAuth, Auth } from "firebase-admin/auth";
+import { getStorage, Storage } from "firebase-admin/storage";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -38,3 +39,4 @@ if (getApps().length === 0) {
 
 // Explicitly type and export the auth instance
 export const auth: Auth = getAuth(app);
+export const storage: Storage = getStorage(app);
