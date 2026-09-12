@@ -5,6 +5,7 @@ import {
   createCropCycle,
   getFarmCropCycles,
   updateCropCycleStatus,
+  deleteCropCycle,
 } from "../controllers/cropCycleController";
 import { Role } from "@prisma/client";
 const router = Router();
@@ -21,5 +22,8 @@ router.get(
 
 // Direct crop cycle status update
 router.patch("/:id/status", authorize([Role.FARMER]), updateCropCycleStatus);
+
+// Delete a crop cycle
+router.delete("/:id", authorize([Role.FARMER]), deleteCropCycle);
 
 export default router;

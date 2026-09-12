@@ -145,3 +145,38 @@ export const updateCropCycleStatus = async (req: Request, res: Response) => {
       .json({ error: "Failed to update crop cycle", details: error.message });
   }
 };
+
+export const deleteCropCycle = async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+
+  try {
+    const cropCycle = await prisma.cropCycle.findFirst({
+      where: {
+        id,
+        farm: {
+          farmerId: req.user!.id,
+        },
+      },
+    });
+
+    if (!cropCycle) {
+      return res.status(404).json({
+        error: "Crop cycle not found or access denied",
+      });
+    }
+
+    await prisma.cropCycle.delete({
+      where: { id },
+    });
+
+    return res.status(200).json({
+      message: "Crop cycle deleted successfully",
+      deletedCropCycle: cropCycle,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: "Failed to delete crop cycle",
+      details: error.message,
+    });
+  }
+};
