@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../config/prisma";
 import { CaseStatus, SeverityLevel, ActivityType } from "@prisma/client";
+import { uploadToSupabase } from "../utils/uploadToSupabase";
 
 export const logCropActivity = async (req: Request, res: Response) => {
   const { cropCycleId } = req.params;
@@ -54,7 +55,7 @@ export const logCropActivity = async (req: Request, res: Response) => {
 
 export const createObservation = async (req: Request, res: Response) => {
   const { cropCycleId } = req.params;
-  const { title, description, imageUrl, severity } = req.body;
+  const { title, description, severity } = req.body;
 
   const validSeverities = Object.values(SeverityLevel);
 
@@ -77,6 +78,13 @@ export const createObservation = async (req: Request, res: Response) => {
       return res
         .status(404)
         .json({ error: "Crop cycle not found or access denied" });
+    }
+
+    // Upload photo if one was provided
+    let imageUrl: string | null = null;
+    console.log("Image URL:", imageUrl);
+    if (req.file) {
+      imageUrl = await uploadToSupabase(req.file);
     }
 
     const observation = await prisma.observation.create({

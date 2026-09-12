@@ -10,6 +10,7 @@ import {
   updateCaseStatus,
 } from "../controllers/caseController";
 import { Role } from "@prisma/client";
+import { upload } from "../middlewares/uploadMiddleware";
 
 const router = Router();
 
@@ -23,6 +24,7 @@ router.post(
 );
 router.post(
   "/observations/:cropCycleId",
+  upload.single("image"),
   authorize([Role.FARMER]),
   createObservation,
 );
