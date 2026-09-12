@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../config/prisma";
 import e from "cors";
 import { CropStatus } from "@prisma/client";
+import { Role } from "@prisma/client";
 
 export const createCropCycle = async (req: Request, res: Response) => {
   const farmId = req.params.farmId as string;
@@ -85,17 +86,22 @@ export const createCropCycle = async (req: Request, res: Response) => {
 
 export const getFarmCropCycles = async (req: Request, res: Response) => {
   const farmId = req.params.farmId as string;
+  const user = req.user!;
 
   try {
     const farm = await prisma.farm.findFirst({
       where: {
         id: farmId,
-        farmerId: req.user!.id,
+        ...(user.role === Role.FARMER && {
+          farmerId: user.id,
+        }),
       },
     });
 
     if (!farm) {
-      return res.status(404).json({ error: "Farm not found or access denied" });
+      return res.status(404).json({
+        error: "Farm not found or access denied",
+      });
     }
 
     const cropCycles = await prisma.cropCycle.findMany({

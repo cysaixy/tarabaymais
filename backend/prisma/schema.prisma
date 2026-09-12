@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
 }
 
@@ -24,6 +24,37 @@ enum CropStatus {
   @@map("crop_status")
 }
 
+enum ActivityType {
+  PREPARATION  @map("preparation")
+  PLANTING     @map("planting")
+  FERTILIZER   @map("fertilizer")
+  PEST_CONTROL @map("pest_control")
+  IRRIGATION   @map("irrigation")
+  HARVEST      @map("harvest")
+  OTHER        @map("other")
+
+  @@map("activity_type")
+}
+
+enum SeverityLevel {
+  LOW      @map("low")
+  MEDIUM   @map("medium")
+  HIGH     @map("high")
+  CRITICAL @map("critical")
+
+  @@map("severity_level")
+}
+
+enum CaseStatus {
+  SUBMITTED    @map("submitted")
+  UNDER_REVIEW @map("under_review")
+  INSPECTED    @map("inspected")
+  RESOLVED     @map("resolved")
+  REJECTED     @map("rejected")
+
+  @@map("case_status")
+}
+
 model User {
   id        String   @id @db.VarChar(128) // Directly stores Firebase UID
   firstName String   @map("first_name") @db.VarChar(100)
@@ -33,14 +64,17 @@ model User {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  farmerProfile FarmerProfile?
-  farms         Farm[]
+  farmerProfile     FarmerProfile?
+  farms             Farm[]
+  observations      Observation[]
+  assignedCases     ExpertRequest[]  @relation("TechnicianCases")
+  verifiedDisasters DisasterReport[] @relation("VerifiedDisasters")
 
   @@map("users")
 }
 
 model FarmerProfile {
-  id                String   @id @default(uuid()) @db.Uuid
+  id                String   @id @default(uuid()) @db.VarChar(64)
   userId            String   @unique @map("user_id") @db.VarChar(128)
   rsbsaNumber       String?  @map("rsbsa_number") @db.VarChar(50)
   preferredLanguage String   @default("filipino") @map("preferred_language") @db.VarChar(20)
@@ -52,7 +86,7 @@ model FarmerProfile {
 }
 
 model Farm {
-  id           String   @id @default(uuid()) @db.Uuid
+  id           String   @id @default(uuid()) @db.VarChar(64)
   farmerId     String   @map("farmer_id") @db.VarChar(128)
   name         String   @db.VarChar(150)
   municipality String   @db.VarChar(100)
@@ -63,15 +97,16 @@ model Farm {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  farmer     User        @relation(fields: [farmerId], references: [id], onDelete: Cascade)
-  cropCycles CropCycle[]
+  farmer          User             @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  cropCycles      CropCycle[]
+  disasterReports DisasterReport[]
 
   @@map("farms")
 }
 
 model CropCycle {
-  id                  String     @id @default(uuid()) @db.Uuid
-  farmId              String     @map("farm_id") @db.Uuid
+  id                  String     @id @default(uuid()) @db.VarChar(64)
+  farmId              String     @map("farm_id") @db.VarChar(64)
   cropType            String     @default("corn") @map("crop_type") @db.VarChar(50)
   variety             String?    @db.VarChar(100)
   plantingDate        DateTime   @map("planting_date") @db.Date
@@ -81,7 +116,74 @@ model CropCycle {
   createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
-  farm Farm @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  farm         Farm           @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  activities   CropActivity[]
+  observations Observation[]
 
   @@map("crop_cycles")
+}
+
+model CropActivity {
+  id           String       @id @default(uuid()) @db.VarChar(64)
+  cropCycleId  String       @map("crop_cycle_id") @db.VarChar(64)
+  activityType ActivityType @map("activity_type")
+  description  String       @db.Text
+  costAmount   Decimal?     @map("cost_amount") @db.Decimal(10, 2)
+  performedAt  DateTime     @map("performed_at") @db.Date
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  cropCycle CropCycle @relation(fields: [cropCycleId], references: [id], onDelete: Cascade)
+
+  @@map("crop_activities")
+}
+
+model Observation {
+  id          String        @id @default(uuid()) @db.VarChar(64)
+  cropCycleId String        @map("crop_cycle_id") @db.VarChar(64)
+  farmerId    String        @map("farmer_id") @db.VarChar(128)
+  title       String        @db.VarChar(150)
+  description String        @db.Text
+  imageUrl    String?       @map("image_url") @db.VarChar(500)
+  severity    SeverityLevel @default(LOW)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  cropCycle     CropCycle      @relation(fields: [cropCycleId], references: [id], onDelete: Cascade)
+  farmer        User           @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  expertRequest ExpertRequest?
+
+  @@map("observations")
+}
+
+model ExpertRequest {
+  id                   String     @id @default(uuid()) @db.VarChar(64)
+  observationId        String     @unique @map("observation_id") @db.VarChar(64)
+  assignedTechnicianId String?    @map("assigned_technician_id") @db.VarChar(128)
+  status               CaseStatus @default(SUBMITTED)
+  recommendation       String?    @db.Text
+  resolvedAt           DateTime?  @map("resolved_at") @db.Timestamptz
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  observation        Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+  assignedTechnician User?       @relation("TechnicianCases", fields: [assignedTechnicianId], references: [id])
+
+  @@map("expert_requests")
+}
+
+model DisasterReport {
+  id               String     @id @default(uuid()) @db.VarChar(64)
+  farmId           String     @map("farm_id") @db.VarChar(64)
+  disasterType     String     @map("disaster_type") @db.VarChar(50)
+  damagePercentage Decimal    @map("damage_percentage") @db.Decimal(5, 2)
+  estimatedLoss    Decimal?   @map("estimated_loss") @db.Decimal(12, 2)
+  status           CaseStatus @default(SUBMITTED)
+  verifiedById     String?    @map("verified_by_id") @db.VarChar(128)
+  notes            String?    @db.Text
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  farm       Farm  @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  verifiedBy User? @relation("VerifiedDisasters", fields: [verifiedById], references: [id])
+
+  @@map("disaster_reports")
 }
