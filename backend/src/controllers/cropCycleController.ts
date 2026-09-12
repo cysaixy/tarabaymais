@@ -8,6 +8,14 @@ export const createCropCycle = async (req: Request, res: Response) => {
   const { cropType, variety, plantingDate, expectedHarvestDate, areaHectares } =
     req.body;
 
+  const requestedArea = Number(areaHectares);
+
+  if (!Number.isFinite(requestedArea) || requestedArea <= 0) {
+    return res.status(400).json({
+      error: "areaHectares must be a positive number",
+    });
+  }
+
   try {
     const farm = await prisma.farm.findFirst({
       where: {
@@ -17,7 +25,39 @@ export const createCropCycle = async (req: Request, res: Response) => {
     });
 
     if (!farm) {
-      return res.status(404).json({ error: "Farm not found or access denied" });
+      return res.status(404).json({
+        error: "Farm not found or access denied",
+      });
+    }
+
+    if (farm.areaHectares == null) {
+      return res.status(400).json({
+        error: "Farm total hectares is not configured",
+      });
+    }
+
+    const activeAreaResult = await prisma.cropCycle.aggregate({
+      where: {
+        farmId,
+        status: CropStatus.ACTIVE,
+      },
+      _sum: {
+        areaHectares: true,
+      },
+    });
+
+    const activeHectares = activeAreaResult._sum.areaHectares?.toNumber() ?? 0;
+
+    const farmTotalHectares = farm.areaHectares.toNumber();
+    const totalRequestedHectares = activeHectares + requestedArea;
+
+    if (totalRequestedHectares > farmTotalHectares) {
+      return res.status(400).json({
+        error: "Total active crop-cycle area cannot exceed the farm area",
+        farmTotalHectares,
+        activeHectares,
+        remainingHectares: farmTotalHectares - activeHectares,
+      });
     }
 
     const cropCycle = await prisma.cropCycle.create({
@@ -29,16 +69,17 @@ export const createCropCycle = async (req: Request, res: Response) => {
         expectedHarvestDate: expectedHarvestDate
           ? new Date(expectedHarvestDate)
           : null,
-        areaHectares: parseFloat(areaHectares),
+        areaHectares: requestedArea,
         status: CropStatus.ACTIVE,
       },
     });
 
     return res.status(201).json({ cropCycle });
   } catch (error: any) {
-    return res
-      .status(400)
-      .json({ error: "Failed to create crop cycle", details: error.message });
+    return res.status(400).json({
+      error: "Failed to create crop cycle",
+      details: error.message,
+    });
   }
 };
 
