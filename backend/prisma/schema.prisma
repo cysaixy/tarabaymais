@@ -188,3 +188,15 @@ model DisasterReport {
 
   @@map("disaster_reports")
 }
+
+model KnowledgeChunk {
+  id        String   @id @default(uuid()) @db.VarChar(64)
+  title     String   @db.VarChar(255)
+  source    String   @db.VarChar(255) // e.g., "DA Region II Corn Techno Guide"
+  category  String   @db.VarChar(100) // e.g., "PEST_MANAGEMENT", "FERTILIZER"
+  content   String   @db.Text
+  embedding Unsupported("vector(768)")? 
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("knowledge_chunks")
+}
