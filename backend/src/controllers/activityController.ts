@@ -55,7 +55,7 @@ export const logCropActivity = async (req: Request, res: Response) => {
 
 export const createObservation = async (req: Request, res: Response) => {
   const { cropCycleId } = req.params;
-  const { title, description, severity } = req.body;
+  const { title, description, severity, aiDiagnosis } = req.body;
 
   const validSeverities = Object.values(SeverityLevel);
 
@@ -82,9 +82,22 @@ export const createObservation = async (req: Request, res: Response) => {
 
     // Upload photo if one was provided
     let imageUrl: string | null = null;
-    console.log("Image URL:", imageUrl);
     if (req.file) {
       imageUrl = await uploadToSupabase(req.file);
+    }
+
+    let parsedDiagnosis = null;
+    if (aiDiagnosis) {
+      try {
+        parsedDiagnosis =
+          typeof aiDiagnosis === "string"
+            ? JSON.parse(aiDiagnosis)
+            : aiDiagnosis;
+      } catch {
+        return res
+          .status(400)
+          .json({ error: "Invalid JSON string format for aiDiagnosis" });
+      }
     }
 
     const observation = await prisma.observation.create({
@@ -94,16 +107,17 @@ export const createObservation = async (req: Request, res: Response) => {
         title,
         description,
         imageUrl: imageUrl || null,
+        aiDiagnosis: parsedDiagnosis,
         severity: severity || SeverityLevel.LOW,
       },
     });
 
-    let expertCase = null;
+    let autoEscalatedCase = null;
     if (
       severity === SeverityLevel.HIGH ||
       severity === SeverityLevel.CRITICAL
     ) {
-      expertCase = await prisma.expertRequest.create({
+      autoEscalatedCase = await prisma.expertRequest.create({
         data: {
           observationId: observation.id,
           status: CaseStatus.SUBMITTED,
@@ -111,7 +125,7 @@ export const createObservation = async (req: Request, res: Response) => {
       });
     }
 
-    return res.status(201).json({ observation, autoEscalatedCase: expertCase });
+    return res.status(201).json({ observation, autoEscalatedCase });
   } catch (error: any) {
     return res
       .status(400)

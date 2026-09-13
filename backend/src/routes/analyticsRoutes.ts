@@ -19,7 +19,7 @@ router.get(
 );
 router.get(
   "/barangays",
-  authorize([Role.OFFICER, Role.TECHNICIAN, Role.FARMER]),
+  authorize([Role.OFFICER, Role.TECHNICIAN]),
   getBarangayDistribution,
 );
 

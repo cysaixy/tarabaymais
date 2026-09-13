@@ -8,6 +8,7 @@ import cropCycleRoutes from "./routes/cropCycleRoutes";
 import caseRoutes from "./routes/caseRoutes";
 import aiRoutes from "./routes/aiRoutes";
 import analRoutes from "./routes/analyticsRoutes";
+import activityRoutes from "./routes/activityRoutes";
 
 const app = express();
 const port = process.env.PORT ?? 3000;
@@ -21,6 +22,7 @@ app.use("/api/v1/crop-cycles", cropCycleRoutes);
 app.use("/api/v1/case", caseRoutes);
 app.use("/api/v1/ai", aiRoutes);
 app.use("/api/v1/analytics", analRoutes);
+app.use("/api/v1/", activityRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });

@@ -25,3 +25,5 @@ router.post(
   authorize([Role.FARMER]),
   createObservation,
 );
+
+export default router;
