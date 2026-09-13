@@ -116,3 +116,69 @@ export const updateCaseStatus = async (req: Request, res: Response) => {
       .json({ error: "Failed to update case status", details: error.message });
   }
 };
+
+export const createDisasterReport = async (req: Request, res: Response) => {
+  const { farmId } = req.params;
+  const { disasterType, damagePercentage, estimatedLoss, notes } = req.body;
+
+  try {
+    const farm = await prisma.farm.findFirst({
+      where: {
+        id: farmId as string,
+        farmerId: req.user!.id,
+      },
+    });
+
+    if (!farm) {
+      return res.status(404).json({
+        error: "Farm not found or access denied",
+      });
+    }
+
+    const report = await prisma.disasterReport.create({
+      data: {
+        farmId: farmId as string,
+        disasterType,
+        damagePercentage: parseFloat(damagePercentage),
+        estimatedLoss: estimatedLoss ? parseFloat(estimatedLoss) : null,
+        notes: notes || null,
+        status: CaseStatus.SUBMITTED,
+      },
+    });
+
+    return res.status(201).json({ disasterReport: report });
+  } catch (error: any) {
+    return res.status(400).json({
+      error: "Failed to submit disaster report",
+      details: error.message,
+    });
+  }
+};
+
+export const resolveExpertCase = async (req: Request, res: Response) => {
+  const { caseId } = req.params;
+  const { recommendation, status } = req.body;
+
+  try {
+    const updatedCase = await prisma.expertRequest.update({
+      where: { id: caseId as string },
+      data: {
+        recommendation,
+        status: status || CaseStatus.RESOLVED,
+        assignedTechnicianId: req.user!.id,
+        resolvedAt: status === CaseStatus.RESOLVED ? new Date() : null,
+      },
+      include: {
+        observation: {
+          include: { farmer: true, cropCycle: true },
+        },
+      },
+    });
+
+    return res.status(200).json({ resolvedCase: updatedCase });
+  } catch (error: any) {
+    return res
+      .status(400)
+      .json({ error: "Failed to resolve case", details: error.message });
+  }
+};

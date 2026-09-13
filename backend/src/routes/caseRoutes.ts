@@ -2,32 +2,16 @@ import { Router } from "express";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/rbacMiddleware";
 import {
-  logCropActivity,
-  createObservation,
-} from "../controllers/activityController";
-import {
   getUnifiedCases,
   updateCaseStatus,
+  createDisasterReport,
+  resolveExpertCase,
 } from "../controllers/caseController";
 import { Role } from "@prisma/client";
-import { upload } from "../middlewares/uploadMiddleware";
 
 const router = Router();
 
 router.use(authenticate);
-
-// Farmer Activity & Observation Routes
-router.post(
-  "/activities/:cropCycleId",
-  authorize([Role.FARMER]),
-  logCropActivity,
-);
-router.post(
-  "/observations/:cropCycleId",
-  upload.single("image"),
-  authorize([Role.FARMER]),
-  createObservation,
-);
 
 // Unified Case Tracker (Farmers, Technicians, Officers)
 router.get(
@@ -35,10 +19,24 @@ router.get(
   authorize([Role.FARMER, Role.TECHNICIAN, Role.OFFICER]),
   getUnifiedCases,
 );
+
 router.patch(
   "/pipeline/:caseId",
   authorize([Role.TECHNICIAN, Role.OFFICER]),
   updateCaseStatus,
 );
 
+// Farmer submits disaster claim
+router.post(
+  "/disasters/:farmId",
+  authorize([Role.FARMER]),
+  createDisasterReport,
+);
+
+// Technician/Officer resolves an expert request with diagnostic notes
+router.patch(
+  "/expert-requests/:caseId/resolve",
+  authorize([Role.TECHNICIAN, Role.OFFICER]),
+  resolveExpertCase,
+);
 export default router;
