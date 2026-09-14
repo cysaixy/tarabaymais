@@ -4,7 +4,7 @@ import { RagService } from "../services/rag.service";
 import dotenv from "dotenv";
 dotenv.config();
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY_RAG;
 
 if (!apiKey) {
   throw new Error("GEMINI_API_KEY environment variable is not configured");
