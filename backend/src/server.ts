@@ -9,6 +9,7 @@ import caseRoutes from "./routes/caseRoutes";
 import aiRoutes from "./routes/aiRoutes";
 import analRoutes from "./routes/analyticsRoutes";
 import activityRoutes from "./routes/activityRoutes";
+import userRoutes from "./routes/user.routes";
 
 const app = express();
 const port = process.env.PORT ?? 3000;
@@ -23,6 +24,7 @@ app.use("/api/v1/case", caseRoutes);
 app.use("/api/v1/ai", aiRoutes);
 app.use("/api/v1/analytics", analRoutes);
 app.use("/api/v1/", activityRoutes);
+app.use("/api/v1/register", userRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });

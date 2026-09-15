@@ -2,6 +2,7 @@ import { Role } from "@prisma/client";
 import { Request, Response } from "express";
 import prisma from "../config/prisma";
 import { CaseStatus } from "@prisma/client";
+import { FcmService } from "../services/fcm.service";
 export const getUnifiedCases = async (req: Request, res: Response) => {
   const userId = req.user!.id;
   const userRole = req.user!.role;
@@ -174,6 +175,16 @@ export const resolveExpertCase = async (req: Request, res: Response) => {
         },
       },
     });
+
+    await FcmService.sendToUser(
+      updatedCase.observation.farmerId,
+      "✅ Crop Issue Recommendation Updated",
+      `A field technician has responded to your observation: "${updatedCase.observation.title}"`,
+      {
+        caseId: updatedCase.id,
+        type: "CASE_RESOLVED",
+      },
+    );
 
     return res.status(200).json({ resolvedCase: updatedCase });
   } catch (error: any) {

@@ -1,20 +1,46 @@
 // scripts/provisionAdminUser.ts
+import { Role } from "@prisma/client";
 import { auth } from "../config/firebase";
+import prisma from "../config/prisma";
 
-async function provisionUser(uid: string, role: "technician" | "officer") {
-  // Set custom claims in Firebase Auth Token
-  await auth.setCustomUserClaims(uid, { role: role.toUpperCase() });
-  console.log(
-    `Successfully assigned custom claim '${role.toUpperCase()}' to UID: ${uid}`,
-  );
+type ProvisionRole = "technician" | "officer";
+
+async function provisionUser(uid: string, role: ProvisionRole): Promise<void> {
+  const databaseRole = role === "technician" ? Role.TECHNICIAN : Role.OFFICER;
+
+  await auth.setCustomUserClaims(uid, {
+    role: databaseRole,
+  });
+
+  const user = await prisma.user.update({
+    where: {
+      id: uid,
+    },
+    data: {
+      role: databaseRole,
+    },
+  });
+
+  console.log(`Successfully assigned ${databaseRole} to Firebase UID ${uid}.`);
+  console.log(`Database user updated: ${user.id}`);
 }
 
-// Example usage: npx ts-node scripts/provisionAdminUser.ts <FIREBASE_UID> technician
 const [, , uid, role] = process.argv;
-if (uid && (role === "technician" || role === "officer")) {
-  provisionUser(uid, role as "technician" | "officer");
-} else {
+
+if (!uid || (role !== "technician" && role !== "officer")) {
   console.error(
-    "Usage: npx ts-node scripts/provisionAdminUser.ts <UID> <technician|officer>",
+    "Usage: npx tsx src/scripts/provisionAdminUser.ts <UID> <technician|officer>",
   );
+  process.exit(1);
 }
+
+provisionUser(uid, role)
+  .catch((error) => {
+    console.error("Failed to provision user:", error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+
+// npx tsx src/scripts/provisionAdminUser.ts <UID> <technician|officer>
