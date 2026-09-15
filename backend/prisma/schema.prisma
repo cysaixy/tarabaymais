@@ -61,6 +61,7 @@ model User {
   lastName  String   @map("last_name") @db.VarChar(100)
   phone     String   @unique @db.VarChar(30)
   role      Role     @default(FARMER)
+  fcmToken  String?  @map("fcm_token") @db.VarChar(255)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
