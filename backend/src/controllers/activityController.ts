@@ -3,6 +3,7 @@ import prisma from "../config/prisma";
 import { CaseStatus, SeverityLevel, ActivityType } from "@prisma/client";
 import { uploadToSupabase } from "../utils/uploadToSupabase";
 import { FcmService } from "../services/fcm.service";
+import { Role } from "@prisma/client";
 
 export const logCropActivity = async (req: Request, res: Response) => {
   const { cropCycleId } = req.params;
@@ -127,7 +128,7 @@ export const createObservation = async (req: Request, res: Response) => {
 
       // DISPATCH PUSH ALERT TO TECHNICIANS
       await FcmService.sendToRole(
-        "TECHNICIAN",
+        Role.TECHNICIAN,
         "🚨 High Severity Field Alert",
         `New ${severity} crop observation reported requiring inspection: "${title}"`,
         {
