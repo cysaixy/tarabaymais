@@ -1,9 +1,8 @@
 import ExcelJS from "exceljs";
-import { PrismaClient } from "@prisma/client";
 import prisma from "../config/prisma";
 
 export interface ExportFilters {
-  type?: "disater-claims" | "barangay-summary";
+  type?: "disaster-claims" | "barangay-summary";
   format?: "xlsx" | "csv";
   startDate?: string;
   endDate?: string;
@@ -23,15 +22,40 @@ export class ExportService {
 
     if (startDate || endDate) {
       whereClause.createdAt = {};
-      if (startDate) whereClause.createdAt.gte = new Date(startDate);
-      if (endDate) whereClause.createdAt.lte = new Date(endDate);
+
+      if (startDate) {
+        const start = new Date(`${startDate}T00:00:00+08:00`);
+
+        if (Number.isNaN(start.getTime())) {
+          throw new Error("Invalid startDate");
+        }
+
+        whereClause.createdAt.gte = start;
+      }
+
+      if (endDate) {
+        const end = new Date(`${endDate}T00:00:00+08:00`);
+
+        if (Number.isNaN(end.getTime())) {
+          throw new Error("Invalid endDate");
+        }
+
+        // Include the entire end date
+        end.setTime(end.getTime() + 24 * 60 * 60 * 1000);
+        whereClause.createdAt.lt = end;
+      }
     }
 
     if (barangay) {
-      whereClause.cropCycle = {
-        farm: { barangay: { equals: barangay, mode: "insensitive" } },
+      whereClause.farm = {
+        barangay: {
+          equals: barangay.trim(),
+          mode: "insensitive",
+        },
       };
     }
+
+    console.log("Export filters:", whereClause);
 
     const reports = await prisma.disasterReport.findMany({
       where: whereClause,

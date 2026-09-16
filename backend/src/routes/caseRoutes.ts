@@ -28,7 +28,7 @@ router.patch(
 
 // Farmer submits disaster claim
 router.post(
-  "/disasters/:farmId",
+  "/disaster-report/:farmId",
   authorize([Role.FARMER]),
   createDisasterReport,
 );
