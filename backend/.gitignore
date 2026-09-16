@@ -3,3 +3,5 @@ node_modules
 .env
 
 /src/generated/prisma
+tsc_out.txt
+tsc_out2.txt

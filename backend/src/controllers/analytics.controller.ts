@@ -1,26 +1,33 @@
 import { Request, Response } from "express";
 import { ExportService, ExportFilters } from "../services/export.service";
+import { asyncHandler } from "../utils/asyncHandler";
+import { ApiError } from "../utils/ApiError";
+import { z } from "zod";
 
-export const exportAnalyticsReport = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
-  try {
-    const {
-      type = "disaster-claims",
-      format = "xlsx",
-      startDate,
-      endDate,
-      barangay,
-    } = req.query;
+// ── Input schema ──────────────────────────────────────────────────────────────
 
-    const filters: ExportFilters = {
-      type: type as "disaster-claims" | "barangay-summary",
-      format: format as "xlsx" | "csv",
-      startDate: startDate as string,
-      endDate: endDate as string,
-      barangay: barangay as string,
-    };
+const exportQuerySchema = z.object({
+  type: z.enum(["disaster-claims", "barangay-summary"]).default("disaster-claims"),
+  format: z.enum(["xlsx", "csv"]).default("xlsx"),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  barangay: z.string().optional(),
+});
+
+// ── Controller ────────────────────────────────────────────────────────────────
+
+/** GET /api/v1/analytics-report/export */
+export const exportAnalyticsReport = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const parseResult = exportQuerySchema.safeParse(req.query);
+    if (!parseResult.success) {
+      throw ApiError.badRequest(
+        "Invalid query parameters",
+        parseResult.error.flatten().fieldErrors,
+      );
+    }
+
+    const filters: ExportFilters = parseResult.data;
 
     let fileBuffer: Buffer;
     let fileName: string;
@@ -51,11 +58,5 @@ export const exportAnalyticsReport = async (
     }
 
     res.status(200).send(fileBuffer);
-  } catch (error: any) {
-    console.error("Export Generation Error:", error);
-    res.status(500).json({
-      error: "Failed to generate export file",
-      details: error.message,
-    });
-  }
-};
+  },
+);

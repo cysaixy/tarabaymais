@@ -1,28 +1,52 @@
 import { Request, Response } from "express";
-import { SyncService } from "../services/sync.service";
+import { SyncService, SyncAction } from "../services/sync.service";
+import { asyncHandler } from "../utils/asyncHandler";
+import { sendSuccess } from "../utils/apiResponse";
+import { ApiError } from "../utils/ApiError";
+import { z } from "zod";
 
-export const processBatchSync = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
-  try {
-    const userId = (req as any).user?.id;
-    const { actions } = req.body;
+// ── Input schema ──────────────────────────────────────────────────────────────
 
-    if (!Array.isArray(actions) || actions.length === 0) {
-      res
-        .status(400)
-        .json({ error: "Actions parameter must be a non-empty array" });
-      return;
+/**
+ * We validate the shape of each action at the transport layer and let
+ * SyncService handle per-action business validation. The `payload` field
+ * is intentionally open — each action type checks its own required keys.
+ */
+const syncActionSchema = z.object({
+  clientRefId: z.string(),
+  actionType: z.enum([
+    "CREATE_OBSERVATION",
+    "CREATE_CROP_ACTIVITY",
+    "CREATE_DISASTER_REPORT",
+  ]),
+  payload: z.record(z.string(), z.unknown()),
+  clientTimestamp: z.string().optional(),
+});
+
+const batchSyncSchema = z.object({
+  actions: z
+    .array(syncActionSchema)
+    .min(1, "actions must be a non-empty array"),
+});
+
+// ── Controller ────────────────────────────────────────────────────────────────
+
+/** POST /api/v1/sync */
+export const processBatchSync = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const parseResult = batchSyncSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw ApiError.badRequest(
+        "Invalid request body",
+        parseResult.error.flatten().fieldErrors,
+      );
     }
 
+    const userId = req.user!.id;
+    // Cast to SyncAction[] — shape is verified by zodSchema above
+    const actions = parseResult.data.actions as SyncAction[];
     const syncSummary = await SyncService.processBatch(userId, actions);
-    res.status(200).json(syncSummary);
-  } catch (error: any) {
-    console.error("Batch Sync Processing Error:", error);
-    res.status(500).json({
-      error: "Failed to process offline sync batch",
-      details: error.message,
-    });
-  }
-};
+
+    sendSuccess(res, 200, { data: syncSummary });
+  },
+);

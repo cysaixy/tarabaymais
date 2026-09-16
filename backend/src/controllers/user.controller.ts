@@ -1,29 +1,34 @@
 import { Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
 import prisma from "../config/prisma";
+import { asyncHandler } from "../utils/asyncHandler";
+import { sendSuccess } from "../utils/apiResponse";
+import { ApiError } from "../utils/ApiError";
+import { z } from "zod";
 
-export const registerFcmToken = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
-  try {
-    const userId = (req as any).user?.id;
-    const { fcmToken } = req.body;
+// ── Input schema ──────────────────────────────────────────────────────────────
 
-    if (!fcmToken) {
-      res.status(400).json({ error: "FCM token is required" });
-      return;
+const fcmTokenSchema = z.object({
+  fcmToken: z.string().min(1, "fcmToken is required"),
+});
+
+// ── Controller ────────────────────────────────────────────────────────────────
+
+/** POST /api/v1/register/fcm-token */
+export const registerFcmToken = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const parseResult = fcmTokenSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw ApiError.badRequest(
+        "Invalid request body",
+        parseResult.error.flatten().fieldErrors,
+      );
     }
 
     await prisma.user.update({
-      where: { id: userId },
-      data: { fcmToken },
+      where: { id: req.user!.id },
+      data: { fcmToken: parseResult.data.fcmToken },
     });
 
-    res.status(200).json({ message: "FCM token updated successfully" });
-  } catch (error: any) {
-    res
-      .status(500)
-      .json({ error: "Failed to update FCM token", details: error.message });
-  }
-};
+    sendSuccess(res, 200, { message: "FCM token updated successfully" });
+  },
+);

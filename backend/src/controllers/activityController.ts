@@ -1,119 +1,151 @@
 import { Request, Response } from "express";
 import prisma from "../config/prisma";
-import { CaseStatus, SeverityLevel, ActivityType } from "@prisma/client";
+import {
+  Prisma,
+  CaseStatus,
+  SeverityLevel,
+  ActivityType,
+  Role,
+} from "@prisma/client";
 import { uploadToSupabase } from "../utils/uploadToSupabase";
 import { FcmService } from "../services/fcm.service";
-import { Role } from "@prisma/client";
+import { asyncHandler } from "../utils/asyncHandler";
+import { sendSuccess } from "../utils/apiResponse";
+import { ApiError } from "../utils/ApiError";
+import { z } from "zod";
 
-export const logCropActivity = async (req: Request, res: Response) => {
-  const { cropCycleId } = req.params;
-  const { activityType, description, costAmount, performedAt } = req.body;
+// ── Input schemas (Zod v4 compatible) ─────────────────────────────────────────
 
-  const validActivityTypes = Object.values(ActivityType);
+const logActivitySchema = z.object({
+  activityType: z.enum(
+    Object.values(ActivityType) as [ActivityType, ...ActivityType[]],
+  ),
+  description: z.string().optional(),
+  costAmount: z.coerce.number().nonnegative().optional().nullable(),
+  performedAt: z.string().optional(),
+});
 
-  if (!validActivityTypes.includes(activityType)) {
-    return res.status(400).json({
-      error: "Invalid activityType",
-      allowedValues: validActivityTypes,
-    });
-  }
+const createObservationSchema = z.object({
+  title: z.string().min(1, "title is required"),
+  description: z.string().optional(),
+  severity: z.enum(
+    Object.values(SeverityLevel) as [SeverityLevel, ...SeverityLevel[]],
+  ),
+  aiDiagnosis: z.unknown().optional(),
+});
 
-  try {
-    const cycle = await prisma.cropCycle.findFirst({
-      where: {
-        id: cropCycleId as string,
-        farm: {
-          farmerId: req.user!.id,
-        },
-      },
-    });
+// ── Controllers ───────────────────────────────────────────────────────────────
 
-    if (!cycle) {
-      return res
-        .status(404)
-        .json({ error: "Crop cycle not found or access denied" });
+/** POST /api/v1/activities/:cropCycleId */
+export const logCropActivity = asyncHandler(
+  async (req: Request, res: Response) => {
+    const cropCycleId = req.params["cropCycleId"] as string;
+
+    const parseResult = logActivitySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw ApiError.badRequest(
+        "Invalid request body",
+        parseResult.error.flatten().fieldErrors,
+      );
     }
 
-    const activity = await prisma.cropActivity.create({
-      data: {
-        cropCycleId: cropCycleId as string,
-        activityType: activityType as ActivityType,
-        description,
-        costAmount:
-          costAmount !== undefined && costAmount !== null
-            ? parseFloat(costAmount)
-            : null,
-        performedAt: performedAt ? new Date(performedAt) : new Date(),
-      },
-    });
+    const { activityType, description, costAmount, performedAt } =
+      parseResult.data;
 
-    return res.status(201).json({ activity });
-  } catch (error: any) {
-    return res
-      .status(400)
-      .json({ error: "Failed to log activity", details: error.message });
-  }
-};
-
-export const createObservation = async (req: Request, res: Response) => {
-  const { cropCycleId } = req.params;
-  const { title, description, severity, aiDiagnosis } = req.body;
-
-  const validSeverities = Object.values(SeverityLevel);
-
-  if (!validSeverities.includes(severity)) {
-    return res.status(400).json({
-      error: "Invalid severity",
-      allowedValues: validSeverities,
-    });
-  }
-
-  try {
     const cycle = await prisma.cropCycle.findFirst({
       where: {
-        id: cropCycleId as string,
+        id: cropCycleId,
         farm: { farmerId: req.user!.id },
       },
     });
 
     if (!cycle) {
-      return res
-        .status(404)
-        .json({ error: "Crop cycle not found or access denied" });
+      throw ApiError.notFound("Crop cycle not found or access denied");
     }
 
-    // Upload photo if one was provided
+    const activity = await prisma.cropActivity.create({
+      data: {
+        cropCycleId,
+        activityType,
+        description: description ?? "",
+        costAmount: costAmount ?? null,
+        performedAt: performedAt ? new Date(performedAt) : new Date(),
+      },
+    });
+
+    return sendSuccess(res, 201, { data: { activity } });
+  },
+);
+
+/** POST /api/v1/observations/:cropCycleId */
+export const createObservation = asyncHandler(
+  async (req: Request, res: Response) => {
+    const cropCycleId = req.params["cropCycleId"] as string;
+
+    const parseResult = createObservationSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw ApiError.badRequest(
+        "Invalid request body",
+        parseResult.error.flatten().fieldErrors,
+      );
+    }
+
+    const { title, description, severity, aiDiagnosis } = parseResult.data;
+
+    const cycle = await prisma.cropCycle.findFirst({
+      where: {
+        id: cropCycleId,
+        farm: { farmerId: req.user!.id },
+      },
+    });
+
+    if (!cycle) {
+      throw ApiError.notFound("Crop cycle not found or access denied");
+    }
+
+    // Upload photo if provided
     let imageUrl: string | null = null;
     if (req.file) {
       imageUrl = await uploadToSupabase(req.file);
     }
 
-    let parsedDiagnosis = null;
-    if (aiDiagnosis) {
-      try {
-        parsedDiagnosis =
-          typeof aiDiagnosis === "string"
-            ? JSON.parse(aiDiagnosis)
-            : aiDiagnosis;
-      } catch {
-        return res
-          .status(400)
-          .json({ error: "Invalid JSON string format for aiDiagnosis" });
+    // Normalize aiDiagnosis: accept a JSON string or plain object
+    let parsedDiagnosis:
+      | Prisma.NullableJsonNullValueInput
+      | Prisma.InputJsonValue = Prisma.JsonNull;
+
+    const rawDiagnosis = aiDiagnosis as string | object | null | undefined;
+
+    if (rawDiagnosis != null) {
+      if (typeof rawDiagnosis === "string") {
+        try {
+          const parsed = JSON.parse(rawDiagnosis);
+
+          parsedDiagnosis =
+            parsed === null
+              ? Prisma.JsonNull
+              : (parsed as Prisma.InputJsonValue);
+        } catch {
+          throw ApiError.badRequest("Invalid JSON string for aiDiagnosis");
+        }
+      } else {
+        parsedDiagnosis = rawDiagnosis as Prisma.InputJsonValue;
       }
     }
 
     const observation = await prisma.observation.create({
       data: {
-        cropCycleId: cropCycleId as string,
+        cropCycleId,
         farmerId: req.user!.id,
         title,
-        description,
-        imageUrl: imageUrl || null,
+        description: description ?? "",
+        imageUrl,
         aiDiagnosis: parsedDiagnosis,
-        severity: severity || SeverityLevel.LOW,
+        severity,
       },
     });
 
+    // Auto-escalate HIGH / CRITICAL observations to the expert queue
     let autoEscalatedCase = null;
     if (
       severity === SeverityLevel.HIGH ||
@@ -126,11 +158,10 @@ export const createObservation = async (req: Request, res: Response) => {
         },
       });
 
-      // DISPATCH PUSH ALERT TO TECHNICIANS
       await FcmService.sendToRole(
         Role.TECHNICIAN,
         "🚨 High Severity Field Alert",
-        `New ${severity} crop observation reported requiring inspection: "${title}"`,
+        `New ${severity} crop observation requires inspection: "${title}"`,
         {
           caseId: autoEscalatedCase.id,
           observationId: observation.id,
@@ -139,10 +170,6 @@ export const createObservation = async (req: Request, res: Response) => {
       );
     }
 
-    return res.status(201).json({ observation, autoEscalatedCase });
-  } catch (error: any) {
-    return res
-      .status(400)
-      .json({ error: "Failed to record observation", details: error.message });
-  }
-};
+    return sendSuccess(res, 201, { data: { observation, autoEscalatedCase } });
+  },
+);

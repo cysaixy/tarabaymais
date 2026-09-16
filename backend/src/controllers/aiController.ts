@@ -1,25 +1,45 @@
 import { Request, Response } from "express";
 import { GoogleGenAI } from "@google/genai";
-import dotenv from "dotenv";
+import { asyncHandler } from "../utils/asyncHandler";
+import { sendSuccess } from "../utils/apiResponse";
+import { ApiError } from "../utils/ApiError";
 
-dotenv.config();
-
+// ── AI client initialization ──────────────────────────────────────────────────
+// Validated at startup so we fail fast rather than at request time.
 const apiKey = process.env.GEMINI_API_KEY;
-
 if (!apiKey) {
-  throw new Error("GEMINI_API_KEY environment variable is not configured");
+  throw new Error("[AI] GEMINI_API_KEY environment variable is not configured");
 }
 
 const ai = new GoogleGenAI({ apiKey });
+const modelName = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
 
-export const scanCropHealth = async (req: Request, res: Response) => {
-  if (!req.file) {
-    return res
-      .status(400)
-      .json({ error: "Image file is required for AI scanning" });
-  }
+// ── Diagnosis prompt ──────────────────────────────────────────────────────────
+const DIAGNOSIS_PROMPT = `
+You are an expert agricultural botanist specializing in corn (maize) crops in the Philippines.
+Analyze this image of a corn leaf or plant and provide a diagnosis in strict raw JSON format
+(no markdown code blocks, no trailing text).
 
-  try {
+Expected JSON structure:
+{
+  "isCornPlant": true,
+  "diseaseDetected": "Disease or Pest Name or None",
+  "confidence": 0.95,
+  "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+  "description": "Brief 2-sentence explanation of visible symptoms.",
+  "recommendedAction": "Immediate steps the farmer should take."
+}
+`.trim();
+
+// ── Controller ────────────────────────────────────────────────────────────────
+
+/** POST /api/v1/ai/scan */
+export const scanCropHealth = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      throw ApiError.badRequest("Image file is required for AI scanning");
+    }
+
     const imagePart = {
       inlineData: {
         data: req.file.buffer.toString("base64"),
@@ -27,36 +47,22 @@ export const scanCropHealth = async (req: Request, res: Response) => {
       },
     };
 
-    const prompt = `
-      You are an expert agricultural botanist specializing in corn (maize) crops in the Philippines.
-      Analyze this image of a corn leaf or plant and provide a diagnosis in strict raw JSON format (no markdown code blocks, no trailing text).
-
-      Expected JSON Structure:
-      {
-        "isCornPlant": true,
-        "diseaseDetected": "Disease or Pest Name or None",
-        "confidence": 0.95,
-        "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
-        "description": "Brief 2-sentence explanation of visible symptoms.",
-        "recommendedAction": "Immediate steps the farmer should take."
-      }
-    `;
-
-    const modelName = process.env.GEMINI_MODEL || "gemini-3.6-flash";
-
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: [prompt, imagePart],
+      contents: [DIAGNOSIS_PROMPT, imagePart],
     });
 
     const rawText = response.text?.replace(/```json|```/g, "").trim();
-    const diagnosis = JSON.parse(rawText || "{}");
 
-    return res.status(200).json({ diagnosis });
-  } catch (error: any) {
-    return res.status(500).json({
-      error: "AI diagnostic scan failed",
-      details: error.message,
-    });
-  }
-};
+    let diagnosis: unknown;
+    try {
+      diagnosis = JSON.parse(rawText ?? "{}");
+    } catch {
+      throw ApiError.internal(
+        "AI returned a malformed response — unable to parse diagnosis JSON",
+      );
+    }
+
+    return sendSuccess(res, 200, { data: { diagnosis } });
+  },
+);

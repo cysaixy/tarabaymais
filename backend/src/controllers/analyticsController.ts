@@ -1,9 +1,14 @@
 import { Request, Response } from "express";
 import prisma from "../config/prisma";
 import { Role, CropStatus, CaseStatus } from "@prisma/client";
+import { asyncHandler } from "../utils/asyncHandler";
+import { sendSuccess } from "../utils/apiResponse";
 
-export const getSummaryAnalytics = async (_req: Request, res: Response) => {
-  try {
+// ── Controllers ───────────────────────────────────────────────────────────────
+
+/** GET /api/v1/analytics/summary */
+export const getSummaryAnalytics = asyncHandler(
+  async (_req: Request, res: Response) => {
     const [
       totalFarmers,
       totalFarms,
@@ -12,22 +17,13 @@ export const getSummaryAnalytics = async (_req: Request, res: Response) => {
       activeCasesCount,
       disasterLossAggregation,
     ] = await Promise.all([
-      // Total registered farmers
       prisma.user.count({ where: { role: Role.FARMER } }),
-
-      // Total registered farms
       prisma.farm.count(),
-
-      // Active crop cycles count
       prisma.cropCycle.count({ where: { status: CropStatus.ACTIVE } }),
-
-      // Total active planted corn area in hectares
       prisma.cropCycle.aggregate({
         where: { status: CropStatus.ACTIVE },
         _sum: { areaHectares: true },
       }),
-
-      // Unresolved expert request cases
       prisma.expertRequest.count({
         where: {
           status: {
@@ -39,8 +35,6 @@ export const getSummaryAnalytics = async (_req: Request, res: Response) => {
           },
         },
       }),
-
-      // Total estimated disaster losses & average damage
       prisma.disasterReport.aggregate({
         _sum: { estimatedLoss: true },
         _avg: { damagePercentage: true },
@@ -48,33 +42,30 @@ export const getSummaryAnalytics = async (_req: Request, res: Response) => {
       }),
     ]);
 
-    return res.status(200).json({
-      summary: {
-        totalFarmers,
-        totalFarms,
-        activeCropCycles: activeCycles,
-        totalActiveHectares: hectareAggregation._sum.areaHectares || 0,
-        pendingExpertCases: activeCasesCount,
-        disasterMetrics: {
-          totalReports: disasterLossAggregation._count.id,
-          totalEstimatedLossPHP:
-            disasterLossAggregation._sum.estimatedLoss || 0,
-          averageDamagePercentage:
-            disasterLossAggregation._avg.damagePercentage || 0,
+    return sendSuccess(res, 200, {
+      data: {
+        summary: {
+          totalFarmers,
+          totalFarms,
+          activeCropCycles: activeCycles,
+          totalActiveHectares: hectareAggregation._sum.areaHectares ?? 0,
+          pendingExpertCases: activeCasesCount,
+          disasterMetrics: {
+            totalReports: disasterLossAggregation._count.id,
+            totalEstimatedLossPHP:
+              disasterLossAggregation._sum.estimatedLoss ?? 0,
+            averageDamagePercentage:
+              disasterLossAggregation._avg.damagePercentage ?? 0,
+          },
         },
       },
     });
-  } catch (error: any) {
-    return res.status(500).json({
-      error: "Failed to fetch summary analytics",
-      details: error.message,
-    });
-  }
-};
+  },
+);
 
-export const getBarangayDistribution = async (_req: Request, res: Response) => {
-  try {
-    // Group active farms and hectarage by barangay
+/** GET /api/v1/analytics/barangays */
+export const getBarangayDistribution = asyncHandler(
+  async (_req: Request, res: Response) => {
     const barangayData = await prisma.farm.groupBy({
       by: ["barangay"],
       _count: { id: true },
@@ -82,13 +73,6 @@ export const getBarangayDistribution = async (_req: Request, res: Response) => {
       orderBy: { barangay: "asc" },
     });
 
-    return res.status(200).json({ barangays: barangayData });
-  } catch (error: any) {
-    return res.status(500).json({
-      error: "Failed to fetch barangay distribution",
-      details: error.message,
-    });
-  }
-};
-
-export const createCsvReport = async (req: Request, res: Response) => {};
+    return sendSuccess(res, 200, { data: { barangays: barangayData } });
+  },
+);

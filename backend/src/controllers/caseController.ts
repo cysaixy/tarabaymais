@@ -1,39 +1,63 @@
-import { Role } from "@prisma/client";
 import { Request, Response } from "express";
 import prisma from "../config/prisma";
-import { CaseStatus } from "@prisma/client";
+import { CaseStatus, Role } from "@prisma/client";
 import { FcmService } from "../services/fcm.service";
-export const getUnifiedCases = async (req: Request, res: Response) => {
-  const userId = req.user!.id;
-  const userRole = req.user!.role;
+import { asyncHandler } from "../utils/asyncHandler";
+import { sendSuccess } from "../utils/apiResponse";
+import { ApiError } from "../utils/ApiError";
+import { z } from "zod";
 
-  try {
-    let expertCasesWhere = {};
-    let disasterCasesWhere = {};
+// ── Input schemas (Zod v4 compatible) ─────────────────────────────────────────
 
-    if (userRole === Role.FARMER) {
-      expertCasesWhere = {
-        observation: {
-          farmerId: userId,
-        },
-      };
-      disasterCasesWhere = {
-        farm: {
-          farmerId: userId,
-        },
-      };
-    }
+const updateCaseStatusSchema = z.object({
+  caseType: z.enum(["EXPERT_REQUEST", "DISASTER_REPORT"]),
+  status: z.enum(
+    Object.values(CaseStatus) as [CaseStatus, ...CaseStatus[]],
+  ),
+  recommendation: z.string().optional(),
+  assignedTechnicianId: z.string().optional(),
+});
+
+const createDisasterReportSchema = z.object({
+  disasterType: z.string().min(1, "disasterType is required"),
+  damagePercentage: z.coerce.number().min(0).max(100),
+  estimatedLoss: z.coerce.number().nonnegative().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+const resolveExpertCaseSchema = z.object({
+  recommendation: z.string().min(1, "recommendation is required"),
+  status: z
+    .enum(Object.values(CaseStatus) as [CaseStatus, ...CaseStatus[]])
+    .optional()
+    .default(CaseStatus.RESOLVED),
+});
+
+// ── Controllers ───────────────────────────────────────────────────────────────
+
+/** GET /api/v1/case/pipeline */
+export const getUnifiedCases = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const userRole = req.user!.role;
+
+    // Farmers only see their own cases; staff see all
+    const expertCasesWhere =
+      userRole === Role.FARMER
+        ? { observation: { farmerId: userId } }
+        : {};
+
+    const disasterCasesWhere =
+      userRole === Role.FARMER
+        ? { farm: { farmerId: userId } }
+        : {};
 
     const [expertRequests, disasterReports] = await Promise.all([
       prisma.expertRequest.findMany({
         where: expertCasesWhere,
         include: {
           observation: {
-            include: {
-              cropCycle: {
-                include: { farm: true },
-              },
-            },
+            include: { cropCycle: { include: { farm: true } } },
           },
           assignedTechnician: {
             select: { firstName: true, lastName: true, phone: true },
@@ -45,134 +69,127 @@ export const getUnifiedCases = async (req: Request, res: Response) => {
         where: disasterCasesWhere,
         include: {
           farm: true,
-          verifiedBy: {
-            select: { firstName: true, lastName: true },
-          },
+          verifiedBy: { select: { firstName: true, lastName: true } },
         },
         orderBy: { createdAt: "desc" },
       }),
     ]);
 
-    return res.status(200).json({
-      pipeline: {
-        expertCases: expertRequests,
-        disasterCases: disasterReports,
+    return sendSuccess(res, 200, {
+      data: {
+        pipeline: {
+          expertCases: expertRequests,
+          disasterCases: disasterReports,
+        },
       },
     });
-  } catch (error: any) {
-    return res
-      .status(500)
-      .json({ error: "Failed to fetch case pipeline", details: error.message });
-  }
-};
+  },
+);
 
-export const updateCaseStatus = async (req: Request, res: Response) => {
-  const { caseId } = req.params;
-  const { caseType, status, recommendation, assignedTechnicianId } = req.body;
+/** PATCH /api/v1/case/pipeline/:caseId */
+export const updateCaseStatus = asyncHandler(
+  async (req: Request, res: Response) => {
+    const caseId = req.params["caseId"] as string;
 
-  if (!Object.values(CaseStatus).includes(status)) {
-    return res.status(400).json({ error: "Invalid status value" });
-  }
-
-  try {
-    if (caseType === "EXPERT_REQUEST") {
-      const updateData = {
-        status,
-        ...(recommendation !== undefined && {
-          recommendation,
-        }),
-        ...(assignedTechnicianId && {
-          assignedTechnician: {
-            connect: { id: assignedTechnicianId },
-          },
-        }),
-        ...(status === CaseStatus.RESOLVED && {
-          resolvedAt: new Date(),
-        }),
-      };
-
-      const updated = await prisma.expertRequest.update({
-        where: { id: caseId as string },
-        data: updateData,
-      });
-
-      return res.status(200).json({ updatedCase: updated });
+    const parseResult = updateCaseStatusSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw ApiError.badRequest(
+        "Invalid request body",
+        parseResult.error.flatten().fieldErrors,
+      );
     }
 
-    if (caseType === "DISASTER_REPORT") {
-      const updated = await prisma.disasterReport.update({
-        where: { id: caseId as string },
+    const { caseType, status, recommendation, assignedTechnicianId } =
+      parseResult.data;
+
+    if (caseType === "EXPERT_REQUEST") {
+      const updated = await prisma.expertRequest.update({
+        where: { id: caseId },
         data: {
           status,
-          verifiedById: req.user!.id,
+          ...(recommendation !== undefined && { recommendation }),
+          ...(assignedTechnicianId && {
+            assignedTechnician: { connect: { id: assignedTechnicianId } },
+          }),
+          ...(status === CaseStatus.RESOLVED && { resolvedAt: new Date() }),
         },
       });
-      return res.status(200).json({ updatedCase: updated });
+      return sendSuccess(res, 200, { data: { updatedCase: updated } });
     }
 
-    return res.status(400).json({ error: "Invalid caseType specified" });
-  } catch (error: any) {
-    return res
-      .status(400)
-      .json({ error: "Failed to update case status", details: error.message });
-  }
-};
+    // caseType === "DISASTER_REPORT"
+    const updated = await prisma.disasterReport.update({
+      where: { id: caseId },
+      data: { status, verifiedById: req.user!.id },
+    });
+    return sendSuccess(res, 200, { data: { updatedCase: updated } });
+  },
+);
 
-export const createDisasterReport = async (req: Request, res: Response) => {
-  const { farmId } = req.params;
-  const { disasterType, damagePercentage, estimatedLoss, notes } = req.body;
+/** POST /api/v1/case/disaster-report/:farmId */
+export const createDisasterReport = asyncHandler(
+  async (req: Request, res: Response) => {
+    const farmId = req.params["farmId"] as string;
 
-  try {
+    const parseResult = createDisasterReportSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw ApiError.badRequest(
+        "Invalid request body",
+        parseResult.error.flatten().fieldErrors,
+      );
+    }
+
+    const { disasterType, damagePercentage, estimatedLoss, notes } =
+      parseResult.data;
+
     const farm = await prisma.farm.findFirst({
-      where: {
-        id: farmId as string,
-        farmerId: req.user!.id,
-      },
+      where: { id: farmId, farmerId: req.user!.id },
     });
 
     if (!farm) {
-      return res.status(404).json({
-        error: "Farm not found or access denied",
-      });
+      throw ApiError.notFound("Farm not found or access denied");
     }
 
     const report = await prisma.disasterReport.create({
       data: {
-        farmId: farmId as string,
+        farmId,
         disasterType,
-        damagePercentage: parseFloat(damagePercentage),
-        estimatedLoss: estimatedLoss ? parseFloat(estimatedLoss) : null,
-        notes: notes || null,
+        damagePercentage,
+        estimatedLoss: estimatedLoss ?? null,
+        notes: notes ?? null,
         status: CaseStatus.SUBMITTED,
       },
     });
 
-    return res.status(201).json({ disasterReport: report });
-  } catch (error: any) {
-    return res.status(400).json({
-      error: "Failed to submit disaster report",
-      details: error.message,
-    });
-  }
-};
+    return sendSuccess(res, 201, { data: { disasterReport: report } });
+  },
+);
 
-export const resolveExpertCase = async (req: Request, res: Response) => {
-  const { caseId } = req.params;
-  const { recommendation, status } = req.body;
+/** PATCH /api/v1/case/expert-requests/:caseId/resolve */
+export const resolveExpertCase = asyncHandler(
+  async (req: Request, res: Response) => {
+    const caseId = req.params["caseId"] as string;
 
-  try {
+    const parseResult = resolveExpertCaseSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw ApiError.badRequest(
+        "Invalid request body",
+        parseResult.error.flatten().fieldErrors,
+      );
+    }
+
+    const { recommendation, status } = parseResult.data;
+
     const updatedCase = await prisma.expertRequest.update({
-      where: { id: caseId as string },
+      where: { id: caseId },
       data: {
         recommendation,
-        status: status || CaseStatus.RESOLVED,
+        status,
         assignedTechnicianId: req.user!.id,
         resolvedAt: status === CaseStatus.RESOLVED ? new Date() : null,
       },
       include: {
-        observation: {
-          include: { farmer: true, cropCycle: true },
-        },
+        observation: { include: { farmer: true, cropCycle: true } },
       },
     });
 
@@ -180,16 +197,9 @@ export const resolveExpertCase = async (req: Request, res: Response) => {
       updatedCase.observation.farmerId,
       "✅ Crop Issue Recommendation Updated",
       `A field technician has responded to your observation: "${updatedCase.observation.title}"`,
-      {
-        caseId: updatedCase.id,
-        type: "CASE_RESOLVED",
-      },
+      { caseId: updatedCase.id, type: "CASE_RESOLVED" },
     );
 
-    return res.status(200).json({ resolvedCase: updatedCase });
-  } catch (error: any) {
-    return res
-      .status(400)
-      .json({ error: "Failed to resolve case", details: error.message });
-  }
-};
+    return sendSuccess(res, 200, { data: { resolvedCase: updatedCase } });
+  },
+);
