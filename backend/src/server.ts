@@ -11,6 +11,7 @@ import analRoutes from "./routes/analyticsRoutes";
 import activityRoutes from "./routes/activityRoutes";
 import userRoutes from "./routes/user.routes";
 import analyticsReport from "./routes/analytics.routes";
+import sync from "./routes/sync.routes";
 
 const app = express();
 const port = process.env.PORT ?? 3000;
@@ -27,6 +28,7 @@ app.use("/api/v1/analytics", analRoutes);
 app.use("/api/v1/", activityRoutes);
 app.use("/api/v1/register", userRoutes);
 app.use("/api/v1/analytics-report", analyticsReport);
+app.use("/api/v1/sync", sync);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
