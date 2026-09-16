@@ -58,13 +58,13 @@ export const errorMiddleware = (
 
 /** Loosely identifies Prisma client known-request errors. */
 function isPrismaError(err: unknown): err is { code: string; message: string } {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    typeof (err as Record<string, unknown>).code === "string" &&
-    (err as Record<string, unknown>).code.toString().startsWith("P")
-  );
+  if (typeof err !== "object" || err === null) {
+    return false;
+  }
+
+  const code = (err as { code?: unknown }).code;
+
+  return typeof code === "string" && code.startsWith("P");
 }
 
 function mapPrismaError(err: { code: string }): {
@@ -73,7 +73,10 @@ function mapPrismaError(err: { code: string }): {
 } {
   switch (err.code) {
     case "P2002":
-      return { status: 409, message: "A record with that value already exists" };
+      return {
+        status: 409,
+        message: "A record with that value already exists",
+      };
     case "P2025":
       return { status: 404, message: "Record not found" };
     case "P2003":
