@@ -8,6 +8,10 @@ const Header = () => {
   const { user, profile, role, logout } = useAuth();
   const navigate = useNavigate();
 
+  const displayName = profile
+    ? `${profile.firstName} ${profile.lastName}`.trim()
+    : user?.email;
+
   const handleLogout = async () => {
     await logout();
     navigate("/login", { replace: true });
@@ -59,7 +63,7 @@ const Header = () => {
             )}
 
             <span className="mx-2 hidden text-sm text-slate-400 sm:inline">
-              {profile?.email ?? "Signed in"}
+              {displayName ?? "Signed in"}
               {role && (
                 <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-xs uppercase tracking-wide text-teal-300">
                   {role}

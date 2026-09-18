@@ -7,7 +7,10 @@ const stats = [
 ];
 
 const FarmerDashboardPage = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const displayName = profile
+    ? `${profile.firstName} ${profile.lastName}`.trim()
+    : user?.email;
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-10">
@@ -16,7 +19,7 @@ const FarmerDashboardPage = () => {
           Farmer
         </p>
         <h1 className="mt-1 text-3xl font-bold text-white">
-          Welcome back{profile?.email ? `, ${profile.email}` : ""}
+          Welcome back{displayName ? `, ${displayName}` : ""}
         </h1>
         <p className="mt-2 max-w-2xl text-slate-400">
           Monitor your fields, track tasks, and request technician support from
