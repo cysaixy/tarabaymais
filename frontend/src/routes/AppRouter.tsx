@@ -36,7 +36,10 @@ const farmerRoutes = (
     <Route path="/farmer/chat" element={<FarmerChatPage />} />
     <Route path="/farmer/observation" element={<FarmerObservationPage />} />
     <Route path="/farmer/disaster" element={<FarmerDisasterReportPage />} />
-    <Route path="/farmer/expert-request" element={<FarmerExpertRequestPage />} />
+    <Route
+      path="/farmer/expert-request"
+      element={<FarmerExpertRequestPage />}
+    />
     <Route path="/farmer/scanner" element={<FarmerScannerPage />} />
     <Route path="/farmer/activity" element={<FarmerActivityPage />} />
     <Route path="/farmer/history" element={<FarmerHistoryPage />} />

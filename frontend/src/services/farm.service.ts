@@ -55,7 +55,7 @@ export const createFarm = async (payload: CreateFarmPayload): Promise<Farm> => {
 /** Creates a crop cycle nested under a farm */
 export const createCropCycle = async (
   farmId: string,
-  payload: CreateCropCyclePayload
+  payload: CreateCropCyclePayload,
 ): Promise<CropCycle> => {
   const { data } = await api.post(`/crop-cycles/farm/${farmId}`, payload);
   return data.data.cropCycle;

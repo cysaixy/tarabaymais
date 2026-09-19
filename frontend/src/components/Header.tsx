@@ -4,6 +4,13 @@ import { useAuth } from "../context/authContext";
 const linkBase =
   "px-3 py-2 rounded-md text-sm font-medium transition-colors";
 
+const navClass = ({ isActive }: { isActive: boolean }) =>
+  `${linkBase} ${
+    isActive
+      ? "bg-teal-500/15 text-teal-300"
+      : "text-slate-300 hover:text-white hover:bg-slate-800"
+  }`;
+
 const Header = () => {
   const { user, profile, role, logout } = useAuth();
   const navigate = useNavigate();
@@ -34,31 +41,21 @@ const Header = () => {
         {user && (
           <nav className="flex items-center gap-1">
             {role === "farmer" && (
-              <NavLink
-                to="/farmer"
-                className={({ isActive }) =>
-                  `${linkBase} ${
-                    isActive
-                      ? "bg-teal-500/15 text-teal-300"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`
-                }
-              >
-                Farmer Home
-              </NavLink>
+              <>
+                <NavLink to="/farmer" end className={navClass}>
+                  Home
+                </NavLink>
+                <NavLink to="/farmer/farms" className={navClass}>
+                  My Farms
+                </NavLink>
+                <NavLink to="/farmer/farms/new" className={navClass}>
+                  Add Farm
+                </NavLink>
+              </>
             )}
             {role === "technician" && (
-              <NavLink
-                to="/technician"
-                className={({ isActive }) =>
-                  `${linkBase} ${
-                    isActive
-                      ? "bg-teal-500/15 text-teal-300"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`
-                }
-              >
-                Technician Home
+              <NavLink to="/technician" end className={navClass}>
+                Home
               </NavLink>
             )}
 
