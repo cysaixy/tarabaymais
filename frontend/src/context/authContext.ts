@@ -30,6 +30,8 @@ export interface AuthContextType {
   role: UserRole | null;
   loading: boolean;
   logout: () => Promise<void>;
+  loginAsDemo?: (role: UserRole) => void;
+  loginWithPhonePin?: (phone: string, pin: string) => Promise<boolean>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(

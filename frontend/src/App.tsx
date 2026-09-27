@@ -1,6 +1,7 @@
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { AuthProvider } from "./context/AuthProvider";
 import { AppRouter } from "./routes/AppRouter";
+import { Toaster } from "sonner";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 
@@ -12,12 +13,19 @@ function AppShell() {
   const isAuthRoute =
     location.pathname.startsWith("/auth") ||
     location.pathname === "/login" ||
-    location.pathname === "/register";
+    location.pathname === "/register" ||
+    location.pathname === "/onboarding";
 
-  const hideGlobalLayout = isAuthRoute;
+  const isFarmerRoute = location.pathname.startsWith("/farmer");
+  const hideGlobalLayout = isAuthRoute || isFarmerRoute;
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 font-sans text-slate-100 selection:bg-teal-500/30">
+    <div
+      className={`flex min-h-screen flex-col font-sans text-slate-100 selection:bg-emerald-500/30 ${
+        isAuthRoute ? "bg-[#03543f] md:bg-slate-950" : "bg-slate-950"
+      }`}
+    >
+      <Toaster position="top-center" richColors closeButton />
       {!hideGlobalLayout && <Header />}
 
       <div className="flex flex-1 flex-col">
