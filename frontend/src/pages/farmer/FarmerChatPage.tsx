@@ -301,10 +301,10 @@ export const FarmerChatPage: React.FC = () => {
                   key={idx}
                   type="button"
                   onClick={() => handleSendMessage(qp)}
-                  className="w-full rounded-full border-2 border-cyan-400 bg-white hover:bg-cyan-50/50 active:scale-[0.99] px-4 py-2.5 text-left text-xs font-semibold text-slate-800 shadow-sm flex items-center justify-between transition cursor-pointer"
+                  className="w-full rounded-full border-2 border-emerald-500 bg-white hover:bg-emerald-50/60 active:scale-[0.99] px-4 py-2.5 text-left text-xs font-semibold text-slate-800 shadow-sm flex items-center justify-between transition cursor-pointer"
                 >
                   <span className="line-clamp-1">{qp}</span>
-                  <ArrowRight className="w-4 h-4 text-cyan-600 shrink-0 ml-2" />
+                  <ArrowRight className="w-4 h-4 text-emerald-700 shrink-0 ml-2 stroke-[2.2]" />
                 </button>
               ))}
             </div>
