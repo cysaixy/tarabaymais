@@ -4,7 +4,7 @@ import { ProtectedRoute } from "./ProtectedRoute";
 
 import FarmerLoginPage from "../pages/auth/FarmerLoginPage";
 import FarmerOnboardingPage from "../pages/auth/FarmerOnboardingPage";
-import AuthPage from "../pages/auth/AuthPage";
+import OfficerLoginPage from "../pages/auth/OfficerLoginPage";
 import FarmerDashboardPage from "../pages/farmer/FarmerDashboardPage";
 import FarmerChatPage from "../pages/farmer/FarmerChatPage";
 import FarmerObservationPage from "../pages/farmer/FarmerObservationPage";
@@ -12,6 +12,7 @@ import FarmerDisasterReportPage from "../pages/farmer/FarmerDisasterReportPage";
 import FarmerExpertRequestPage from "../pages/farmer/FarmerExpertRequestPage";
 import FarmerScannerPage from "../pages/farmer/FarmerScannerPage";
 import FarmerActivityPage from "../pages/farmer/FarmerActivityPage";
+import FarmerHistoryPage from "../pages/farmer/FarmerHistoryPage";
 import TechnicianDashboardPage from "../pages/technician/TechnicianDashboardPage";
 
 // ---------------------------------------------------------------------------
@@ -21,7 +22,7 @@ const publicRoutes = (
   <>
     <Route path="/login" element={<FarmerLoginPage />} />
     <Route path="/onboarding" element={<FarmerOnboardingPage />} />
-    <Route path="/officer/login" element={<AuthPage />} />
+    <Route path="/officer/login" element={<OfficerLoginPage />} />
     <Route path="/register" element={<FarmerOnboardingPage />} />
   </>
 );
@@ -38,6 +39,7 @@ const farmerRoutes = (
     <Route path="/farmer/expert-request" element={<FarmerExpertRequestPage />} />
     <Route path="/farmer/scanner" element={<FarmerScannerPage />} />
     <Route path="/farmer/activity" element={<FarmerActivityPage />} />
+    <Route path="/farmer/history" element={<FarmerHistoryPage />} />
   </>
 );
 

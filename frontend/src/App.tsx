@@ -14,10 +14,12 @@ function AppShell() {
     location.pathname.startsWith("/auth") ||
     location.pathname === "/login" ||
     location.pathname === "/register" ||
-    location.pathname === "/onboarding";
+    location.pathname === "/onboarding" ||
+    location.pathname === "/officer/login";
 
   const isFarmerRoute = location.pathname.startsWith("/farmer");
-  const hideGlobalLayout = isAuthRoute || isFarmerRoute;
+  const isTechnicianRoute = location.pathname.startsWith("/technician");
+  const hideGlobalLayout = isAuthRoute || isFarmerRoute || isTechnicianRoute;
 
   return (
     <div

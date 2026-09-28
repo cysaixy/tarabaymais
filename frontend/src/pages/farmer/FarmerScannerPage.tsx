@@ -546,7 +546,7 @@ export const FarmerScannerPage: React.FC = () => {
           {/* History */}
           <button
             type="button"
-            onClick={() => navigate("/farmer")}
+            onClick={() => navigate("/farmer/history")}
             className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer relative"
           >
             <div className="relative">

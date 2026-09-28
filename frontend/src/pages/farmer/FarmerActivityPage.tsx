@@ -149,9 +149,7 @@ export const FarmerActivityPage: React.FC = () => {
   };
 
   const handleQueueClick = () => {
-    toast.info("Offline Sync Queue", {
-      description: `May ${queueCount} nakatagong tala sa telepono na handang i-sync.`,
-    });
+    navigate("/farmer/history");
   };
 
   return (

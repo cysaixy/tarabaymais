@@ -284,14 +284,7 @@ export const FarmerLoginPage: React.FC = () => {
             <div className="text-center pt-0.5">
               <button
                 type="button"
-                onClick={() => {
-                  if (loginAsDemo) loginAsDemo("technician");
-                  toast.info("Technician / Officer Portal", {
-                    description:
-                      "Pumapasok bilang Municipal Agricultural Technician.",
-                  });
-                  navigate("/technician");
-                }}
+                onClick={() => navigate("/officer/login")}
                 className="inline-flex items-center gap-1 text-[11px] sm:text-xs text-slate-500 hover:text-emerald-700 font-medium transition-colors cursor-pointer py-1"
               >
                 <Building2 className="w-3.5 h-3.5" />
