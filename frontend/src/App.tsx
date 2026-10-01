@@ -18,8 +18,10 @@ function AppShell() {
     location.pathname === "/officer/login";
 
   const isFarmerRoute = location.pathname.startsWith("/farmer");
-  const isTechnicianRoute = location.pathname.startsWith("/technician");
-  const hideGlobalLayout = isAuthRoute || isFarmerRoute || isTechnicianRoute;
+  const isMunicipalRoute =
+    location.pathname.startsWith("/officer") ||
+    location.pathname.startsWith("/technician");
+  const hideGlobalLayout = isAuthRoute || isFarmerRoute || isMunicipalRoute;
 
   return (
     <div

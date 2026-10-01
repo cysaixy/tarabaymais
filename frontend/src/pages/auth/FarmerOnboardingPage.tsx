@@ -1,16 +1,29 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { FirebaseError } from "firebase/app";
+import type { ConfirmationResult } from "firebase/auth";
 import { toast } from "sonner";
 import {
   ChevronLeft,
-  RefreshCw,
   ArrowRight,
   CheckCircle2,
   Layers,
   Calendar,
+  Phone,
+  KeyRound,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
-import { syncUser } from "../../services/auth.service";
+import {
+  sendOtp,
+  confirmOtp,
+  registerProfile,
+  toE164PH,
+} from "../../services/auth.service";
+import {
+  getRecaptchaVerifier,
+  clearRecaptchaVerifier,
+  auth,
+} from "../../firebase";
 import { createFarm, createCropCycle } from "../../services/farm.service";
 
 const CAGAYAN_MUNICIPALITIES = [
@@ -50,22 +63,53 @@ const CORN_VARIETIES = [
   "Lagkitan (Traditional White Glutinous)",
 ];
 
+type Step = 0 | 1 | 2 | 3; // 0 = auth (phone/OTP), 1 = profile, 2 = farm, 3 = crop
+
+const friendlyAuthError = (err: unknown): string => {
+  if (err instanceof FirebaseError) {
+    switch (err.code) {
+      case "auth/invalid-phone-number":
+        return "Hindi wasto ang numero ng telepono.";
+      case "auth/invalid-verification-code":
+        return "Maling OTP code. Pakisubukan muli.";
+      case "auth/code-expired":
+        return "Nag-expire na ang code. Humiling ng bago.";
+      case "auth/too-many-requests":
+        return "Masyadong maraming subok. Pakisubukan mamaya.";
+      default:
+        return "Nabigo ang pagpapatunay. Pakisubukan muli.";
+    }
+  }
+  return "May problemang teknikal. Pakisubukan muli.";
+};
+
 export const FarmerOnboardingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { loginAsDemo } = useAuth();
+  const { refreshProfile } = useAuth();
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<Step>(0);
   const [submitting, setSubmitting] = useState(false);
 
+  // ── Step 0 State: Phone Auth ──────────────────────────────────────────────
+  const [authSubStep, setAuthSubStep] = useState<"phone" | "otp">("phone");
+  const [otp, setOtp] = useState("");
+  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(
+    null,
+  );
+
   // ── Step 1 State: Farmer Profile ──────────────────────────────────────────
-  const [fullName, setFullName] = useState("Mang Danilo Ramos");
-  const [phone, setPhone] = useState("0917 584 9201");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("0917 000 0000");
+  const [rsbsaNumber, setRsbsaNumber] = useState("");
   const [municipality, setMunicipality] = useState("Solana");
-  const [barangay, setBarangay] = useState("Basi East");
+  const [barangay, setBarangay] = useState("");
 
   // ── Step 2 State: Farm Information ────────────────────────────────────────
-  const [farmName, setFarmName] = useState("Basi Corn Plantation #1");
-  const [ownership, setOwnership] = useState<"owned" | "rented" | "arb">("owned");
+  const [farmName, setFarmName] = useState("");
+  const [ownership, setOwnership] = useState<"owned" | "rented" | "arb">(
+    "owned",
+  );
   const [scope, setScope] = useState<"medium" | "above_medium">("medium");
   const [areaHectares, setAreaHectares] = useState<string>("2.5");
 
@@ -86,23 +130,22 @@ export const FarmerOnboardingPage: React.FC = () => {
     }
   };
 
+  const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+  };
+
   // ── Lifecycle Engine Calculation ──────────────────────────────────────────
   const lifecycle = useMemo(() => {
     const planted = new Date(plantingDate);
     const valid = !isNaN(planted.getTime());
     if (!valid) {
-      return {
-        dap: 0,
-        harvestDateStr: "---",
-        stageName: "Pagsisimula",
-      };
+      return { dap: 0, harvestDateStr: "---", stageName: "Pagsisimula" };
     }
 
-    const today = new Date("2026-09-28"); // anchored to current context date
+    const today = new Date();
     const diffTime = today.getTime() - planted.getTime();
     const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
-    // Expected harvest is ~108 days for hybrid corn
     const harvestDate = new Date(planted.getTime() + 108 * 24 * 60 * 60 * 1000);
     const months = [
       "Enero",
@@ -121,49 +164,108 @@ export const FarmerOnboardingPage: React.FC = () => {
     const harvestDateStr = `${months[harvestDate.getMonth()]} ${harvestDate.getDate()}, ${harvestDate.getFullYear()}`;
 
     let stageName = "Germination / Pagsibol";
-    if (diffDays >= 16 && diffDays <= 45) {
-      stageName = "Vegetative Stage";
-    } else if (diffDays >= 46 && diffDays <= 65) {
+    if (diffDays >= 16 && diffDays <= 45) stageName = "Vegetative Stage";
+    else if (diffDays >= 46 && diffDays <= 65)
       stageName = "Tasseling / Pamumulaklak";
-    } else if (diffDays >= 66 && diffDays <= 85) {
+    else if (diffDays >= 66 && diffDays <= 85)
       stageName = "Silking & Grain Filling / Pagkakaroon ng Butil";
-    } else if (diffDays >= 86 && diffDays <= 108) {
+    else if (diffDays >= 86 && diffDays <= 108)
       stageName = "Maturity / Pagkahinog";
-    } else if (diffDays > 108) {
-      stageName = "Harvest Ready / Handa nang Anihin";
-    }
+    else if (diffDays > 108) stageName = "Harvest Ready / Handa nang Anihin";
 
-    return {
-      dap: diffDays,
-      harvestDateStr,
-      stageName,
-    };
+    return { dap: diffDays, harvestDateStr, stageName };
   }, [plantingDate]);
 
   // ── Navigation Back ───────────────────────────────────────────────────────
   const handleBack = () => {
-    if (step === 3) {
-      setStep(2);
-    } else if (step === 2) {
-      setStep(1);
+    if (step === 3) setStep(2);
+    else if (step === 2) setStep(1);
+    else if (step === 1) {
+      // Going back from profile means abandoning the authenticated session.
+      void auth.signOut();
+      setStep(0);
+      setAuthSubStep("phone");
     } else {
       navigate("/login");
+    }
+  };
+
+  // ── Step 0a: send OTP ─────────────────────────────────────────────────────
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const rawPhone = phone.replace(/\D/g, "");
+    if (rawPhone.length < 10) {
+      toast.error("Kulang ang Telepono", {
+        description: "Mangyaring ilagay ang kumpletong mobile number.",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const verifier = getRecaptchaVerifier();
+      const result = await sendOtp(phone, verifier);
+      setConfirmation(result);
+      setAuthSubStep("otp");
+      toast.success("Naipadala ang OTP Code", {
+        description: `Ipinadala sa ${toE164PH(phone)}. Ilagay ang 6-digit code.`,
+      });
+    } catch (err) {
+      console.error(err);
+      clearRecaptchaVerifier();
+      toast.error("Hindi maipadala ang code", {
+        description: friendlyAuthError(err),
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Step 0b: confirm OTP → advance to profile ─────────────────────────────
+  const handleConfirmOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmation) return;
+    if (otp.length !== 6) {
+      toast.error("Kulang ang OTP Code", {
+        description: "Mangyaring ilagay ang kumpletong 6-digit code.",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await confirmOtp(confirmation, otp);
+      clearRecaptchaVerifier();
+      toast.success("Napatunayan ang Numero", {
+        description: "Ipagpatuloy ang pagpapatala ng inyong profile.",
+      });
+      setStep(1);
+    } catch (err) {
+      console.error(err);
+      toast.error("Maling Code", { description: friendlyAuthError(err) });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResendReset = async () => {
+    clearRecaptchaVerifier();
+    setOtp("");
+    setConfirmation(null);
+    setAuthSubStep("phone");
+    try {
+      if (auth.currentUser) await auth.signOut();
+    } catch {
+      /* no-op */
     }
   };
 
   // ── Step 1 Next ───────────────────────────────────────────────────────────
   const handleStep1Submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim()) {
+    if (!firstName.trim() || !lastName.trim()) {
       toast.error("Kulang ang Pangalan", {
-        description: "Mangyaring ilagay ang inyong buong pangalan.",
-      });
-      return;
-    }
-    const rawPhone = phone.replace(/\D/g, "");
-    if (rawPhone.length < 10) {
-      toast.error("Kulang ang Telepono", {
-        description: "Mangyaring ilagay ang kumpletong mobile number.",
+        description: "Mangyaring ilagay ang pangalan at apelyido.",
       });
       return;
     }
@@ -175,129 +277,99 @@ export const FarmerOnboardingPage: React.FC = () => {
     e.preventDefault();
     if (!farmName.trim()) {
       toast.error("Kulang ang Pangalan ng Sakahan", {
-        description: "Mangyaring ilagay ang pangalan o pagkakakilanlan ng bukid.",
+        description: "Mangyaring ilagay ang pangalan ng bukid.",
       });
       return;
     }
     const numArea = parseFloat(areaHectares);
     if (isNaN(numArea) || numArea <= 0) {
       toast.error("Maling Sukat ng Ektarya", {
-        description: "Ang sukat ng sakahan ay dapat positibong numero (hal. 2.5).",
+        description: "Ang sukat ay dapat positibong numero (hal. 2.5).",
       });
       return;
     }
     setStep(3);
   };
 
-  // ── Step 3 Complete ───────────────────────────────────────────────────────
+  // ── Step 3 Complete: register profile + farm + crop cycle ─────────────────
   const handleStep3Submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
 
-    const nameParts = fullName.trim().split(" ");
-    const firstName = nameParts.slice(0, -1).join(" ") || nameParts[0] || "Magsasaka";
-    const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "Dela Cruz";
+    if (!auth.currentUser) {
+      toast.error("Nawala ang Session", {
+        description: "Mangyaring ulitin ang pagpapatunay ng numero.",
+      });
+      setStep(0);
+      setAuthSubStep("phone");
+      return;
+    }
+
+    setSubmitting(true);
     const numArea = parseFloat(areaHectares) || 2.5;
 
     try {
-      // 1. Try creating user profile via backend sync if authenticated
-      try {
-        await syncUser({
-          firstName,
-          lastName,
-          phone: phone.trim(),
-          preferredLanguage: "filipino",
-        });
-      } catch {
-        // Backend or token might be offline/unauthenticated in demo
-      }
+      // Step A: create the backend User + FarmerProfile (UID derived from token).
+      await registerProfile({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: toE164PH(phone),
+        rsbsaNumber: rsbsaNumber.trim() || undefined,
+        preferredLanguage: "filipino",
+      });
 
-      // 2. Try creating farm via backend
-      let createdFarmId = "farm-local-01";
-      try {
-        const farmRes = await createFarm({
-          name: farmName.trim(),
-          municipality,
-          barangay: barangay.trim(),
-          areaHectares: numArea,
-        });
-        if (farmRes?.id) {
-          createdFarmId = farmRes.id;
-        }
-      } catch {
-        // Offline fallback
-      }
-
-      // 3. Try creating crop cycle via backend
-      try {
-        await createCropCycle(createdFarmId, {
-          cropType: "corn",
-          variety,
-          plantingDate,
-          areaHectares: numArea,
-        });
-      } catch {
-        // Offline fallback
-      }
-
-      // 4. Update local session state for seamless farmer dashboard access
-      if (loginAsDemo) {
-        loginAsDemo("farmer");
-      }
-
-      // Save onboarding farm context locally for offline resilience
-      const localFarmRecord = {
-        id: createdFarmId,
-        farmerName: fullName.trim(),
-        phone: phone.trim(),
+      // Step B: create the farm (separate post-onboarding resource).
+      const farm = await createFarm({
+        name: farmName.trim(),
         municipality,
         barangay: barangay.trim(),
-        farmName: farmName.trim(),
-        ownership,
-        scope,
         areaHectares: numArea,
+      });
+
+      // Step C: create the first crop cycle for that farm.
+      await createCropCycle(farm.id, {
         cropType: "corn",
         variety,
         plantingDate,
-        dap: lifecycle.dap,
-        stage: lifecycle.stageName,
-        expectedHarvestDate: lifecycle.harvestDateStr,
-      };
-      localStorage.setItem("tarabay_active_farm", JSON.stringify(localFarmRecord));
-
-      toast.success("Maligayang Pagdating sa Tarabay-Mais!", {
-        description: `Matagumpay na nairehistro ang sakahan sa ${barangay}, ${municipality}.`,
+        areaHectares: numArea,
       });
 
+      // Refresh the auth context so guards see the new FARMER profile.
+      await refreshProfile();
+
+      toast.success("Maligayang Pagdating sa Tarabay-Mais!", {
+        description: `Matagumpay na nairehistro ang sakahan sa ${barangay || municipality}.`,
+      });
       navigate("/farmer", { replace: true });
     } catch (err) {
       console.error(err);
-      toast.error("May problemang teknikal", {
-        description: "Naitago ang inyong datos sa telepono. Tutuloy na sa Dashboard.",
+      toast.error("Hindi Makumpleto ang Rehistro", {
+        description:
+          "May problema sa pagtatala sa server. Pakisuri ang koneksyon at subukang muli.",
       });
-      if (loginAsDemo) loginAsDemo("farmer");
-      navigate("/farmer", { replace: true });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleQueueClick = () => {
-    toast.info("Offline Sync Queue", {
-      description: "May 2 nakatagong ulat/obserbasyon sa telepono na handang i-sync kapag may signal.",
-    });
-  };
+  const stepLabel =
+    step === 0
+      ? "PAGPAPATUNAY NG NUMERO"
+      : step === 1
+        ? "HAKBANG 1 NG 3: PROFILE"
+        : step === 2
+          ? "HAKBANG 2 NG 3: SAKAHAN"
+          : "HAKBANG 3 NG 3: SIKLO NG TANIM";
 
   return (
     <div className="w-full min-h-screen bg-[#03543f] md:bg-slate-950 flex flex-col items-center justify-center p-0 md:p-6 lg:p-10 font-sans selection:bg-emerald-500/30">
-      {/* Responsive Container: Mobile Viewport (412x917 edge-to-edge) vs Tablet/Desktop Card (md+) */}
-      <div className="w-full md:max-w-4xl lg:max-w-5xl bg-gradient-to-b from-[#03543f] to-[#046c4e] text-white shadow-2xl flex flex-col md:flex-row justify-between overflow-x-hidden md:rounded-[36px] md:border-4 md:border-slate-800/80 min-h-screen md:min-h-[720px] lg:min-h-[760px]">
-        
+      {/* Invisible reCAPTCHA anchor (required by Firebase Phone Auth) */}
+      <div id="recaptcha-container" />
+
+      <div className="w-full md:max-w-4xl lg:max-w-5xl bg-linear-to-b from-[#03543f] to-[#046c4e] text-white shadow-2xl flex flex-col md:flex-row justify-between overflow-x-hidden md:rounded-[36px] md:border-4 md:border-slate-800/80 min-h-screen md:min-h-180 lg:min-h-190">
         {/* ========================================================= */}
         {/* TOP / LEFT PANE (Progress, Context, Instructions)         */}
         {/* ========================================================= */}
         <div className="w-full md:w-1/2 flex flex-col justify-between pt-4 pb-4 sm:py-6 px-4 sm:px-6 lg:px-10 relative">
-          
           {/* Header Navigation Bar */}
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2.5">
@@ -311,6 +383,7 @@ export const FarmerOnboardingPage: React.FC = () => {
               </button>
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-white tracking-tight leading-tight">
+                  {step === 0 && "Pagpapatunay ng Numero"}
                   {step === 1 && "Profile ng Magsasaka"}
                   {step === 2 && "Rehistro ng Sakahan"}
                   {step === 3 && "Siklo ng Tanim na Mais"}
@@ -320,29 +393,16 @@ export const FarmerOnboardingPage: React.FC = () => {
                 </p>
               </div>
             </div>
-
-            {/* Offline Queue Badge */}
-            <button
-              onClick={handleQueueClick}
-              type="button"
-              className="bg-[#f59e0b] hover:bg-[#d97706] active:scale-95 text-amber-950 font-bold text-xs px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-            >
-              <RefreshCw className="w-3 h-3 animate-spin-slow" />
-              <span>2 Queue</span>
-            </button>
           </div>
 
           {/* Progress Header and Step Description */}
           <div className="my-3 sm:my-5 md:my-auto">
-            {/* Step Label & Capsule Indicators */}
             <div className="flex items-center justify-between">
               <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-emerald-200">
-                {step === 1 && "HAKBANG 1 NG 3: PROFILE"}
-                {step === 2 && "HAKBANG 2 NG 3: SAKAHAN"}
-                {step === 3 && "HAKBANG 3 NG 3: SIKLO NG TANIM"}
+                {stepLabel}
               </span>
 
-              {/* 3 Capsules */}
+              {/* 3 Capsules (profile/farm/crop) */}
               <div className="flex items-center gap-1.5">
                 <div
                   className={`w-8 sm:w-10 h-2 rounded-full transition-all duration-300 ${
@@ -362,16 +422,18 @@ export const FarmerOnboardingPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Step Title & Subtitle */}
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-3">
+              {step === 0 && "Patunayan ang Telepono"}
               {step === 1 && "Impormasyon ng Magsasaka"}
               {step === 2 && "Impormasyon ng Sakahan"}
               {step === 3 && "Siklo ng Tanim na Mais"}
             </h1>
 
             <p className="text-xs sm:text-sm text-emerald-100/90 font-medium mt-1 leading-relaxed max-w-md">
+              {step === 0 &&
+                "Padadalhan namin ng one-time code ang inyong numero para patunayan ang pagkakakilanlan."}
               {step === 1 &&
-                "Ipasok ang inyong pangalan at lokasyon sa Cagayan para sa opisyal na rekord ng DA."}
+                "Ipasok ang inyong pangalan at RSBSA (kung mayroon) para sa opisyal na rekord ng DA."}
               {step === 2 &&
                 "Sukat, uri ng pagmamay-ari, at lokasyon ng inyong bukid ng mais."}
               {step === 3 &&
@@ -379,7 +441,6 @@ export const FarmerOnboardingPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Desktop Footer Accreditation */}
           <div className="hidden md:block text-[11px] text-emerald-200/70">
             Republic of the Philippines • Department of Agriculture Region II
           </div>
@@ -389,42 +450,164 @@ export const FarmerOnboardingPage: React.FC = () => {
         {/* BOTTOM / RIGHT PANE (Interactive Forms per Step)          */}
         {/* ========================================================= */}
         <div className="w-full md:w-1/2 bg-white text-slate-900 rounded-t-[30px] md:rounded-t-none md:rounded-l-[36px] px-5 sm:px-8 lg:px-12 pt-6 pb-6 sm:pt-8 sm:pb-8 shadow-2xl flex flex-col justify-between flex-1">
-          
+          {/* STEP 0: PHONE AUTH */}
+          {step === 0 && (
+            <>
+              {authSubStep === "phone" && (
+                <form
+                  onSubmit={handleSendOtp}
+                  className="flex flex-col justify-between flex-1 space-y-4"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+                        <Phone className="w-5 h-5 stroke-[2.4]" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg text-slate-900">
+                          Numero ng Telepono
+                        </h3>
+                        <p className="text-[11px] text-slate-500">
+                          Padadalhan ng 6-digit code.
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Numero ng Telepono
+                      </label>
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={handlePhoneChange}
+                        placeholder="0917 000 0000"
+                        required
+                        autoComplete="tel"
+                        className="w-full rounded-2xl border-2 border-slate-200 px-4 py-3 text-base font-semibold text-slate-900 outline-none transition focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full mt-4 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-base shadow-lg shadow-emerald-700/20 hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                  >
+                    <span>{submitting ? "Nagpapadala..." : "Padalhan ng OTP Code"}</span>
+                    <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+                  </button>
+                </form>
+              )}
+
+              {authSubStep === "otp" && (
+                <form
+                  onSubmit={handleConfirmOtp}
+                  className="flex flex-col justify-between flex-1 space-y-4"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+                        <KeyRound className="w-5 h-5 stroke-[2.4]" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg text-slate-900">
+                          Ilagay ang OTP Code
+                        </h3>
+                        <p className="text-[11px] text-slate-500">
+                          Ipinadala sa {toE164PH(phone)}.
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700">
+                          6-Digit OTP Code
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleResendReset}
+                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 cursor-pointer"
+                        >
+                          Baguhin ang numero
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        value={otp}
+                        onChange={handleOtpChange}
+                        placeholder="______"
+                        required
+                        autoFocus
+                        className="w-full rounded-2xl border-2 px-4 py-3 text-center text-3xl font-black tracking-[0.4em] outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 placeholder:text-slate-300"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full mt-4 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-base shadow-lg shadow-emerald-700/20 hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                  >
+                    <span>{submitting ? "Pinapatunayan..." : "Patunayan at Magpatuloy"}</span>
+                    <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+
           {/* STEP 1: FARMER PROFILE FORM */}
           {step === 1 && (
-            <form onSubmit={handleStep1Submit} className="flex flex-col justify-between flex-1 space-y-4">
+            <form
+              onSubmit={handleStep1Submit}
+              className="flex flex-col justify-between flex-1 space-y-4"
+            >
               <div className="space-y-4">
-                {/* Buong Pangalan */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Pangalan (First Name)
+                    </label>
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Juan"
+                      required
+                      className="w-full rounded-2xl border-2 px-4 py-3 text-base font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Apelyido (Last Name)
+                    </label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Dela Cruz"
+                      required
+                      className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-3 text-base font-semibold text-slate-900 outline-none transition focus:ring-4 focus:ring-emerald-500/10"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Buong Pangalan
+                    RSBSA Number (Opsyonal)
                   </label>
                   <input
                     type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Mang Danilo Ramos"
-                    required
-                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-3 text-base font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                    value={rsbsaNumber}
+                    onChange={(e) => setRsbsaNumber(e.target.value)}
+                    placeholder="02-15-01-000-000123"
+                    className="w-full rounded-2xl border-2 px-4 py-3 text-base font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
 
-                {/* Numero ng Telepono */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Numero ng Telepono
-                  </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={handlePhoneChange}
-                    placeholder="0917 584 9201"
-                    required
-                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-3 text-base font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
-                  />
-                </div>
-
-                {/* Bayan (Municipality) & Barangay */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -433,7 +616,7 @@ export const FarmerOnboardingPage: React.FC = () => {
                     <select
                       value={municipality}
                       onChange={(e) => setMunicipality(e.target.value)}
-                      className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
+                      className="w-full rounded-2xl border-2 bg-slate-50/80 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600"
                     >
                       {CAGAYAN_MUNICIPALITIES.map((mun) => (
                         <option key={mun} value={mun}>
@@ -452,14 +635,12 @@ export const FarmerOnboardingPage: React.FC = () => {
                       value={barangay}
                       onChange={(e) => setBarangay(e.target.value)}
                       placeholder="Basi East"
-                      required
-                      className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
+                      className="w-full rounded-2xl border-2 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Submit Button Step 1 */}
               <button
                 type="submit"
                 className="w-full mt-4 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-base shadow-lg shadow-emerald-700/20 hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
@@ -472,9 +653,11 @@ export const FarmerOnboardingPage: React.FC = () => {
 
           {/* STEP 2: FARM INFORMATION FORM */}
           {step === 2 && (
-            <form onSubmit={handleStep2Submit} className="flex flex-col justify-between flex-1 space-y-4">
+            <form
+              onSubmit={handleStep2Submit}
+              className="flex flex-col justify-between flex-1 space-y-4"
+            >
               <div className="space-y-3.5">
-                {/* Pangalan ng Sakahan / Bukid */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Pangalan ng Sakahan / Bukid
@@ -485,11 +668,10 @@ export const FarmerOnboardingPage: React.FC = () => {
                     onChange={(e) => setFarmName(e.target.value)}
                     placeholder="Basi Corn Plantation #1"
                     required
-                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2.5 text-base font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
+                    className="w-full rounded-2xl border-2 px-4 py-2.5 text-base font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
                   />
                 </div>
 
-                {/* Status ng Pagmamay-ari (Ownership) */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Status ng Pagmamay-ari ng Lupa (Ownership)
@@ -519,7 +701,6 @@ export const FarmerOnboardingPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Sukat ng Sakahan ng Mais (Corn Scope) */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Sukat ng Sakahan ng Mais (Corn Scope)
@@ -569,7 +750,6 @@ export const FarmerOnboardingPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Tumpak na Sukat sa Ektarya */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Tumpak na Sukat sa Ektarya (Hectares)
@@ -582,12 +762,11 @@ export const FarmerOnboardingPage: React.FC = () => {
                     onChange={(e) => setAreaHectares(e.target.value)}
                     placeholder="2.5"
                     required
-                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2 text-base font-bold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
+                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2 text-base font-bold text-slate-900 outline-none transition"
                   />
                 </div>
               </div>
 
-              {/* Submit Button Step 2 */}
               <button
                 type="submit"
                 className="w-full mt-3 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-base shadow-lg shadow-emerald-700/20 hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
@@ -600,9 +779,11 @@ export const FarmerOnboardingPage: React.FC = () => {
 
           {/* STEP 3: CROP CYCLE FORM */}
           {step === 3 && (
-            <form onSubmit={handleStep3Submit} className="flex flex-col justify-between flex-1 space-y-4">
+            <form
+              onSubmit={handleStep3Submit}
+              className="flex flex-col justify-between flex-1 space-y-4"
+            >
               <div className="space-y-3.5">
-                {/* Uri ng Tanim */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Uri ng Tanim
@@ -615,7 +796,6 @@ export const FarmerOnboardingPage: React.FC = () => {
                   />
                 </div>
 
-                {/* Bariedad ng Mais */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Bariedad ng Mais (Corn Variety)
@@ -623,7 +803,7 @@ export const FarmerOnboardingPage: React.FC = () => {
                   <select
                     value={variety}
                     onChange={(e) => setVariety(e.target.value)}
-                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
+                    className="w-full rounded-2xl border-2 px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
                   >
                     {CORN_VARIETIES.map((v) => (
                       <option key={v} value={v}>
@@ -633,24 +813,22 @@ export const FarmerOnboardingPage: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Petsa ng Pagtatanim */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Petsa ng Pagtatanim (Planting Date)
                   </label>
                   <div className="relative flex items-center">
-                    <Calendar className="w-5 h-5 text-emerald-600 absolute left-4 pointer-events-none stroke-[2]" />
+                    <Calendar className="w-5 h-5 text-emerald-600 absolute left-4 pointer-events-none stroke-2" />
                     <input
                       type="date"
                       value={plantingDate}
                       onChange={(e) => setPlantingDate(e.target.value)}
                       required
-                      className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 pl-12 pr-4 py-2.5 text-base font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
+                      className="w-full rounded-2xl border-2 pl-12 pr-4 py-2.5 text-base font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
                     />
                   </div>
                 </div>
 
-                {/* Kalkulado ng Lifecycle Engine Card */}
                 <div className="rounded-2xl border border-emerald-300 bg-emerald-50/90 p-4 shadow-sm">
                   <div className="flex items-center gap-2 text-emerald-900 font-extrabold text-xs sm:text-sm">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
@@ -658,31 +836,36 @@ export const FarmerOnboardingPage: React.FC = () => {
                   </div>
                   <ul className="mt-2 space-y-1 text-xs text-emerald-950 font-medium">
                     <li>
-                      • Inaasahang Pag-ani: <span className="font-bold">{lifecycle.harvestDateStr} (~108 araw)</span>
+                      • Inaasahang Pag-ani:{" "}
+                      <span className="font-bold">
+                        {lifecycle.harvestDateStr} (~108 araw)
+                      </span>
                     </li>
                     <li>
-                      • Kasalukuyang Stage: <span className="font-bold text-emerald-800">{lifecycle.stageName} (DAP {lifecycle.dap})</span>
+                      • Kasalukuyang Stage:{" "}
+                      <span className="font-bold text-emerald-800">
+                        {lifecycle.stageName} (DAP {lifecycle.dap})
+                      </span>
                     </li>
                   </ul>
                 </div>
               </div>
 
-              {/* Final Complete Button Step 3 */}
               <button
                 type="submit"
                 disabled={submitting}
                 className="w-full mt-3 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-base shadow-lg shadow-emerald-700/20 hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
                 <span>
-                  {submitting ? "Itinatala sa DA..." : "Tapusin ang Rehistro at Pumunta sa Dashboard"}
+                  {submitting
+                    ? "Itinatala sa DA..."
+                    : "Tapusin ang Rehistro at Pumunta sa Dashboard"}
                 </span>
                 <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
               </button>
             </form>
           )}
-
         </div>
-
       </div>
     </div>
   );

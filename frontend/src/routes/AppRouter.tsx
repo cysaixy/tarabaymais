@@ -21,14 +21,16 @@ import TechnicianDashboardPage from "../pages/technician/TechnicianDashboardPage
 const publicRoutes = (
   <>
     <Route path="/login" element={<FarmerLoginPage />} />
-    <Route path="/onboarding" element={<FarmerOnboardingPage />} />
     <Route path="/officer/login" element={<OfficerLoginPage />} />
-    <Route path="/register" element={<FarmerOnboardingPage />} />
+    {/* Onboarding handles its own Firebase phone auth before registering. */}
+    <Route path="/onboarding" element={<FarmerOnboardingPage />} />
+    {/* Legacy alias kept so existing links to /register still work. */}
+    <Route path="/register" element={<Navigate to="/onboarding" replace />} />
   </>
 );
 
 // ---------------------------------------------------------------------------
-// Farmer routes (role: farmer)
+// Farmer routes (role: FARMER)
 // ---------------------------------------------------------------------------
 const farmerRoutes = (
   <>
@@ -47,11 +49,20 @@ const farmerRoutes = (
 );
 
 // ---------------------------------------------------------------------------
-// Technician routes (role: technician)
+// Municipal routes (roles: TECHNICIAN, OFFICER)
+// Technicians and officers share the same municipal portal surface; the
+// dashboard component adapts its content to the signed-in role.
 // ---------------------------------------------------------------------------
-const technicianRoutes = (
+const municipalRoutes = (
   <>
-    <Route path="/technician" element={<TechnicianDashboardPage />} />
+    <Route path="/officer/dashboard" element={<TechnicianDashboardPage />} />
+    <Route path="/officer/cases" element={<TechnicianDashboardPage />} />
+    <Route path="/officer/exports" element={<TechnicianDashboardPage />} />
+    {/* Backwards-compatible alias for the previous /technician entry point. */}
+    <Route
+      path="/technician"
+      element={<Navigate to="/officer/dashboard" replace />}
+    />
   </>
 );
 
@@ -61,16 +72,18 @@ export const AppRouter: React.FC = () => {
       {publicRoutes}
 
       {/* Farmer-only area */}
-      <Route element={<ProtectedRoute allowedRoles={["farmer"]} />}>
+      <Route element={<ProtectedRoute allowedRoles={["FARMER"]} />}>
         {farmerRoutes}
       </Route>
 
-      {/* Technician-only area */}
-      <Route element={<ProtectedRoute allowedRoles={["technician"]} />}>
-        {technicianRoutes}
+      {/* Technician/Officer municipal area */}
+      <Route
+        element={<ProtectedRoute allowedRoles={["TECHNICIAN", "OFFICER"]} />}
+      >
+        {municipalRoutes}
       </Route>
 
-      {/* Anything else falls back to the login screen */}
+      {/* Unknown paths fall back to the farmer login screen. */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

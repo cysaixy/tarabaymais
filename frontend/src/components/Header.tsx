@@ -17,14 +17,15 @@ const Header = () => {
 
   const displayName = profile
     ? `${profile.firstName} ${profile.lastName}`.trim()
-    : user?.email;
+    : (user?.phoneNumber ?? undefined);
 
   const handleLogout = async () => {
     await logout();
     navigate("/login", { replace: true });
   };
 
-  const homePath = role === "technician" ? "/technician" : "/farmer";
+  const isMunicipal = role === "TECHNICIAN" || role === "OFFICER";
+  const homePath = isMunicipal ? "/officer/dashboard" : "/farmer";
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 backdrop-blur">
@@ -40,23 +41,31 @@ const Header = () => {
 
         {user && (
           <nav className="flex items-center gap-1">
-            {role === "farmer" && (
+            {role === "FARMER" && (
               <>
                 <NavLink to="/farmer" end className={navClass}>
                   Home
                 </NavLink>
-                <NavLink to="/farmer/farms" className={navClass}>
-                  My Farms
+                <NavLink to="/farmer/scanner" className={navClass}>
+                  Scanner
                 </NavLink>
-                <NavLink to="/farmer/farms/new" className={navClass}>
-                  Add Farm
+                <NavLink to="/farmer/chat" className={navClass}>
+                  Chat
                 </NavLink>
               </>
             )}
-            {role === "technician" && (
-              <NavLink to="/technician" end className={navClass}>
-                Home
-              </NavLink>
+            {isMunicipal && (
+              <>
+                <NavLink to="/officer/dashboard" end className={navClass}>
+                  Dashboard
+                </NavLink>
+                <NavLink to="/officer/cases" className={navClass}>
+                  Cases
+                </NavLink>
+                <NavLink to="/officer/exports" className={navClass}>
+                  Exports
+                </NavLink>
+              </>
             )}
 
             <span className="mx-2 hidden text-sm text-slate-400 sm:inline">

@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { FirebaseError } from "firebase/app";
+import type { ConfirmationResult } from "firebase/auth";
 import { toast } from "sonner";
 import {
   Sprout,
@@ -7,23 +9,58 @@ import {
   Phone,
   ArrowRight,
   UserPlus,
-  RefreshCw,
   Building2,
   Camera,
   BookOpen,
   CloudOff,
+  KeyRound,
+  ChevronLeft,
 } from "lucide-react";
-import { useAuth } from "../../context/authContext";
+import {
+  sendOtp,
+  confirmOtp,
+  getMe,
+  toE164PH,
+} from "../../services/auth.service";
+import {
+  getRecaptchaVerifier,
+  clearRecaptchaVerifier,
+  auth,
+} from "../../firebase";
+import { isMunicipalRole } from "../../context/authContext";
+
+type Step = "phone" | "otp";
+
+const friendlyAuthError = (err: unknown): string => {
+  if (err instanceof FirebaseError) {
+    switch (err.code) {
+      case "auth/invalid-phone-number":
+        return "Hindi wasto ang numero ng telepono.";
+      case "auth/invalid-verification-code":
+        return "Maling OTP code. Pakisubukan muli.";
+      case "auth/code-expired":
+        return "Nag-expire na ang code. Humiling ng bago.";
+      case "auth/too-many-requests":
+        return "Masyadong maraming subok. Pakisubukan mamaya.";
+      default:
+        return "Nabigo ang pag-login. Pakisubukan muli.";
+    }
+  }
+  return "May problemang teknikal. Pakisubukan muli.";
+};
 
 export const FarmerLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { loginWithPhonePin, loginAsDemo } = useAuth();
 
-  const [phone, setPhone] = useState("0917 584 9201");
-  const [pin, setPin] = useState("1234");
+  const [step, setStep] = useState<Step>("phone");
+  const [phone, setPhone] = useState("0917 000 0000");
+  const [otp, setOtp] = useState("");
+  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
 
-  // Formatting phone number visually
+  // Visual phone formatting (0917 000 0000)
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\D/g, "").slice(0, 11);
     if (raw.length <= 4) {
@@ -35,68 +72,100 @@ export const FarmerLoginPage: React.FC = () => {
     }
   };
 
-  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/\D/g, "").slice(0, 4);
-    setPin(raw);
+  const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  // ── Step 1: send OTP ──────────────────────────────────────────────────────
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
     const rawPhone = phone.replace(/\D/g, "");
-
     if (rawPhone.length < 10) {
       toast.error("Kulang ang Numero ng Telepono", {
         description: "Pakilagay ang kumpletong 11-digit mobile number.",
       });
-      setLoading(false);
       return;
     }
 
-    if (pin.length !== 4) {
-      toast.error("Kulang ang 4-Digit PIN Code", {
-        description: "Mangyaring ilagay ang inyong 4-digit security PIN.",
-      });
-      setLoading(false);
-      return;
-    }
-
+    setLoading(true);
     try {
-      if (loginWithPhonePin) {
-        const success = await loginWithPhonePin(phone, pin);
-        if (success) {
-          toast.success("Maligayang Pagbabalik, Magsasaka!", {
-            description: "Matagumpay na nakapasok sa Tarabay-Mais Sakahan.",
-          });
-          navigate("/farmer", { replace: true });
-          return;
-        }
-      }
-
-      // Fallback demo login
-      if (loginAsDemo) {
-        loginAsDemo("farmer");
-        toast.success("Maligayang Pagbabalik!", {
-          description: "Naka-login bilang Mang Juan Dela Cruz (Solana, Cagayan).",
-        });
-        navigate("/farmer", { replace: true });
-      }
+      const verifier = getRecaptchaVerifier();
+      const result = await sendOtp(phone, verifier);
+      setConfirmation(result);
+      setStep("otp");
+      toast.success("Naipadala ang OTP Code", {
+        description: `Ipinadala sa ${toE164PH(phone)}. Ilagay ang 6-digit code.`,
+      });
     } catch (err) {
       console.error(err);
-      toast.error("May problemang teknikal", {
-        description: "Pakisubukan muli o mag-onboard kung bago.",
+      clearRecaptchaVerifier();
+      toast.error("Hindi maipadala ang code", {
+        description: friendlyAuthError(err),
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQueueClick = () => {
-    toast.info("Offline Sync Queue", {
-      description:
-        "May 2 nakatagong ulat/obserbasyon sa telepono na handang i-sync sa DA kapag nagkaroon ng signal.",
-    });
+  // ── Step 2: confirm OTP → verify role via /auth/me ─────────────────────────
+  const handleConfirmOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmation) return;
+    if (otp.length !== 6) {
+      toast.error("Kulang ang OTP Code", {
+        description: "Mangyaring ilagay ang kumpletong 6-digit code.",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await confirmOtp(confirmation, otp);
+      clearRecaptchaVerifier();
+
+      // Confirm the backend profile exists and inspect the role.
+      try {
+        const me = await getMe();
+        if (isMunicipalRole(me.role)) {
+          // A technician/officer logged in through the farmer portal — send
+          // them to their own area instead.
+          toast.info("Officer/Technician Account", {
+            description: "Inilipat kayo sa Officer Portal.",
+          });
+          navigate("/officer/dashboard", { replace: true });
+          return;
+        }
+        toast.success("Maligayang Pagbabalik, Magsasaka!", {
+          description: "Matagumpay na nakapasok sa Tarabay-Mais Sakahan.",
+        });
+        navigate("/farmer", { replace: true });
+      } catch {
+        // Authenticated but no profile yet → finish registration.
+        toast.info("Kailangan ng Rehistro", {
+          description: "Kumpletuhin muna ang inyong profile.",
+        });
+        navigate("/onboarding", { replace: true });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Maling Code", { description: friendlyAuthError(err) });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    // Reset back to phone step so a fresh verifier + code can be requested.
+    clearRecaptchaVerifier();
+    setOtp("");
+    setConfirmation(null);
+    setStep("phone");
+    // Ensure any lingering half-session is cleared.
+    try {
+      if (auth.currentUser) await auth.signOut();
+    } catch {
+      /* no-op */
+    }
   };
 
   const handleOnboardingClick = () => {
@@ -105,14 +174,15 @@ export const FarmerLoginPage: React.FC = () => {
 
   return (
     <div className="w-full min-h-screen bg-[#03543f] md:bg-slate-950 flex flex-col items-center justify-center p-0 md:p-6 lg:p-10 font-sans selection:bg-emerald-500/30">
+      {/* Invisible reCAPTCHA anchor (required by Firebase Phone Auth) */}
+      <div id="recaptcha-container" />
+
       {/* Responsive Container: Mobile Viewport (412x917 edge-to-edge) vs Tablet/Desktop Card (md+) */}
-      <div className="w-full md:max-w-4xl lg:max-w-5xl bg-gradient-to-b from-[#03543f] to-[#046c4e] text-white shadow-2xl flex flex-col md:flex-row justify-between overflow-x-hidden md:rounded-[36px] md:border-4 md:border-slate-800/80 min-h-screen md:min-h-[720px] lg:min-h-[760px]">
-        
+      <div className="w-full md:max-w-4xl lg:max-w-5xl bg-linear-to-b from-[#03543f] to-[#046c4e] text-white shadow-2xl flex flex-col md:flex-row justify-between overflow-x-hidden md:rounded-[36px] md:border-4 md:border-slate-800/80 min-h-screen md:min-h-180 lg:min-h-190">
         {/* ========================================================= */}
         {/* LEFT / TOP PANE (Branding, Context & Highlights)          */}
         {/* ========================================================= */}
         <div className="w-full md:w-1/2 flex flex-col justify-between pt-4 pb-3 sm:py-6 px-4 sm:px-6 lg:px-10 relative">
-          
           {/* Top Header Bar */}
           <div className="flex justify-between items-center">
             <div>
@@ -123,17 +193,6 @@ export const FarmerLoginPage: React.FC = () => {
                 Solana, Cagayan • Corn Field
               </p>
             </div>
-
-            {/* Offline Queue Badge */}
-            <button
-              onClick={handleQueueClick}
-              type="button"
-              className="bg-[#f59e0b] hover:bg-[#d97706] active:scale-95 text-amber-950 font-bold text-xs px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-              title="Tingnan ang naka-queue na ulat"
-            >
-              <RefreshCw className="w-3 h-3 animate-spin-slow" />
-              <span>2 Queue</span>
-            </button>
           </div>
 
           {/* Main Hero Centerpiece */}
@@ -147,7 +206,7 @@ export const FarmerLoginPage: React.FC = () => {
               AI Farming Assistant
             </h1>
 
-            <p className="text-[11px] sm:text-xs md:text-sm lg:text-base text-emerald-100/90 font-medium max-w-[280px] sm:max-w-xs md:max-w-md mt-0.5 sm:mt-1 leading-snug">
+            <p className="text-[11px] sm:text-xs md:text-sm lg:text-base text-emerald-100/90 font-medium max-w-70 sm:max-w-xs md:max-w-md mt-0.5 sm:mt-1 leading-snug">
               Sistemang Pantulong sa Magsasaka ng Mais sa Cagayan
             </p>
 
@@ -162,24 +221,36 @@ export const FarmerLoginPage: React.FC = () => {
               <div className="flex items-start gap-3 bg-emerald-900/30 border border-emerald-500/20 rounded-xl p-3">
                 <Camera className="w-5 h-5 text-emerald-300 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-bold text-white">AI Plant Health Scanner</p>
-                  <p className="text-[11px] text-emerald-200/80">Kuhanan ng litrato ang dahon para sa agarang diagnosis.</p>
+                  <p className="text-xs font-bold text-white">
+                    AI Plant Health Scanner
+                  </p>
+                  <p className="text-[11px] text-emerald-200/80">
+                    Kuhanan ng litrato ang dahon para sa agarang diagnosis.
+                  </p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3 bg-emerald-900/30 border border-emerald-500/20 rounded-xl p-3">
                 <CloudOff className="w-5 h-5 text-emerald-300 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-bold text-white">Offline-First Resilience</p>
-                  <p className="text-[11px] text-emerald-200/80">Naitatala ang gawain kahit walang internet signal sa bukid.</p>
+                  <p className="text-xs font-bold text-white">
+                    Offline-First Resilience
+                  </p>
+                  <p className="text-[11px] text-emerald-200/80">
+                    Naitatala ang gawain kahit walang internet signal sa bukid.
+                  </p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3 bg-emerald-900/30 border border-emerald-500/20 rounded-xl p-3">
                 <BookOpen className="w-5 h-5 text-emerald-300 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-bold text-white">Grounded DA Region II Techno-Guide</p>
-                  <p className="text-[11px] text-emerald-200/80">Akmang gabay ayon sa edad ng mais at klima ng lambak.</p>
+                  <p className="text-xs font-bold text-white">
+                    Grounded DA Region II Techno-Guide
+                  </p>
+                  <p className="text-[11px] text-emerald-200/80">
+                    Akmang gabay ayon sa edad ng mais at klima ng lambak.
+                  </p>
                 </div>
               </div>
             </div>
@@ -199,68 +270,110 @@ export const FarmerLoginPage: React.FC = () => {
             {/* Header with Phone Icon */}
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
-                <Phone className="w-4 h-4 stroke-[2.4]" />
+                {step === "phone" ? (
+                  <Phone className="w-4 h-4 stroke-[2.4]" />
+                ) : (
+                  <KeyRound className="w-4 h-4 stroke-[2.4]" />
+                )}
               </div>
               <div>
                 <h3 className="font-bold text-lg sm:text-xl text-slate-900 tracking-tight">
-                  Mag-login sa Inyong Account
+                  {step === "phone"
+                    ? "Mag-login sa Inyong Account"
+                    : "Ilagay ang OTP Code"}
                 </h3>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                  Ipasok ang inyong numero ng telepono at PIN code.
+                  {step === "phone"
+                    ? "Ipasok ang numero ng telepono para padalhan ng code."
+                    : `Ipinadala ang 6-digit code sa ${toE164PH(phone)}.`}
                 </p>
               </div>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleLogin} className="mt-3.5 sm:mt-5 space-y-3 sm:space-y-4">
-              {/* Phone Input */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wide">
-                  Numero ng Telepono (Phone Number)
-                </label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={handlePhoneChange}
-                  placeholder="0917 000 0000"
-                  required
-                  className="w-full rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2.5 sm:py-3 text-base sm:text-lg font-semibold text-slate-900 tracking-wide outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 placeholder:text-slate-400"
-                />
-              </div>
-
-              {/* 4-Digit PIN Input */}
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                    4-Digit PIN Code
-                  </label>
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    (Demo: kahit anong 4 digits)
-                  </span>
-                </div>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={4}
-                  value={pin}
-                  onChange={handlePinChange}
-                  placeholder="••••"
-                  required
-                  className="w-full rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2.5 sm:py-3 text-center text-2xl sm:text-3xl font-black tracking-[0.4em] text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 placeholder:text-slate-300"
-                />
-              </div>
-
-              {/* Oversized High-Contrast Tap Target Button (52px to 56px) */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full mt-1.5 h-13 sm:h-14 rounded-xl sm:rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-base shadow-md shadow-emerald-700/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            {/* STEP 1: PHONE */}
+            {step === "phone" && (
+              <form
+                onSubmit={handleSendOtp}
+                className="mt-3.5 sm:mt-5 space-y-3 sm:space-y-4"
               >
-                <span>{loading ? "Pumapasok..." : "Mag-login sa Sakahan"}</span>
-                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
-              </button>
-            </form>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wide">
+                    Numero ng Telepono (Phone Number)
+                  </label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={handlePhoneChange}
+                    placeholder="0917 000 0000"
+                    required
+                    autoComplete="tel"
+                    className="w-full rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2.5 sm:py-3 text-base sm:text-lg font-semibold text-slate-900 tracking-wide outline-none transition focus:ring-4 focus:ring-emerald-500/10"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-1.5 h-13 sm:h-14 rounded-xl sm:rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-base shadow-md shadow-emerald-700/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  <span>{loading ? "Nagpapadala..." : "Padalhan ng OTP Code"}</span>
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+                </button>
+              </form>
+            )}
+
+            {/* STEP 2: OTP */}
+            {step === "otp" && (
+              <form
+                onSubmit={handleConfirmOtp}
+                className="mt-3.5 sm:mt-5 space-y-3 sm:space-y-4"
+              >
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                      6-Digit OTP Code
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 cursor-pointer"
+                    >
+                      Baguhin ang numero
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={otp}
+                    onChange={handleOtpChange}
+                    placeholder="______"
+                    required
+                    autoFocus
+                    className="w-full rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2.5 sm:py-3 text-center text-2xl sm:text-3xl font-black tracking-[0.4em] text-slate-900 outline-none transition focus:ring-4 focus:ring-emerald-500/10"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-1.5 h-13 sm:h-14 rounded-xl sm:rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-base shadow-md shadow-emerald-700/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  <span>{loading ? "Pumapasok..." : "Mag-login sa Sakahan"}</span>
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-emerald-700 cursor-pointer py-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Bumalik</span>
+                </button>
+              </form>
+            )}
           </div>
 
           {/* Onboarding & Officer Portal Links */}
@@ -293,7 +406,6 @@ export const FarmerLoginPage: React.FC = () => {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

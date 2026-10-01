@@ -1,35 +1,62 @@
 import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
+  signInWithPhoneNumber,
   signOut,
+  type ConfirmationResult,
+  type RecaptchaVerifier,
   type UserCredential,
 } from "firebase/auth";
 import { auth } from "../firebase";
 import { api } from "../lib/api";
 import type { DbUserProfile } from "../context/authContext";
 
-/** Fields required by the backend `/auth/sync` endpoint for a new user. */
-export interface SyncUserPayload {
+/** Fields the backend `/auth/sync` endpoint accepts for a new user. */
+export interface RegisterProfilePayload {
   firstName: string;
   lastName: string;
   phone: string;
   rsbsaNumber?: string;
-  preferredLanguage?: string;
+  preferredLanguage?: "filipino" | "ilocano" | "english";
 }
 
-/** Creates a Firebase account with email + password. */
-export const signUp = (
-  email: string,
-  password: string,
-): Promise<UserCredential> =>
-  createUserWithEmailAndPassword(auth, email, password);
+/**
+ * Normalizes a user-entered PH mobile number to E.164 (`+63XXXXXXXXXX`),
+ * which is what Firebase Phone Auth expects.
+ *
+ * Accepts common local formats: "0917 584 9201", "09175849201",
+ * "+639175849201", "639175849201".
+ */
+export const toE164PH = (input: string): string => {
+  const digits = input.replace(/\D/g, "");
+  if (digits.startsWith("63")) return `+${digits}`;
+  if (digits.startsWith("0")) return `+63${digits.slice(1)}`;
+  if (digits.startsWith("9") && digits.length === 10) return `+63${digits}`;
+  // Already includes a leading +63 that survived stripping, or unknown shape.
+  return input.trim().startsWith("+") ? input.trim() : `+${digits}`;
+};
 
-/** Signs an existing user in with email + password. */
-export const logIn = (
-  email: string,
-  password: string,
-): Promise<UserCredential> =>
-  signInWithEmailAndPassword(auth, email, password);
+/**
+ * Step 1 of phone auth: request an OTP for the given phone number.
+ *
+ * For Firebase test/synthetic numbers this resolves immediately without
+ * sending an SMS or showing a reCAPTCHA challenge, but the verifier must still
+ * be supplied.
+ *
+ * @returns a `ConfirmationResult` whose `.confirm(code)` completes sign-in.
+ */
+export const sendOtp = (
+  phone: string,
+  verifier: RecaptchaVerifier,
+): Promise<ConfirmationResult> =>
+  signInWithPhoneNumber(auth, toE164PH(phone), verifier);
+
+/**
+ * Step 2 of phone auth: confirm the OTP code to finish sign-in.
+ * On success the Firebase session is established and `auth.currentUser` is set.
+ */
+export const confirmOtp = (
+  confirmation: ConfirmationResult,
+  code: string,
+): Promise<UserCredential> => confirmation.confirm(code.trim());
 
 /** Signs the current user out of the Firebase session. */
 export const logOut = async (): Promise<void> => {
@@ -37,18 +64,25 @@ export const logOut = async (): Promise<void> => {
 };
 
 /**
- * Synchronizes the authenticated user with the backend/database.
+ * Fetches the authenticated user's backend profile.
+ * The Firebase ID token is attached by the axios request interceptor.
  *
- * The endpoint is idempotent: it creates the profile on first call and returns
- * the existing profile on subsequent calls. The Firebase token is attached by
- * the axios request interceptor.
- *
- * @param payload Required only when creating a new profile. On login the body
- *                is ignored by the backend if the user already exists.
+ * Throws (401) when the token is valid but no profile has been synced yet —
+ * callers should treat that as "needs registration".
  */
-export const syncUser = async (
-  payload?: SyncUserPayload,
+export const getMe = async (): Promise<DbUserProfile> => {
+  const { data } = await api.get("/auth/me");
+  return data.data.user as DbUserProfile;
+};
+
+/**
+ * Creates the backend/database profile for a newly authenticated Firebase
+ * user. The server derives the UID from the verified token, so no `id` is
+ * sent in the body. Idempotent: returns the existing profile if already synced.
+ */
+export const registerProfile = async (
+  payload: RegisterProfilePayload,
 ): Promise<DbUserProfile> => {
-  const { data } = await api.post("/auth/sync", payload ?? {});
+  const { data } = await api.post("/auth/sync", payload);
   return data.data.user as DbUserProfile;
 };

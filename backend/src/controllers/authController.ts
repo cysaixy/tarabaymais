@@ -78,3 +78,31 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
     data: { user: newUser },
   });
 });
+
+/**
+ * GET /api/v1/auth/me
+ *
+ * Returns the authenticated caller's PostgreSQL profile (including
+ * `farmerProfile`). The `authenticate` middleware verifies the Firebase token
+ * and attaches the DB record as `req.user` when one exists.
+ *
+ * - 401 if the Firebase session is missing (handled by middleware), or if the
+ *   token is valid but no profile has been synchronized yet (first-time user
+ *   must call `POST /api/v1/auth/sync` before `me` returns a profile).
+ */
+export const getMe = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.firebaseUser) {
+    throw ApiError.unauthorized("Unauthenticated Firebase session");
+  }
+
+  if (!req.user) {
+    throw ApiError.unauthorized(
+      "Profile not synchronized. Complete registration first.",
+    );
+  }
+
+  return sendSuccess(res, 200, {
+    message: "Authenticated user profile",
+    data: { user: req.user },
+  });
+});

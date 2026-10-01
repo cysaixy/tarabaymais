@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getMyFarms } from "../../services/farm.service";
-import type { Farm } from "../../types/farm";
+import { listFarms } from "../../services/farm.service";
+import type { Farm } from "../../services/farm.service";
 
 const MyFarmsPage = () => {
   const [farms, setFarms] = useState<Farm[]>([]);
@@ -12,7 +12,7 @@ const MyFarmsPage = () => {
     let active = true;
     (async () => {
       try {
-        const data = await getMyFarms();
+        const data = await listFarms();
         if (active) setFarms(data);
       } catch (err) {
         console.error("Failed to load farms:", err);

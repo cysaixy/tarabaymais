@@ -1,101 +1,176 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { FirebaseError } from "firebase/app";
+import type { ConfirmationResult } from "firebase/auth";
 import { toast } from "sonner";
 import {
   Building2,
   ShieldCheck,
-  Mail,
-  Lock,
+  Phone,
   ArrowRight,
   ClipboardList,
   Flame,
   FileCheck2,
-  Eye,
-  EyeOff,
+  KeyRound,
   UserCheck,
   ChevronLeft,
 } from "lucide-react";
-import { useAuth } from "../../context/authContext";
-import { logIn } from "../../services/auth.service";
+import {
+  sendOtp,
+  confirmOtp,
+  getMe,
+  toE164PH,
+} from "../../services/auth.service";
+import {
+  getRecaptchaVerifier,
+  clearRecaptchaVerifier,
+  auth,
+} from "../../firebase";
+import { isMunicipalRole } from "../../context/authContext";
+
+type Step = "phone" | "otp";
+
+const friendlyAuthError = (err: unknown): string => {
+  if (err instanceof FirebaseError) {
+    switch (err.code) {
+      case "auth/invalid-phone-number":
+        return "Hindi wasto ang numero ng telepono.";
+      case "auth/invalid-verification-code":
+        return "Maling OTP code. Pakisubukan muli.";
+      case "auth/code-expired":
+        return "Nag-expire na ang code. Humiling ng bago.";
+      case "auth/too-many-requests":
+        return "Masyadong maraming subok. Pakisubukan mamaya.";
+      default:
+        return "Nabigo ang pag-login. Pakisubukan muli.";
+    }
+  }
+  return "May problemang teknikal. Pakisubukan muli.";
+};
 
 export const OfficerLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { loginAsDemo } = useAuth();
 
-  const [emailOrId, setEmailOrId] = useState("maria.santos@da.region2.gov.ph");
-  const [password, setPassword] = useState("Technician@2026");
-  const [showPassword, setShowPassword] = useState(false);
+  const [step, setStep] = useState<Step>("phone");
+  const [phone, setPhone] = useState("+639170000002");
+  const [otp, setOtp] = useState("");
+  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailOrId.trim()) {
-      toast.error("Kulang ang Kredensyal", {
-        description: "Mangyaring ilagay ang opisyal na DA email o Employee ID.",
-      });
-      return;
-    }
+  const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+  };
 
-    if (!password) {
-      toast.error("Kulang ang Password", {
-        description: "Pakilagay ang inyong security password o key.",
+  // ── Step 1: send OTP ──────────────────────────────────────────────────────
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const rawPhone = phone.replace(/\D/g, "");
+    if (rawPhone.length < 10) {
+      toast.error("Kulang ang Numero ng Telepono", {
+        description: "Pakilagay ang opisyal na mobile number ng kawani.",
       });
       return;
     }
 
     setLoading(true);
-
     try {
-      // If user inputs a real email format, attempt backend/Firebase login
-      if (emailOrId.includes("@")) {
-        try {
-          await logIn(emailOrId.trim(), password);
-        } catch {
-          // If Firebase is unreachable or credentials belong to mock technician, proceed with demo session
-        }
-      }
-
-      // Establish technician session
-      if (loginAsDemo) {
-        loginAsDemo("technician");
-      }
-
-      toast.success("Maligayang Pagdating sa Officer Portal!", {
-        description:
-          "Naka-login bilang Engr. Maria Santos (DA Region II Municipal Technician).",
+      const verifier = getRecaptchaVerifier();
+      const result = await sendOtp(phone, verifier);
+      setConfirmation(result);
+      setStep("otp");
+      toast.success("Naipadala ang OTP Code", {
+        description: `Ipinadala sa ${toE164PH(phone)}. Ilagay ang 6-digit code.`,
       });
-
-      navigate("/technician", { replace: true });
-    } catch {
-      toast.error("Hindi makapasok sa Portal", {
-        description:
-          "Pakisuri ang inyong kredensyal o makipag-ugnayan sa DA Regional Admin.",
+    } catch (err) {
+      console.error(err);
+      clearRecaptchaVerifier();
+      toast.error("Hindi maipadala ang code", {
+        description: friendlyAuthError(err),
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickDemoLogin = () => {
-    if (loginAsDemo) {
-      loginAsDemo("technician");
+  // ── Step 2: confirm OTP → enforce municipal role ──────────────────────────
+  const handleConfirmOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmation) return;
+    if (otp.length !== 6) {
+      toast.error("Kulang ang OTP Code", {
+        description: "Mangyaring ilagay ang kumpletong 6-digit code.",
+      });
+      return;
     }
-    toast.success("Access Granted: Demo Officer Session", {
-      description: "Naka-login bilang Municipal Agricultural Officer (Region II).",
-    });
-    navigate("/technician", { replace: true });
+
+    setLoading(true);
+    try {
+      await confirmOtp(confirmation, otp);
+      clearRecaptchaVerifier();
+
+      let me;
+      try {
+        me = await getMe();
+      } catch {
+        // Authenticated but no backend profile — officer accounts must be
+        // provisioned by the DA admin, not self-registered here.
+        await auth.signOut();
+        toast.error("Walang Opisyal na Rekord", {
+          description:
+            "Walang profile ang account na ito. Makipag-ugnayan sa DA Regional Admin.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (!isMunicipalRole(me.role)) {
+        // A farmer tried the officer portal — deny and sign out.
+        await auth.signOut();
+        toast.error("Bawal ang Pagpasok", {
+          description:
+            "Para sa Technician/Officer lamang ang portal na ito. Gamitin ang Farmer Portal.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      toast.success("Maligayang Pagdating sa Officer Portal!", {
+        description: `Naka-login bilang ${me.firstName} ${me.lastName} (${me.role}).`,
+      });
+      navigate("/officer/dashboard", { replace: true });
+    } catch (err) {
+      console.error(err);
+      toast.error("Maling Code", { description: friendlyAuthError(err) });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    clearRecaptchaVerifier();
+    setOtp("");
+    setConfirmation(null);
+    setStep("phone");
+    try {
+      if (auth.currentUser) await auth.signOut();
+    } catch {
+      /* no-op */
+    }
   };
 
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col items-center justify-center p-0 md:p-6 lg:p-10 font-sans selection:bg-blue-500/30">
+      {/* Invisible reCAPTCHA anchor (required by Firebase Phone Auth) */}
+      <div id="recaptcha-container" />
+
       {/* Responsive Container: Edge-to-Edge on Mobile, Centered Institutional Card on Tablet/Desktop */}
-      <div className="w-full md:max-w-4xl lg:max-w-5xl bg-gradient-to-b from-[#091e3a] via-[#0b274c] to-[#04162e] text-white shadow-2xl flex flex-col md:flex-row justify-between overflow-x-hidden md:rounded-[36px] md:border-2 md:border-blue-900/40 min-h-screen md:min-h-[720px] lg:min-h-[760px]">
-        
+      <div className="w-full md:max-w-4xl lg:max-w-5xl bg-linear-to-b from-[#091e3a] via-[#0b274c] to-[#04162e] text-white shadow-2xl flex flex-col md:flex-row justify-between overflow-x-hidden md:rounded-[36px] md:border-2 md:border-blue-900/40 min-h-screen md:min-h-180 lg:min-h-190">
         {/* ========================================================= */}
         {/* LEFT / TOP PANE (Institutional Branding & Capabilities)   */}
         {/* ========================================================= */}
         <div className="w-full md:w-1/2 flex flex-col justify-between pt-4 pb-4 sm:py-6 px-4 sm:px-6 lg:px-10 relative">
-          
           {/* Top Header Bar */}
           <div className="flex justify-between items-center">
             <button
@@ -125,8 +200,9 @@ export const OfficerLoginPage: React.FC = () => {
               Officer & Technician Portal
             </h1>
 
-            <p className="text-[11px] sm:text-xs md:text-sm lg:text-base text-blue-100/90 font-medium max-w-[290px] sm:max-w-xs md:max-w-md mt-1 leading-snug">
-              Sistemang Pamamahala, Pagpapatunay, at Extension Services para sa Maisan ng Lambak ng Cagayan
+            <p className="text-[11px] sm:text-xs md:text-sm lg:text-base text-blue-100/90 font-medium max-w-72.5 sm:max-w-xs md:max-w-md mt-1 leading-snug">
+              Sistemang Pamamahala, Pagpapatunay, at Extension Services para sa
+              Maisan ng Lambak ng Cagayan
             </p>
 
             {/* DA Accreditation Pill */}
@@ -140,24 +216,37 @@ export const OfficerLoginPage: React.FC = () => {
               <div className="flex items-start gap-3 bg-blue-950/50 border border-blue-500/20 rounded-2xl p-3">
                 <ClipboardList className="w-5 h-5 text-blue-300 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-bold text-white">Farmer Case Verification</p>
-                  <p className="text-[11px] text-blue-200/80">Suriin ang mga nai-scan na uod, amag, at sakit sa pananim.</p>
+                  <p className="text-xs font-bold text-white">
+                    Farmer Case Verification
+                  </p>
+                  <p className="text-[11px] text-blue-200/80">
+                    Suriin ang mga nai-scan na uod, amag, at sakit sa pananim.
+                  </p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3 bg-blue-950/50 border border-blue-500/20 rounded-2xl p-3">
                 <Flame className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-bold text-white">Disaster Damage Indemnification</p>
-                  <p className="text-[11px] text-blue-200/80">I-validate ang porsyento ng pinsala ng bagyo at tagtuyot.</p>
+                  <p className="text-xs font-bold text-white">
+                    Disaster Damage Indemnification
+                  </p>
+                  <p className="text-[11px] text-blue-200/80">
+                    I-validate ang porsyento ng pinsala ng bagyo at tagtuyot.
+                  </p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3 bg-blue-950/50 border border-blue-500/20 rounded-2xl p-3">
                 <FileCheck2 className="w-5 h-5 text-emerald-300 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-bold text-white">Certified DA Region II Agro-Advisory</p>
-                  <p className="text-[11px] text-blue-200/80">Magpadala ng opisyal na rekomendasyon diretso sa telepono ng magsasaka.</p>
+                  <p className="text-xs font-bold text-white">
+                    Certified DA Region II Agro-Advisory
+                  </p>
+                  <p className="text-[11px] text-blue-200/80">
+                    Magpadala ng opisyal na rekomendasyon diretso sa telepono ng
+                    magsasaka.
+                  </p>
                 </div>
               </div>
             </div>
@@ -177,104 +266,119 @@ export const OfficerLoginPage: React.FC = () => {
             {/* Form Header */}
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 shrink-0">
-                <UserCheck className="w-5 h-5 stroke-[2.4]" />
+                {step === "phone" ? (
+                  <UserCheck className="w-5 h-5 stroke-[2.4]" />
+                ) : (
+                  <KeyRound className="w-5 h-5 stroke-[2.4]" />
+                )}
               </div>
               <div>
                 <h3 className="font-bold text-lg sm:text-xl text-slate-900 tracking-tight">
-                  Opisyal na Pagtala (Login)
+                  {step === "phone"
+                    ? "Opisyal na Pagtala (Login)"
+                    : "Ilagay ang OTP Code"}
                 </h3>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                  Ipasok ang inyong DA credentials o Municipal ID.
+                  {step === "phone"
+                    ? "Ipasok ang nakarehistrong mobile number ng kawani."
+                    : `Ipinadala ang 6-digit code sa ${toE164PH(phone)}.`}
                 </p>
               </div>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleLogin} className="mt-4 sm:mt-6 space-y-3.5 sm:space-y-4">
-              {/* Email / Employee ID Input */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wide">
-                  Email ng Kawani o Employee ID
-                </label>
-                <div className="relative">
+            {/* STEP 1: PHONE */}
+            {step === "phone" && (
+              <form
+                onSubmit={handleSendOtp}
+                className="mt-4 sm:mt-6 space-y-3.5 sm:space-y-4"
+              >
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wide">
+                    Numero ng Telepono ng Kawani
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+63917 000 0000"
+                      required
+                      autoComplete="tel"
+                      className="w-full rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-slate-50/80 pl-11 pr-4 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-slate-900 tracking-wide outline-none transition focus:ring-4 focus:ring-blue-500/10"
+                    />
+                    <Phone className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-2 h-13 sm:h-14 rounded-xl sm:rounded-2xl bg-blue-700 hover:bg-blue-800 active:scale-[0.99] text-white font-extrabold text-base shadow-md shadow-blue-700/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  <span>{loading ? "Nagpapadala..." : "Padalhan ng OTP Code"}</span>
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+                </button>
+              </form>
+            )}
+
+            {/* STEP 2: OTP */}
+            {step === "otp" && (
+              <form
+                onSubmit={handleConfirmOtp}
+                className="mt-4 sm:mt-6 space-y-3.5 sm:space-y-4"
+              >
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                      6-Digit OTP Code
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      className="text-[11px] font-bold text-blue-700 hover:text-blue-800 cursor-pointer"
+                    >
+                      Baguhin ang numero
+                    </button>
+                  </div>
                   <input
                     type="text"
-                    value={emailOrId}
-                    onChange={(e) => setEmailOrId(e.target.value)}
-                    placeholder="pangalan@da.region2.gov.ph"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={otp}
+                    onChange={handleOtpChange}
+                    placeholder="______"
                     required
-                    className="w-full rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-slate-50/80 pl-11 pr-4 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-slate-900 tracking-wide outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
+                    autoFocus
+                    className="w-full rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2.5 sm:py-3 text-center text-2xl sm:text-3xl font-black tracking-[0.4em] text-slate-900 outline-none transition focus:ring-4 focus:ring-blue-500/10"
                   />
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                 </div>
-              </div>
 
-              {/* Password Input */}
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                    Password / Security Key
-                  </label>
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    (Demo pre-filled)
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-2 h-13 sm:h-14 rounded-xl sm:rounded-2xl bg-blue-700 hover:bg-blue-800 active:scale-[0.99] text-white font-extrabold text-base shadow-md shadow-blue-700/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  <span>
+                    {loading ? "Pumapasok..." : "Mag-login sa Technician Portal"}
                   </span>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    required
-                    className="w-full rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-slate-50/80 pl-11 pr-11 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-slate-900 tracking-wide outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
-                  />
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    title={showPassword ? "Itago ang password" : "Ipakita ang password"}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+                </button>
 
-              {/* High-Contrast Tap Target Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full mt-2 h-13 sm:h-14 rounded-xl sm:rounded-2xl bg-blue-700 hover:bg-blue-800 active:scale-[0.99] text-white font-extrabold text-base shadow-md shadow-blue-700/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-              >
-                <span>{loading ? "Pumapasok..." : "Mag-login sa Technician Portal"}</span>
-                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
-              </button>
-            </form>
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-700 cursor-pointer py-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Bumalik</span>
+                </button>
+              </form>
+            )}
           </div>
 
-          {/* Quick Demo & Farmer Link */}
+          {/* Farmer Link */}
           <div className="mt-4 sm:mt-6 space-y-2.5">
-            {/* Quick Demo Login Box */}
-            <div className="rounded-xl sm:rounded-2xl border border-blue-200 bg-blue-50/80 p-3 sm:p-4 text-center">
-              <p className="text-[11px] sm:text-xs text-blue-950 font-medium leading-snug">
-                Pang-presentasyon o mabilisang pagsusuri?
-              </p>
-
-              <button
-                type="button"
-                onClick={handleQuickDemoLogin}
-                className="mt-2 w-full rounded-lg sm:rounded-xl border-2 border-blue-600 bg-white hover:bg-blue-50 active:scale-[0.99] py-2.5 px-3 font-bold text-xs sm:text-sm text-blue-800 transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-              >
-                <UserCheck className="w-4 h-4 text-blue-600" />
-                <span>Demo Login: Engr. Maria Santos (DA Region II)</span>
-              </button>
-            </div>
-
-            {/* Back to Farmer Mobile Portal Link */}
             <div className="text-center pt-1">
               <button
                 type="button"
@@ -286,7 +390,6 @@ export const OfficerLoginPage: React.FC = () => {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

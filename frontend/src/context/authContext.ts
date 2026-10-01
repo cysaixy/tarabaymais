@@ -1,23 +1,34 @@
 import { createContext, useContext } from "react";
 import type { User } from "firebase/auth";
 
-/** Frontend role (lowercase). Backend token claims are uppercase FARMER/TECHNICIAN. */
-export type UserRole = "farmer" | "technician";
+/**
+ * Application role. Matches the backend Prisma `Role` enum / Firebase token
+ * custom claim exactly (uppercase). The backend is the single source of truth.
+ */
+export type UserRole = "FARMER" | "TECHNICIAN" | "OFFICER";
 
-/** Raw role value as stored in the Firebase token claim / Postgres. */
-export type BackendRole = "FARMER" | "TECHNICIAN";
+/**
+ * Normalizes a raw role value (from a token claim or the `/auth/me` payload)
+ * to a known {@link UserRole}. Unknown or missing values default to `FARMER`,
+ * which is also the backend default for freshly synced users.
+ */
+export const toUserRole = (raw: unknown): UserRole => {
+  if (raw === "TECHNICIAN" || raw === "technician") return "TECHNICIAN";
+  if (raw === "OFFICER" || raw === "officer") return "OFFICER";
+  return "FARMER";
+};
 
-/** Maps a backend/token role to the frontend role. Defaults to farmer. */
-export const toUserRole = (raw: unknown): UserRole =>
-  raw === "TECHNICIAN" || raw === "technician" ? "technician" : "farmer";
+/** True for roles that use the municipal (officer/technician) portal. */
+export const isMunicipalRole = (role: UserRole | null): boolean =>
+  role === "TECHNICIAN" || role === "OFFICER";
 
-/** User profile as returned by the backend `/auth/sync` endpoint. */
+/** User profile as returned by the backend `/auth/me` and `/auth/sync`. */
 export interface DbUserProfile {
   id: string;
   firstName: string;
   lastName: string;
   phone: string;
-  role: BackendRole;
+  role: UserRole;
   farmerProfile?: {
     rsbsaNumber: string | null;
     preferredLanguage: string;
@@ -25,13 +36,22 @@ export interface DbUserProfile {
 }
 
 export interface AuthContextType {
+  /** The raw Firebase user, or null when signed out. */
   user: User | null;
+  /** The backend DB profile, or null when not yet synced / signed out. */
   profile: DbUserProfile | null;
+  /** The resolved role, or null when signed out / unresolved. */
   role: UserRole | null;
+  /** True while the initial session / profile resolution is in flight. */
   loading: boolean;
+  /** Signs out of Firebase and clears local session state. */
   logout: () => Promise<void>;
-  loginAsDemo?: (role: UserRole) => void;
-  loginWithPhonePin?: (phone: string, pin: string) => Promise<boolean>;
+  /**
+   * Re-fetches the backend profile for the current Firebase user and updates
+   * context. Call this after completing registration (`/auth/sync`) so guards
+   * see the freshly created profile without a full page reload.
+   */
+  refreshProfile: () => Promise<DbUserProfile | null>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(

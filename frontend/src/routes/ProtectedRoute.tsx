@@ -1,17 +1,24 @@
 import React from "react";
 import { Navigate, Outlet } from "react-router-dom";
-import { useAuth, type UserRole } from "../context/authContext";
+import { useAuth, isMunicipalRole, type UserRole } from "../context/authContext";
 
 interface GuardProps {
   allowedRoles: UserRole[];
 }
 
+/** Resolves the home route for a given role. */
+const homeFor = (role: UserRole | null): string =>
+  isMunicipalRole(role) ? "/officer/dashboard" : "/farmer";
+
 /**
  * Route guard that gates access by authentication state and role.
+ *
  * - While auth is resolving, shows a loading state.
- * - Unauthenticated users are sent to /login.
- * - Authenticated users whose role is not allowed are redirected to their
- *   own home area.
+ * - Unauthenticated users (no Firebase session) are sent to /login.
+ * - Authenticated users with a valid Firebase session but no synced profile
+ *   (role === null) are sent to /onboarding to finish registration.
+ * - Authenticated users whose role is not permitted are redirected to their
+ *   own home area (role-mismatch protection).
  */
 export const ProtectedRoute: React.FC<GuardProps> = ({ allowedRoles }) => {
   const { user, role, loading } = useAuth();
@@ -27,13 +34,19 @@ export const ProtectedRoute: React.FC<GuardProps> = ({ allowedRoles }) => {
     );
   }
 
+  // No Firebase session at all → login.
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!role || !allowedRoles.includes(role)) {
-    const fallback = role === "technician" ? "/technician" : "/farmer";
-    return <Navigate to={fallback} replace />;
+  // Signed in but no backend profile yet → complete registration.
+  if (!role) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  // Role mismatch → bounce to the caller's own home area.
+  if (!allowedRoles.includes(role)) {
+    return <Navigate to={homeFor(role)} replace />;
   }
 
   return <Outlet />;
