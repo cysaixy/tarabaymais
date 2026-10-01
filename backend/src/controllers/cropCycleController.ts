@@ -170,3 +170,33 @@ export const deleteCropCycle = asyncHandler(
     });
   },
 );
+
+/** GET /api/v1/crop-cycles/:id */
+export const getCropCycleById = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = req.params["id"] as string;
+    const user = req.user!;
+
+    const cropCycle = await prisma.cropCycle.findFirst({
+      where: {
+        id,
+        ...(user.role === Role.FARMER && { farm: { farmerId: user.id } }),
+      },
+      include: {
+        farm: true,
+        activities: { orderBy: { performedAt: "desc" } },
+        observations: {
+          include: { expertRequest: true },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+
+    if (!cropCycle) {
+      throw ApiError.notFound("Crop cycle not found or access denied");
+    }
+
+    return sendSuccess(res, 200, { data: { cropCycle } });
+  },
+);
+

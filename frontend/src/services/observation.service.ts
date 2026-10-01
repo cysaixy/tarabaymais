@@ -57,3 +57,16 @@ export const createObservation = async (
   });
   return data.data;
 };
+
+/**
+ * Lists observations for a crop cycle or all observations for the authenticated user.
+ * Endpoint: GET /api/v1/observations/:cropCycleId or GET /api/v1/observations
+ */
+export const listObservations = async (
+  cropCycleId?: string
+): Promise<ObservationRecord[]> => {
+  const url = cropCycleId ? `/observations/${cropCycleId}` : "/observations";
+  const { data } = await api.get(url);
+  return data.data.observations;
+};
+

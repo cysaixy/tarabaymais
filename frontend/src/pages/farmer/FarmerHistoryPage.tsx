@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -12,6 +12,9 @@ import {
   Home,
   Scan,
   MessageSquare,
+  AlertTriangle,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import {
   getOfflineQueue,
@@ -19,12 +22,10 @@ import {
   sendBatchSync,
   type SyncActionItem,
 } from "../../services/sync.service";
-
-interface FarmContext {
-  farmName: string;
-  municipality: string;
-  barangay: string;
-}
+import { listActivities, type CropActivity } from "../../services/activity.service";
+import { listObservations, type ObservationRecord } from "../../services/observation.service";
+import { getCasePipeline, type CasePipelineData } from "../../services/case.service";
+import { useFarmContext } from "../../hooks/useFarmContext";
 
 interface HistoryItem {
   id: string;
@@ -35,90 +36,175 @@ interface HistoryItem {
   detailHighlight?: string;
   status: "Synced" | "Pending";
   clientRefId?: string;
+  iconType?: "activity" | "observation" | "disaster" | "expert";
 }
-
-const INITIAL_SYNCED_ITEMS: HistoryItem[] = [
-  {
-    id: "hist-01",
-    title: "Fertilizer (Pataba)",
-    category: "Fertilizer",
-    date: "2026-08-18",
-    description: "Pangunahing pagpapataba ng Basal (14-14-14 NPK)",
-    detailHighlight: "4 na sako (Complete 14-14-14)",
-    status: "Synced",
-  },
-  {
-    id: "hist-02",
-    title: "Pest Control (Peste)",
-    category: "Pest Control",
-    date: "2026-08-28",
-    description: "Pag-spray ng biopesticide para sa maliit na uod sa dahon",
-    detailHighlight: "500ml Neem extract solution",
-    status: "Synced",
-  },
-  {
-    id: "hist-03",
-    title: "Irrigation (Patubig)",
-    category: "Irrigation",
-    date: "2026-09-02",
-    description: "Pagpapatubig sa vegetative stage gamit ang water pump",
-    detailHighlight: "Furrow irrigation sa Block A",
-    status: "Synced",
-  },
-  {
-    id: "hist-04",
-    title: "Plant Health Observation",
-    category: "Observation",
-    date: "2026-09-04",
-    description: "Pagsusuri sa gitnang bahagi ng maisan para sa Fall Armyworm",
-    detailHighlight: "Normal ang pagtubo, walang malubhang peste",
-    status: "Synced",
-  },
-];
-
-const INITIAL_PENDING_ITEMS: HistoryItem[] = [
-  {
-    id: "hist-p-01",
-    title: "Fertilizer (Pataba)",
-    category: "Fertilizer",
-    date: "2026-09-08",
-    description: "Side-dress Urea (46-0-0) bago ang pag-uulan",
-    detailHighlight: "2 sako ng Urea",
-    status: "Pending",
-  },
-  {
-    id: "hist-p-02",
-    title: "Leaf Blight Scan Observation",
-    category: "Observation",
-    date: "2026-09-09",
-    description: "Obserbasyon ng naninilaw na dahon sa dulong plot",
-    detailHighlight: "Moderate severity (Offline Scan)",
-    status: "Pending",
-  },
-];
 
 export const FarmerHistoryPage: React.FC = () => {
   const navigate = useNavigate();
-
-  // Active Farm Context
-  const [farmData, setFarmData] = useState<FarmContext>({
-    farmName: "Basi Corn Plantation #1",
-    municipality: "Solana",
-    barangay: "Basi East",
-  });
+  const farmCtx = useFarmContext();
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [filterTab, setFilterTab] = useState<"ALL" | "PENDING">("ALL");
+  const [filterTab, setFilterTab] = useState<"ALL" | "SYNCED" | "PENDING">("ALL");
   const [syncing, setSyncing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<HistoryItem[]>([]);
 
-  // Online / Offline and Local Queue Sync State
+  const loadRecords = useCallback(async () => {
+    setLoading(true);
+
+    // 1. Get offline queued items
+    const queue = getOfflineQueue();
+    const pendingItems: HistoryItem[] = queue.map((q: SyncActionItem) => {
+      const payload = (q.payload || {}) as Record<string, unknown>;
+      const rawDate =
+        (payload["performedAt"] as string) ||
+        q.clientTimestamp ||
+        new Date().toISOString();
+      const dateStr = rawDate.split("T")[0];
+
+      let title = q.displayTitle || "Offline Tala";
+      let detailHighlight = "";
+      let description =
+        (payload["description"] as string) || "Nakatabi sa offline queue";
+      let category: HistoryItem["category"] = "Other";
+      let iconType: HistoryItem["iconType"] = "activity";
+
+      if (q.actionType === "CREATE_CROP_ACTIVITY") {
+        const actType = (payload["activityType"] as string) || "Gawain";
+        title = `${actType.charAt(0).toUpperCase() + actType.slice(1).toLowerCase()} (Gawain)`;
+        if (description.includes("—")) {
+          const parts = description.split("—");
+          detailHighlight = parts[0]?.trim() || "";
+          description = parts[1]?.trim() || description;
+        }
+        if (actType === "FERTILIZER") category = "Fertilizer";
+        else if (actType === "PEST_CONTROL") category = "Pest Control";
+        else if (actType === "IRRIGATION") category = "Irrigation";
+        iconType = "activity";
+      } else if (q.actionType === "CREATE_DISASTER_REPORT") {
+        title = `Disaster Claim: ${(payload["disasterType"] as string) || "Pinsala"}`;
+        detailHighlight = `${payload["damagePercentage"] || 0}% Pinsala`;
+        description = (payload["notes"] as string) || "Ulat ng pinsala sa sakahan";
+        category = "Disaster";
+        iconType = "disaster";
+      } else if (q.actionType === "CREATE_OBSERVATION") {
+        title = (payload["title"] as string) || "Plant Health Observation";
+        detailHighlight = `${(payload["severity"] as string) || "Normal"} severity`;
+        description = (payload["description"] as string) || description;
+        category = "Observation";
+        iconType = "observation";
+      }
+
+      return {
+        id: q.clientRefId,
+        title,
+        category,
+        date: dateStr,
+        description,
+        detailHighlight,
+        status: "Pending" as const,
+        clientRefId: q.clientRefId,
+        iconType,
+      };
+    });
+
+    // 2. Fetch live synced data from backend
+    let backendItems: HistoryItem[] = [];
+    try {
+      const [activities, observations, pipeline] = await Promise.allSettled([
+        listActivities(farmCtx.cropCycleId || undefined),
+        listObservations(farmCtx.cropCycleId || undefined),
+        getCasePipeline(),
+      ]);
+
+      if (activities.status === "fulfilled" && Array.isArray(activities.value)) {
+        activities.value.forEach((act: CropActivity) => {
+          let category: HistoryItem["category"] = "Other";
+          if (act.activityType === "FERTILIZER") category = "Fertilizer";
+          else if (act.activityType === "PEST_CONTROL") category = "Pest Control";
+          else if (act.activityType === "IRRIGATION") category = "Irrigation";
+
+          backendItems.push({
+            id: `act-${act.id}`,
+            title: `${act.activityType} — Gawain`,
+            category,
+            date: (act.performedAt || act.createdAt || "").split("T")[0],
+            description: act.description,
+            detailHighlight: act.costAmount
+              ? `Gastos: ₱${Number(act.costAmount).toLocaleString()}`
+              : undefined,
+            status: "Synced",
+            iconType: "activity",
+          });
+        });
+      }
+
+      if (observations.status === "fulfilled" && Array.isArray(observations.value)) {
+        observations.value.forEach((obs: ObservationRecord) => {
+          backendItems.push({
+            id: `obs-${obs.id}`,
+            title: obs.title,
+            category: "Observation",
+            date: (obs.createdAt || "").split("T")[0],
+            description: obs.description,
+            detailHighlight: `${obs.severity} Severity`,
+            status: "Synced",
+            iconType: "observation",
+          });
+        });
+      }
+
+      if (pipeline.status === "fulfilled" && pipeline.value) {
+        const pipe = pipeline.value as CasePipelineData;
+        (pipe.disasterCases || []).forEach((dc) => {
+          backendItems.push({
+            id: `dis-${dc.id}`,
+            title: `Disaster Claim: ${dc.disasterType}`,
+            category: "Disaster",
+            date: (dc.createdAt || "").split("T")[0],
+            description: dc.notes || "Ulat ng pinsala sa sakahan",
+            detailHighlight: `${dc.damagePercentage}% Pinsala • Status: ${dc.status}`,
+            status: "Synced",
+            iconType: "disaster",
+          });
+        });
+
+        (pipe.expertCases || []).forEach((ec) => {
+          backendItems.push({
+            id: `exp-${ec.id}`,
+            title: `Konsultasyon: ${ec.observation?.title || "Tulong sa Taniman"}`,
+            category: "Observation",
+            date: new Date().toISOString().split("T")[0],
+            description: ec.recommendation
+              ? `Payo ng DA: ${ec.recommendation}`
+              : ec.observation?.description || "Nakabinbin sa technician",
+            detailHighlight: `Status: ${ec.status}`,
+            status: "Synced",
+            iconType: "expert",
+          });
+        });
+      }
+    } catch (err) {
+      console.warn("Backend records could not be fetched (offline or auth pending):", err);
+    }
+
+    // Sort: Pending first, then by date descending
+    const combined = [
+      ...pendingItems,
+      ...backendItems.sort((a, b) => b.date.localeCompare(a.date)),
+    ];
+
+    setRecords(combined);
+    setLoading(false);
+  }, [farmCtx.cropCycleId]);
+
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
       toast.success("May koneksyon na sa internet!", {
         description: "Maaari mo nang i-sync ang mga nakabinbing rekord.",
       });
+      void loadRecords();
     };
     const handleOffline = () => {
       setIsOnline(false);
@@ -130,93 +216,17 @@ export const FarmerHistoryPage: React.FC = () => {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    // Load active farm context
-    try {
-      const savedFarm = localStorage.getItem("tarabay_active_farm");
-      if (savedFarm) {
-        const parsed = JSON.parse(savedFarm);
-        setFarmData({
-          farmName: parsed.farmName || "Basi Corn Plantation #1",
-          municipality: parsed.municipality || "Solana",
-          barangay: parsed.barangay || "Basi East",
-        });
-      }
-    } catch {
-      // Ignore
-    }
-
-    // Load local history & queue
-    loadRecords();
+    void loadRecords();
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
-
-  const loadRecords = () => {
-    const queue = getOfflineQueue();
-
-    // Map offline queue items if available, else fallback to mock pending items for illustration
-    let pendingItems: HistoryItem[] = [];
-    if (queue.length > 0) {
-      pendingItems = queue.map((q: SyncActionItem) => {
-        const payload = (q.payload || {}) as Record<string, unknown>;
-        const rawDate =
-          (payload["performedAt"] as string) ||
-          q.clientTimestamp ||
-          new Date().toISOString();
-        const dateStr = rawDate.split("T")[0];
-
-        let title = q.displayTitle || "Offline Tala";
-        let detailHighlight = "";
-        let description = (payload["description"] as string) || "Nakatabi sa offline queue";
-
-        if (q.actionType === "CREATE_CROP_ACTIVITY") {
-          const actType = (payload["activityType"] as string) || "Gawain";
-          title = `${actType.charAt(0).toUpperCase() + actType.slice(1).toLowerCase()} (Gawain)`;
-          if (description.includes("—")) {
-            const parts = description.split("—");
-            detailHighlight = parts[0]?.trim() || "";
-            description = parts[1]?.trim() || description;
-          }
-        } else if (q.actionType === "CREATE_DISASTER_REPORT") {
-          title = `Disaster Claim: ${(payload["disasterType"] as string) || "Pinsala"}`;
-          detailHighlight = `${payload["damagePercentage"] || 0}% Pinsala`;
-          description = (payload["notes"] as string) || "Ulat ng pinsala sa sakahan";
-        } else if (q.actionType === "CREATE_OBSERVATION") {
-          title = (payload["title"] as string) || "Plant Health Observation";
-          detailHighlight = `${(payload["severity"] as string) || "Normal"} severity`;
-          description = (payload["description"] as string) || description;
-        }
-
-        return {
-          id: q.clientRefId,
-          title,
-          category: "Fertilizer" as const,
-          date: dateStr || "2026-09-08",
-          description,
-          detailHighlight,
-          status: "Pending" as const,
-          clientRefId: q.clientRefId,
-        };
-      });
-    } else {
-      // If queue is completely empty in localStorage, seed with representative items matching the design
-      pendingItems = INITIAL_PENDING_ITEMS;
-    }
-
-    setRecords([...INITIAL_SYNCED_ITEMS, ...pendingItems]);
-  };
+  }, [loadRecords]);
 
   const pendingCount = records.filter((r) => r.status === "Pending").length;
   const syncedCount = records.filter((r) => r.status === "Synced").length;
   const totalCount = records.length;
-
-  const displayedRecords =
-    filterTab === "PENDING"
-      ? records.filter((r) => r.status === "Pending")
-      : records;
 
   const handleSyncNow = async () => {
     if (pendingCount === 0) {
@@ -242,25 +252,15 @@ export const FarmerHistoryPage: React.FC = () => {
       if (queue.length > 0) {
         await sendBatchSync(queue);
         clearOfflineQueue();
-      } else {
-        // Simulated network latency for demo items
-        await new Promise((res) => setTimeout(res, 1200));
       }
 
-      // Mark all records as synced
-      setRecords((prev) =>
-        prev.map((item) => ({
-          ...item,
-          status: "Synced" as const,
-        }))
-      );
+      await loadRecords();
 
       toast.success("Matagumpay na nai-sync sa PostgreSQL Server!", {
         id: toastId,
         description: `${pendingCount} rekord ang nai-record sa DA Database.`,
       });
     } catch {
-      // Offline or network error during sync
       toast.error("Hindi matapos ang pag-sync", {
         id: toastId,
         description:
@@ -271,14 +271,22 @@ export const FarmerHistoryPage: React.FC = () => {
     }
   };
 
+  const displayedRecords =
+    filterTab === "PENDING"
+      ? records.filter((r) => r.status === "Pending")
+      : filterTab === "SYNCED"
+      ? records.filter((r) => r.status === "Synced")
+      : records;
+
+  const locationLabel = farmCtx.municipality
+    ? `${farmCtx.municipality}, Cagayan • ${farmCtx.farmName || "Corn Field"}`
+    : "Cagayan • Corn Field";
+
   return (
     <div className="w-full min-h-screen bg-slate-100 md:bg-slate-950 flex flex-col items-center justify-start p-0 md:py-6 md:px-4 font-sans selection:bg-emerald-500/30">
-      {/* Responsive Container: Mobile Viewport (412x917 edge-to-edge) vs Tablet/Desktop Card */}
       <div className="w-full md:max-w-md lg:max-w-lg bg-slate-50 text-slate-900 shadow-2xl flex flex-col h-[100dvh] md:h-[92vh] md:max-h-[920px] overflow-hidden md:rounded-[36px] md:border-2 md:border-emerald-800/40 relative">
-        
-        {/* ========================================================= */}
-        {/* 1. TOP HEADER (Deep Emerald #03543f)                      */}
-        {/* ========================================================= */}
+
+        {/* TOP HEADER */}
         <header className="w-full bg-[#03543f] text-white px-4 sm:px-6 pt-4 pb-3 flex justify-between items-center shadow-md shrink-0 z-20">
           <div className="flex items-center gap-2.5">
             <button
@@ -294,12 +302,11 @@ export const FarmerHistoryPage: React.FC = () => {
                 Kasaysayan at Offline Queue
               </h1>
               <p className="text-[11px] sm:text-xs text-emerald-200/90 font-medium">
-                {farmData.municipality}, Cagayan • Corn Field
+                {locationLabel}
               </p>
             </div>
           </div>
 
-          {/* Offline Queue Badge Button */}
           <button
             onClick={() => setFilterTab("PENDING")}
             type="button"
@@ -310,23 +317,19 @@ export const FarmerHistoryPage: React.FC = () => {
           </button>
         </header>
 
-        {/* ========================================================= */}
-        {/* 2. MAIN SCROLLABLE CONTENT AREA                           */}
-        {/* ========================================================= */}
+        {/* MAIN SCROLLABLE CONTENT */}
         <main className="flex-1 p-4 sm:p-5 space-y-4 overflow-y-auto">
-          
-          {/* Hero Dark Sync Card */}
+
+          {/* Sync Card */}
           <div className="w-full bg-[#0b1329] text-white rounded-3xl p-5 shadow-xl border border-slate-800 space-y-4">
-            {/* Header row inside dark card */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <Database className="w-5 h-5 text-emerald-400 stroke-[2.2]" />
                 <h2 className="text-sm font-bold tracking-tight text-white">
-                  IndexedDB Local Queue & Sync
+                  Local Queue at PostgreSQL Sync
                 </h2>
               </div>
 
-              {/* Connection Pill */}
               <div
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition ${
                   isOnline
@@ -348,9 +351,7 @@ export const FarmerHistoryPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Two Stat Metric Panels */}
             <div className="grid grid-cols-2 divide-x divide-slate-800 bg-[#070d1e] rounded-2xl p-4 border border-slate-800/80">
-              {/* Left Stat: Pending */}
               <div className="text-center pr-2">
                 <p className="text-2xl sm:text-3xl font-black text-amber-400">
                   {pendingCount}
@@ -359,8 +360,6 @@ export const FarmerHistoryPage: React.FC = () => {
                   Pending Sync sa Phone
                 </p>
               </div>
-
-              {/* Right Stat: Synced */}
               <div className="text-center pl-2">
                 <p className="text-2xl sm:text-3xl font-black text-emerald-400">
                   {syncedCount}
@@ -371,7 +370,6 @@ export const FarmerHistoryPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Sync Action Button */}
             <button
               type="button"
               onClick={handleSyncNow}
@@ -382,9 +380,7 @@ export const FarmerHistoryPage: React.FC = () => {
                   : "bg-slate-800 text-slate-400 cursor-not-allowed"
               }`}
             >
-              <RefreshCw
-                className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`}
-              />
+              <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
               <span>
                 {syncing
                   ? "Kasalukuyang isini-sync..."
@@ -396,11 +392,11 @@ export const FarmerHistoryPage: React.FC = () => {
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 pt-1 overflow-x-auto pb-1">
             <button
               type="button"
               onClick={() => setFilterTab("ALL")}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition active:scale-95 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition active:scale-95 cursor-pointer whitespace-nowrap ${
                 filterTab === "ALL"
                   ? "bg-[#03543f] text-white shadow-sm"
                   : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
@@ -410,26 +406,35 @@ export const FarmerHistoryPage: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setFilterTab("SYNCED")}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition active:scale-95 cursor-pointer whitespace-nowrap ${
+                filterTab === "SYNCED"
+                  ? "bg-[#03543f] text-white shadow-sm"
+                  : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              Naka-sync ({syncedCount})
+            </button>
+            <button
+              type="button"
               onClick={() => setFilterTab("PENDING")}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition active:scale-95 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition active:scale-95 cursor-pointer whitespace-nowrap ${
                 filterTab === "PENDING"
                   ? "bg-[#03543f] text-white shadow-sm"
                   : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
               }`}
             >
-              Pending Sync ({pendingCount})
+              Pending ({pendingCount})
             </button>
           </div>
 
-          {/* Section Title */}
           <div className="pt-2">
             <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">
               MGA NA-RECORD NA GAWAIN AT PAGSUSURI
             </h3>
           </div>
 
-          {/* Notice Card for Offline Queue */}
-          {pendingCount > 0 && (
+          {pendingCount > 0 && filterTab !== "SYNCED" && (
             <div className="rounded-2xl border border-amber-300 bg-amber-50/70 p-3.5 flex items-start gap-3">
               <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="space-y-0.5">
@@ -437,7 +442,7 @@ export const FarmerHistoryPage: React.FC = () => {
                   May {pendingCount} item sa offline queue
                 </p>
                 <p className="text-[11px] text-amber-900/90 leading-relaxed">
-                  Nakatabi nang ligtas sa LocalStorage. Automatic na ipapadala kapag nagkaroon ng internet connection.
+                  Nakatabi nang ligtas sa telepono. Awtomatikong maipapadala o pindutin ang "I-sync Ngayon" kapag may signal.
                 </p>
               </div>
             </div>
@@ -445,26 +450,48 @@ export const FarmerHistoryPage: React.FC = () => {
 
           {/* Record List */}
           <div className="space-y-3 pb-6">
-            {displayedRecords.length === 0 ? (
-              <div className="bg-white rounded-2xl p-6 text-center border border-slate-200/80">
+            {loading ? (
+              <div className="py-12 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                <span>Kinukuha ang kasaysayan mula sa server...</span>
+              </div>
+            ) : displayedRecords.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center border border-slate-200/80 space-y-1">
                 <p className="text-xs font-bold text-slate-600">
-                  Walang nakitang rekord sa kategoryang ito.
+                  Walang nakitang rekord.
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  {filterTab === "PENDING"
+                    ? "Walang pending na tala sa offline queue."
+                    : "Magtala ng mga gawain o obserbasyon sa inyong sakahan."}
                 </p>
               </div>
             ) : (
               displayedRecords.map((item) => {
                 const isPending = item.status === "Pending";
+                let iconBg = "bg-emerald-100 text-emerald-700";
+                let IconComponent = ClipboardCheck;
+
+                if (item.iconType === "observation") {
+                  iconBg = "bg-amber-100 text-amber-700";
+                  IconComponent = AlertTriangle;
+                } else if (item.iconType === "disaster") {
+                  iconBg = "bg-rose-100 text-rose-700";
+                  IconComponent = AlertTriangle;
+                } else if (item.iconType === "expert") {
+                  iconBg = "bg-blue-100 text-blue-700";
+                  IconComponent = CheckCircle2;
+                }
+
                 return (
                   <div
                     key={item.id}
                     className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-start gap-3.5 hover:border-slate-300 transition"
                   >
-                    {/* Blue Icon Square */}
-                    <div className="w-10 h-10 rounded-xl bg-blue-100/90 flex items-center justify-center text-blue-600 shrink-0 mt-0.5">
-                      <ClipboardCheck className="w-5 h-5 stroke-[2.2]" />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${iconBg}`}>
+                      <IconComponent className="w-5 h-5 stroke-[2.2]" />
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
@@ -475,8 +502,6 @@ export const FarmerHistoryPage: React.FC = () => {
                             {item.date}
                           </span>
                         </div>
-
-                        {/* Status Badge */}
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                             isPending
@@ -493,7 +518,7 @@ export const FarmerHistoryPage: React.FC = () => {
                       </p>
 
                       {item.detailHighlight && (
-                        <p className="text-xs font-bold text-blue-700 leading-snug pt-0.5">
+                        <p className="text-xs font-bold text-emerald-800 leading-snug pt-0.5">
                           {item.detailHighlight}
                         </p>
                       )}
@@ -505,11 +530,8 @@ export const FarmerHistoryPage: React.FC = () => {
           </div>
         </main>
 
-        {/* ========================================================= */}
-        {/* 3. FIXED BOTTOM NAVIGATION BAR                            */}
-        {/* ========================================================= */}
+        {/* BOTTOM NAVIGATION */}
         <nav className="shrink-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 pt-2 pb-3.5 md:py-2 flex justify-around items-center z-30 shadow-lg">
-          {/* Tahanan */}
           <button
             type="button"
             onClick={() => navigate("/farmer")}
@@ -519,7 +541,6 @@ export const FarmerHistoryPage: React.FC = () => {
             <span>Tahanan</span>
           </button>
 
-          {/* Scanner */}
           <button
             type="button"
             onClick={() => navigate("/farmer/scanner")}
@@ -529,7 +550,6 @@ export const FarmerHistoryPage: React.FC = () => {
             <span>Scanner</span>
           </button>
 
-          {/* AI Chat */}
           <button
             type="button"
             onClick={() => navigate("/farmer/chat")}

@@ -7,6 +7,8 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
 enum Role {
   FARMER     @map("farmer")
   TECHNICIAN @map("technician")
@@ -55,8 +57,10 @@ enum CaseStatus {
   @@map("case_status")
 }
 
+// ─── Models ───────────────────────────────────────────────────────────────────
+
 model User {
-  id        String   @id @db.VarChar(128) // Directly stores Firebase UID
+  id        String   @id @db.VarChar(128)
   firstName String   @map("first_name") @db.VarChar(100)
   lastName  String   @map("last_name") @db.VarChar(100)
   phone     String   @unique @db.VarChar(30)
@@ -193,10 +197,11 @@ model DisasterReport {
 model KnowledgeChunk {
   id        String   @id @default(uuid()) @db.VarChar(64)
   title     String   @db.VarChar(255)
-  source    String   @db.VarChar(255) // e.g., "DA Region II Corn Techno Guide"
-  category  String   @db.VarChar(100) // e.g., "PEST_MANAGEMENT", "FERTILIZER"
+  source    String   @db.VarChar(255)
+  category  String   @db.VarChar(100)
   content   String   @db.Text
-  embedding Unsupported("vector(768)")? 
+  // embedding column requires pgvector extension — install pgvector then re-add:
+  // embedding Unsupported("vector(768)")?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@map("knowledge_chunks")

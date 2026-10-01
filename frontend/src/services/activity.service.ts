@@ -37,3 +37,16 @@ export const createActivity = async (
   const { data } = await api.post(`/activities/${cropCycleId}`, payload);
   return data.data.activity;
 };
+
+/**
+ * Lists activities for a crop cycle or all activities for the authenticated user.
+ * Endpoint: GET /api/v1/activities/:cropCycleId or GET /api/v1/activities
+ */
+export const listActivities = async (
+  cropCycleId?: string
+): Promise<CropActivity[]> => {
+  const url = cropCycleId ? `/activities/${cropCycleId}` : "/activities";
+  const { data } = await api.get(url);
+  return data.data.activities;
+};
+

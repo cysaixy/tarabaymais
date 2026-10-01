@@ -39,5 +39,6 @@
     "isolatedModules": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules", "prisma.config.ts", "prisma7.config.ts"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "prisma.config.ts", "prisma7.config.ts"]
 }

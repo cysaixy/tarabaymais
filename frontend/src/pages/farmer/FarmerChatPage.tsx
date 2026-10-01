@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { sendRagChat, type RagChatSource } from "../../services/ai.service";
 import { getOfflineQueue } from "../../services/sync.service";
+import { useFarmContext } from "../../hooks/useFarmContext";
+import { useAuth } from "../../context/authContext";
 
 interface ChatMessage {
   id: string;
@@ -26,63 +28,64 @@ interface ChatMessage {
 }
 
 const QUICK_PROMPTS = [
-  "Ano ang tamang pataba sa DAP 38 (Vegetative Stage)?",
+  "Ano ang tamang pataba sa Vegetative Stage ng mais?",
   "Paano kontrolin ang Fall Armyworm sa murang mais?",
-  "Ano ang ulat ng panahon ng PAGASA sa Solana Cagayan?",
+  "Ano ang tamang bilang ng pataba sa pag-ani?",
 ];
 
 export const FarmerChatPage: React.FC = () => {
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Active farm context
-  const [farmData, setFarmData] = useState({
-    farmName: "Basi Corn Plantation #1",
-    farmerName: "Mang Danilo",
-    municipality: "Solana",
-    barangay: "Basi East",
-    variety: "Pioneer 30T60",
-    cropCycleId: "cycle-local-01",
-    dap: 38,
-  });
+  const farmCtx = useFarmContext();
+  const { profile } = useAuth();
 
-  const [queueCount, setQueueCount] = useState(2);
+  const [queueCount, setQueueCount] = useState(0);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Compute Days After Planting from planting date
+  const computeDAP = (plantingDate?: string): number | null => {
+    if (!plantingDate) return null;
+    const planted = new Date(plantingDate);
+    if (isNaN(planted.getTime())) return null;
+    const ms = Date.now() - planted.getTime();
+    return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+  };
+
+  const dap = computeDAP(farmCtx.plantingDate) ?? null;
+  const farmerName = profile
+    ? `${profile.firstName} ${profile.lastName}`.trim()
+    : "Magsasaka";
+
+  const farmData = {
+    farmName: farmCtx.farmName || "Aking Sakahan",
+    farmerName,
+    municipality: farmCtx.municipality || "inyong lugar",
+    barangay: farmCtx.barangay || "",
+    variety: farmCtx.variety || "Mais",
+    dap,
+    cropCycleId: farmCtx.cropCycleId,
+  };
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "msg-initial",
       role: "assistant",
-      text: "Magandang araw, Mang Danilo! Ako ang iyong AI Farming Assistant para sa Mais dito sa Cagayan. Paano kita matutulungan sa iyong taniman sa Solana ngayon?",
-      timestamp: "09:00 AM",
+      text: `Magandang araw! Ako ang iyong AI Farming Assistant para sa Mais dito sa Cagayan. Paano kita matutulungan sa iyong taniman sa ${farmCtx.municipality || "Cagayan"} ngayon?`,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       sources: [
-        { title: "DA Region II Corn Techno Guide", source: "Regional Crop Protection Center" },
+        {
+          title: "DA Region II Corn Techno Guide",
+          source: "Regional Crop Protection Center",
+        },
       ],
       farmContextUsed: true,
     },
   ]);
 
-  // Load local context on mount
+  // Load queue count on mount
   useEffect(() => {
-    try {
-      const savedFarm = localStorage.getItem("tarabay_active_farm");
-      if (savedFarm) {
-        const parsed = JSON.parse(savedFarm);
-        setFarmData((prev) => ({
-          ...prev,
-          farmName: parsed.farmName || prev.farmName,
-          farmerName: parsed.farmerName ? parsed.farmerName.split(" ")[0] || parsed.farmerName : prev.farmerName,
-          municipality: parsed.municipality || prev.municipality,
-          barangay: parsed.barangay || prev.barangay,
-          variety: parsed.variety || prev.variety,
-          dap: parsed.dap ?? 38,
-        }));
-      }
-    } catch {
-      // Ignore
-    }
-
     const q = getOfflineQueue();
     if (q.length > 0) {
       setQueueCount(q.length);
@@ -128,7 +131,7 @@ export const FarmerChatPage: React.FC = () => {
       let sources: RagChatSource[] = [];
 
       if (trimmed.includes("pataba") || trimmed.includes("DAP") || trimmed.includes("Vegetative")) {
-        answer = `Ayon sa DA Region II Corn Techno-Guide para sa ${farmData.variety} sa DAP ${farmData.dap} (Vegetative Stage):\n\n1. Mag-side dress ng 2 sako ng Urea (46-0-0) bawat ektarya.\n2. Ilagay ang abono humigit-kumulang 5-7 sentimetro mula sa puno ng mais at tabunan ng manipis na lupa.\n3. Pinakamainam itong gawin habang mamasa-masa ang lupa o bago ang inaasahang pag-ulan sa hapon.`;
+        answer = `Ayon sa DA Region II Corn Techno-Guide para sa ${farmData.variety}${farmData.dap !== null ? ` sa DAP ${farmData.dap}` : ""}:\\n\\n1. Mag-side dress ng 2 sako ng Urea (46-0-0) bawat ektarya.\\n2. Ilagay ang abono humigit-kumulang 5-7 sentimetro mula sa puno ng mais at tabunan ng manipis na lupa.\\n3. Pinakamainam itong gawin habang mamasa-masa ang lupa o bago ang inaasahang pag-ulan sa hapon.`;
         sources = [
           { title: "Gabay sa Pagtatanim ng Mais sa Rehiyon II", source: "DA-RFO 02 Tuguegarao" },
           { title: "Corn Nutrient Management Guide", source: "PhilRice Advisory" },
@@ -139,7 +142,7 @@ export const FarmerChatPage: React.FC = () => {
           { title: "FAW Management in Cagayan Valley", source: "Regional Crop Protection Center (RCPC 02)" },
         ];
       } else if (trimmed.includes("panahon") || trimmed.includes("PAGASA")) {
-        answer = `PAGASA Agro-Weather para sa ${farmData.municipality}, Cagayan:\n\n• Temperatura: 31°C (Mainit sa umaga)\n• Tsansa ng Ulan: 75% na may mga localized thunderstorm sa hapon\n• Humidity: 82%\n\nPayo ng DA: Samantalahin ang maaliwalas na umaga para sa pag-aararo o pag-inspeksyon, at iwasan ang pag-spray ng pestisidyo kung may banta ng malakas na ulan sa hapon.`;
+        answer = `Para sa pinakabagong agro-weather forecast sa ${farmData.municipality}, bisitahin ang opisyal na PAGASA website (pagasa.dost.gov.ph) o makipag-ugnayan sa pinakamalapit na DA-RAFIS station.\n\nPayo ng DA: Laging suriin ang panahon bago mag-spray ng pestisidyo o mag-fertilizer. Iwasan ang aktibidad sa bukid tuwing may banta ng bagyo o malakas na ulan.`;
         sources = [
           { title: "PAGASA Agro-Meteorological Bulletin", source: "Region II Agri-Weather Service" },
         ];
@@ -165,9 +168,14 @@ export const FarmerChatPage: React.FC = () => {
   };
 
   const handleQueueClick = () => {
-    toast.info("Offline Sync Queue", {
-      description: "May 2 nakatagong ulat/obserbasyon sa telepono na handang i-sync kapag nagkaroon ng signal.",
-    });
+    const q = getOfflineQueue();
+    if (q.length > 0) {
+      toast.info("Offline Sync Queue", {
+        description: `May ${q.length} nakatagong ulat/obserbasyon sa telepono na handang i-sync kapag nagkaroon ng signal.`,
+      });
+    } else {
+      toast.info("Offline Queue", { description: "Walang pending na rekord sa offline queue." });
+    }
   };
 
   return (

@@ -190,7 +190,7 @@ export const FarmerLoginPage: React.FC = () => {
                 Pagtala sa Sistema
               </h2>
               <p className="text-[11px] sm:text-xs text-emerald-200/90 font-medium mt-0.5">
-                Solana, Cagayan • Corn Field
+                Cagayan Valley • Corn Farming System
               </p>
             </div>
           </div>

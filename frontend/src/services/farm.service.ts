@@ -67,6 +67,12 @@ export const listCropCycles = async (farmId: string): Promise<CropCycle[]> => {
   return data.data.cropCycles;
 };
 
+/** Fetches a single crop cycle by ID with its details */
+export const getCropCycle = async (id: string): Promise<CropCycle> => {
+  const { data } = await api.get(`/crop-cycles/${id}`);
+  return data.data.cropCycle;
+};
+
 /** A crop cycle enriched with the farm it belongs to (for display context). */
 export interface ActiveCropCycle {
   cropCycle: CropCycle;

@@ -57,3 +57,25 @@ export const getCasePipeline = async (): Promise<CasePipelineData> => {
   const { data } = await api.get("/case/pipeline");
   return data.data.pipeline;
 };
+
+/**
+ * Updates the status of a disaster report or expert case.
+ * Endpoint: PATCH /api/v1/case/pipeline/:caseId
+ */
+export const updateCaseStatus = async (
+  caseId: string,
+  payload: { caseType: "DISASTER_REPORT" | "EXPERT_REQUEST"; status: string }
+): Promise<void> => {
+  await api.patch(`/case/pipeline/${caseId}`, payload);
+};
+
+/**
+ * Resolves an expert request by sending an agronomic recommendation.
+ * Endpoint: PATCH /api/v1/case/expert-requests/:caseId/resolve
+ */
+export const resolveExpertCase = async (
+  caseId: string,
+  payload: { recommendation: string }
+): Promise<void> => {
+  await api.patch(`/case/expert-requests/${caseId}/resolve`, payload);
+};

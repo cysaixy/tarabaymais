@@ -17,15 +17,7 @@ import {
   getOfflineQueue,
   queueOfflineAction,
 } from "../../services/sync.service";
-
-interface FarmContext {
-  farmName: string;
-  farmerName: string;
-  municipality: string;
-  barangay: string;
-  variety: string;
-  cropCycleId: string;
-}
+import { useFarmContext } from "../../hooks/useFarmContext";
 
 const SYMPTOM_OPTIONS = [
   "Butas-butas na dahon (Uod/FAW)",
@@ -40,24 +32,12 @@ export const FarmerObservationPage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Active Farm Context
-  const [farmData, setFarmData] = useState<FarmContext>({
-    farmName: "Basi Corn Plantation #1",
-    farmerName: "Mang Danilo Ramos",
-    municipality: "Solana",
-    barangay: "Basi East",
-    variety: "Pioneer 30T60",
-    cropCycleId: "cycle-local-01",
-  });
+  const farmCtx = useFarmContext();
 
-  const [queueCount, setQueueCount] = useState(2);
-  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([
-    "Butas-butas na dahon (Uod/FAW)",
-  ]);
+  const [queueCount, setQueueCount] = useState(0);
+  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [affectedPercent, setAffectedPercent] = useState<number>(15);
-  const [description, setDescription] = useState<string>(
-    "Nakakita ng maliit na uod sa puso ng mais at ilang butas sa dahon."
-  );
+  const [description, setDescription] = useState<string>("");
 
   // Photo Input state
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -65,30 +45,10 @@ export const FarmerObservationPage: React.FC = () => {
 
   const [submitting, setSubmitting] = useState(false);
 
-  // Load local context on mount
+  // Load queue count on mount
   useEffect(() => {
-    try {
-      const savedFarm = localStorage.getItem("tarabay_active_farm");
-      if (savedFarm) {
-        const parsed = JSON.parse(savedFarm);
-        setFarmData((prev) => ({
-          ...prev,
-          farmName: parsed.farmName || prev.farmName,
-          farmerName: parsed.farmerName || prev.farmerName,
-          municipality: parsed.municipality || prev.municipality,
-          barangay: parsed.barangay || prev.barangay,
-          variety: parsed.variety || prev.variety,
-          cropCycleId: parsed.cropCycleId || prev.cropCycleId,
-        }));
-      }
-    } catch {
-      // Ignore
-    }
-
     const q = getOfflineQueue();
-    if (q.length > 0) {
-      setQueueCount(q.length);
-    }
+    setQueueCount(q.length);
   }, []);
 
   // Compute severity from affected percentage
@@ -142,9 +102,17 @@ export const FarmerObservationPage: React.FC = () => {
         : ""
     }`;
 
+    if (!farmCtx.cropCycleId) {
+      toast.error("Walang aktibong pananim.", {
+        description: "Mag-onboard muna o magdagdag ng crop cycle sa inyong sakahan.",
+      });
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const res = await createObservation({
-        cropCycleId: farmData.cropCycleId,
+        cropCycleId: farmCtx.cropCycleId,
         title,
         description: fullDescription,
         severity,
@@ -169,7 +137,7 @@ export const FarmerObservationPage: React.FC = () => {
         actionType: "CREATE_OBSERVATION",
         displayTitle: title,
         payload: {
-          cropCycleId: farmData.cropCycleId,
+          cropCycleId: farmCtx.cropCycleId,
           title,
           description: fullDescription,
           severity,
@@ -219,7 +187,7 @@ export const FarmerObservationPage: React.FC = () => {
                 Pagsusuri sa Tanim
               </h1>
               <p className="text-[11px] sm:text-xs text-emerald-200/90 font-medium">
-                {farmData.municipality}, Cagayan • Corn Field
+                {farmCtx.municipality || "Cagayan"}, Cagayan • Corn Field
               </p>
             </div>
           </div>

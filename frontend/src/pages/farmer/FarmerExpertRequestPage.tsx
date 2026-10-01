@@ -10,54 +10,26 @@ import {
   MessageSquare,
   Sparkles,
 } from "lucide-react";
-import {
-  createObservation,
-} from "../../services/observation.service";
-import {
-  getCasePipeline,
-  type ExpertCase,
-} from "../../services/case.service";
-import {
-  getOfflineQueue,
-  queueOfflineAction,
-} from "../../services/sync.service";
-
-interface FarmContext {
-  farmId: string;
-  farmName: string;
-  farmerName: string;
-  phone: string;
-  municipality: string;
-  barangay: string;
-  cropCycleId: string;
-}
+import { createObservation } from "../../services/observation.service";
+import { getCasePipeline, type ExpertCase } from "../../services/case.service";
+import { getOfflineQueue, queueOfflineAction } from "../../services/sync.service";
+import { useFarmContext } from "../../hooks/useFarmContext";
+import { useAuth } from "../../context/authContext";
 
 export const FarmerExpertRequestPage: React.FC = () => {
   const navigate = useNavigate();
 
+  const farmCtx = useFarmContext();
+  const { profile } = useAuth();
+
   // Tab State
   const [activeTab, setActiveTab] = useState<"request" | "status">("request");
 
-  // Farm Context
-  const [farmData, setFarmData] = useState<FarmContext>({
-    farmId: "farm-local-01",
-    farmName: "Basi Corn Plantation #1",
-    farmerName: "Mang Danilo Ramos",
-    phone: "0917 584 9201",
-    municipality: "Solana",
-    barangay: "Basi East",
-    cropCycleId: "cycle-local-01",
-  });
-
-  const [queueCount, setQueueCount] = useState(2);
+  const [queueCount, setQueueCount] = useState(0);
 
   // Form Fields
-  const [subject, setSubject] = useState<string>(
-    "Paninilaw ng Mais pagkatapos ng Baha"
-  );
-  const [problemDescription, setProblemDescription] = useState<string>(
-    "Nagkukulay dilaw ang mga dahon ng mais 5 araw matapos humupa ang baha. Ano ang dapat ilagay na foliar spray?"
-  );
+  const [subject, setSubject] = useState<string>("");
+  const [problemDescription, setProblemDescription] = useState<string>("");
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -65,31 +37,10 @@ export const FarmerExpertRequestPage: React.FC = () => {
   const [expertCases, setExpertCases] = useState<ExpertCase[]>([]);
   const [casesLoading, setCasesLoading] = useState(false);
 
-  // Load context on mount
+  // Load queue count on mount
   useEffect(() => {
-    try {
-      const savedFarm = localStorage.getItem("tarabay_active_farm");
-      if (savedFarm) {
-        const parsed = JSON.parse(savedFarm);
-        setFarmData((prev) => ({
-          ...prev,
-          farmId: parsed.farmId || prev.farmId,
-          farmName: parsed.farmName || prev.farmName,
-          farmerName: parsed.farmerName || prev.farmerName,
-          phone: parsed.phone || prev.phone,
-          municipality: parsed.municipality || prev.municipality,
-          barangay: parsed.barangay || prev.barangay,
-          cropCycleId: parsed.cropCycleId || prev.cropCycleId,
-        }));
-      }
-    } catch {
-      // Ignore
-    }
-
     const q = getOfflineQueue();
-    if (q.length > 0) {
-      setQueueCount(q.length);
-    }
+    setQueueCount(q.length);
   }, []);
 
   // Fetch cases when switching to status tab
@@ -97,29 +48,9 @@ export const FarmerExpertRequestPage: React.FC = () => {
     if (activeTab === "status") {
       setCasesLoading(true);
       getCasePipeline()
-        .then((res) => {
-          setExpertCases(res.expertCases || []);
-        })
-        .catch(() => {
-          setExpertCases([
-            {
-              id: "case-01",
-              observationId: "obs-01",
-              status: "RESOLVED",
-              recommendation:
-                "Mag-aplay ng Zinc sulfate foliar spray (2 kutsara bawat 16L knapsack) upang mapabilis ang pagbawi ng ugat matapos ang baha. Iwasan muna ang mabigat na urea hanggang sa matuyo ang lupa.",
-              observation: {
-                title: "Paninilaw ng Mais pagkatapos ng Baha",
-                description:
-                  "Nagkukulay dilaw ang mga dahon ng mais 5 araw matapos humupa ang baha.",
-                severity: "HIGH",
-              },
-            },
-          ]);
-        })
-        .finally(() => {
-          setCasesLoading(false);
-        });
+        .then((res) => { setExpertCases(res.expertCases || []); })
+        .catch(() => { setExpertCases([]); })
+        .finally(() => { setCasesLoading(false); });
     }
   }, [activeTab]);
 
@@ -135,12 +66,23 @@ export const FarmerExpertRequestPage: React.FC = () => {
     }
 
     setSubmitting(true);
-    const fullNotes = `[Hinihinging Tulong sa LGU Technician]\n${problemDescription.trim()}\n\nMagsasaka: ${farmData.farmerName} (${farmData.phone})\nSakahan: ${farmData.farmName} (${farmData.barangay}, ${farmData.municipality})`;
+
+    if (!farmCtx.cropCycleId) {
+      toast.error("Walang aktibong pananim.", {
+        description: "Mag-onboard muna o magdagdag ng crop cycle sa inyong sakahan.",
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    const farmerName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : "";
+    const farmerPhone = profile?.phone || "";
+    const fullNotes = `[Hinihinging Tulong sa LGU Technician]\n${problemDescription.trim()}\n\nMagsasaka: ${farmerName}${farmerPhone ? ` (${farmerPhone})` : ""}\nSakahan: ${farmCtx.farmName} (${farmCtx.barangay}, ${farmCtx.municipality})`;
 
     try {
       // High severity observation triggers auto-escalation to expertRequest in backend
       await createObservation({
-        cropCycleId: farmData.cropCycleId,
+        cropCycleId: farmCtx.cropCycleId,
         title: subject.trim(),
         description: fullNotes,
         severity: "HIGH",
@@ -148,7 +90,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
 
       toast.success("Naipadala sa Ag Technician!", {
         description:
-          "Nakatanggap ng abiso ang Municipal Agriculture Office sa Solana para sa inyong katanungan.",
+          `Nakatanggap ng abiso ang Municipal Agriculture Office sa ${farmCtx.municipality || "inyong munisipalidad"} para sa inyong katanungan.`,
       });
 
       setActiveTab("status");
@@ -158,7 +100,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
         actionType: "CREATE_OBSERVATION",
         displayTitle: `Humingi ng Tulong: ${subject.trim()}`,
         payload: {
-          cropCycleId: farmData.cropCycleId,
+          cropCycleId: farmCtx.cropCycleId,
           title: subject.trim(),
           description: fullNotes,
           severity: "HIGH",
@@ -207,7 +149,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
                 Humingi ng Tulong sa Eksperto
               </h1>
               <p className="text-[11px] sm:text-xs text-emerald-200/90 font-medium">
-                {farmData.municipality}, Cagayan • Corn Field
+                {farmCtx.municipality || "Cagayan"}, Cagayan • Corn Field
               </p>
             </div>
           </div>
@@ -269,7 +211,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
                   </h2>
                 </div>
                 <p className="text-xs text-slate-500 font-medium mt-1 leading-snug">
-                  Ipadala ang iyong katanungan o problema sa nakatalagang LGU Agriculture Technician sa Solana.
+                  Ipadala ang iyong katanungan o problema sa nakatalagang LGU Agriculture Technician sa {farmCtx.municipality || "inyong munisipalidad"}.
                 </p>
               </div>
 
@@ -277,18 +219,23 @@ export const FarmerExpertRequestPage: React.FC = () => {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1.5 text-xs text-slate-700">
                 <p className="font-extrabold text-slate-900 text-xs">Magsasaka & Sakahan:</p>
                 <div className="space-y-1 text-[11px] sm:text-xs">
-                  <p className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-600 shrink-0" />
-                    <span>
-                      <strong className="text-slate-900">{farmData.farmerName}</strong> ({farmData.phone})
-                    </span>
-                  </p>
-                  <p className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-600 shrink-0" />
-                    <span>
-                      {farmData.farmName} — {farmData.barangay}, {farmData.municipality}
-                    </span>
-                  </p>
+                  {profile && (
+                    <p className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-600 shrink-0" />
+                      <span>
+                        <strong className="text-slate-900">{profile.firstName} {profile.lastName}</strong>
+                        {profile.phone && ` (${profile.phone})`}
+                      </span>
+                    </p>
+                  )}
+                  {farmCtx.farmName && (
+                    <p className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-600 shrink-0" />
+                      <span>
+                        {farmCtx.farmName} — {farmCtx.barangay}, {farmCtx.municipality}
+                      </span>
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -434,7 +381,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
                           ) : (
                             <div className="flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50 p-2 rounded-xl border border-amber-200">
                               <MessageSquare className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              <span>Naghihintay ng tugon mula sa nakatalagang technician sa Solana.</span>
+                              <span>Naghihintay ng tugon mula sa nakatalagang technician sa {farmCtx.municipality || "inyong munisipalidad"}.</span>
                             </div>
                           )}
                         </div>

@@ -6,11 +6,19 @@ import {
   getFarmCropCycles,
   updateCropCycleStatus,
   deleteCropCycle,
+  getCropCycleById,
 } from "../controllers/cropCycleController";
 import { Role } from "@prisma/client";
 const router = Router();
 
 router.use(authenticate);
+
+// Get single crop cycle by ID
+router.get(
+  "/:id",
+  authorize([Role.FARMER, Role.TECHNICIAN, Role.OFFICER]),
+  getCropCycleById,
+);
 
 // Farm-nested crop cycle operations
 router.post("/farm/:farmId", authorize([Role.FARMER]), createCropCycle);

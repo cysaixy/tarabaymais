@@ -20,36 +20,16 @@ import {
   Image as ImageIcon,
   RotateCcw,
 } from "lucide-react";
-import {
-  scanPlantHealth,
-  type ScanDiagnosisResult,
-} from "../../services/ai.service";
+import { scanPlantHealth, type ScanDiagnosisResult } from "../../services/ai.service";
 import { getOfflineQueue } from "../../services/sync.service";
-
-interface FarmContext {
-  farmName: string;
-  farmerName: string;
-  municipality: string;
-  barangay: string;
-  variety: string;
-  dap: number;
-}
+import { useFarmContext } from "../../hooks/useFarmContext";
 
 export const FarmerScannerPage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Active Farm Context
-  const [farmData, setFarmData] = useState<FarmContext>({
-    farmName: "Bukid 1",
-    farmerName: "Mang Danilo Ramos",
-    municipality: "Solana",
-    barangay: "Basi East",
-    variety: "Pioneer 30T60",
-    dap: 38,
-  });
-
-  const [queueCount, setQueueCount] = useState(2);
+  const farmCtx = useFarmContext();
+  const [queueCount, setQueueCount] = useState(0);
 
   // Camera & Image State
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -67,30 +47,10 @@ export const FarmerScannerPage: React.FC = () => {
     { id: 2, title: "Suriin sa Peste", time: "Sa loob ng 5 araw", done: false },
   ]);
 
-  // Load context on mount
+  // Load queue count on mount
   useEffect(() => {
-    try {
-      const savedFarm = localStorage.getItem("tarabay_active_farm");
-      if (savedFarm) {
-        const parsed = JSON.parse(savedFarm);
-        setFarmData((prev) => ({
-          ...prev,
-          farmName: parsed.farmName ? parsed.farmName.replace(/ Plantation/i, "") : prev.farmName,
-          farmerName: parsed.farmerName || prev.farmerName,
-          municipality: parsed.municipality || prev.municipality,
-          barangay: parsed.barangay || prev.barangay,
-          variety: parsed.variety || prev.variety,
-          dap: parsed.dap ?? 38,
-        }));
-      }
-    } catch {
-      // Ignore
-    }
-
     const q = getOfflineQueue();
-    if (q.length > 0) {
-      setQueueCount(q.length);
-    }
+    setQueueCount(q.length);
   }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,7 +144,7 @@ export const FarmerScannerPage: React.FC = () => {
                 AI Plant Scanner
               </h1>
               <p className="text-[11px] sm:text-xs text-emerald-200/90 font-medium">
-                {farmData.municipality}, Cagayan • Corn Field
+                {farmCtx.municipality || "Cagayan"}, Cagayan • Corn Field
               </p>
             </div>
           </div>
@@ -321,11 +281,11 @@ export const FarmerScannerPage: React.FC = () => {
             {/* Pill Bar */}
             <div className="w-12 h-1.5 bg-slate-300 rounded-full mb-1" />
             
-            <div className="w-full flex items-center justify-between text-xs font-bold text-slate-800">
+              <div className="flex items-center justify-between w-full text-xs font-bold text-slate-800">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="truncate max-w-[230px]">
-                  Mais – {farmData.farmName} ({farmData.variety})
+                  Mais – {farmCtx.farmName || "Inyong Sakahan"} ({farmCtx.variety || "Hybrid Corn"})
                 </span>
               </div>
               <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
@@ -420,13 +380,13 @@ export const FarmerScannerPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 font-semibold">
-                    Mais – {farmData.farmName}
+                    Mais – {farmCtx.farmName || "Inyong Sakahan"}
                   </p>
                   <h3 className="text-base font-black text-slate-900 leading-tight">
-                    {farmData.variety} (Yellow Hybrid)
+                    {farmCtx.variety || "Hybrid Corn"}
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                    Yugto: Paglago ng Tanim (V6-V8 • DAP {farmData.dap})
+                    Yugto: Paglago ng Tanim ({farmCtx.plantingDate ? `DAP ${Math.max(0, Math.floor((Date.now() - new Date(farmCtx.plantingDate).getTime()) / 86400000))}` : "—"})
                   </p>
                 </div>
               </div>

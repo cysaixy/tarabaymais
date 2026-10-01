@@ -16,116 +16,16 @@ import {
   Map as MapIcon,
   X,
   Sprout,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import {
   getCasePipeline,
+  updateCaseStatus,
+  resolveExpertCase,
   type DisasterReport,
   type ExpertCase,
 } from "../../services/case.service";
-import { api } from "../../lib/api";
-
-interface MunicipalityStat {
-  name: string;
-  farmsCount: number;
-  activeHectares: number;
-  pendingClaims: number;
-  pestStatus: "Low" | "Medium" | "High" | "Medium (FAW)";
-  riskLevel: "safe" | "warning" | "danger";
-}
-
-const CAGAYAN_MUNICIPALITIES: MunicipalityStat[] = [
-  {
-    name: "Solana",
-    farmsCount: 312,
-    activeHectares: 890,
-    pendingClaims: 5,
-    pestStatus: "Medium (FAW)",
-    riskLevel: "warning",
-  },
-  {
-    name: "Amulung",
-    farmsCount: 245,
-    activeHectares: 710,
-    pendingClaims: 4,
-    pestStatus: "Low",
-    riskLevel: "safe",
-  },
-  {
-    name: "Enrile",
-    farmsCount: 188,
-    activeHectares: 520,
-    pendingClaims: 2,
-    pestStatus: "Low",
-    riskLevel: "safe",
-  },
-  {
-    name: "Tuguegarao City",
-    farmsCount: 156,
-    activeHectares: 410,
-    pendingClaims: 1,
-    pestStatus: "Low",
-    riskLevel: "safe",
-  },
-  {
-    name: "Alcala",
-    farmsCount: 210,
-    activeHectares: 600,
-    pendingClaims: 2,
-    pestStatus: "Medium",
-    riskLevel: "warning",
-  },
-  {
-    name: "Piat",
-    farmsCount: 137,
-    activeHectares: 290,
-    pendingClaims: 0,
-    pestStatus: "Low",
-    riskLevel: "safe",
-  },
-];
-
-const INITIAL_DISASTER_REPORTS: DisasterReport[] = [
-  {
-    id: "dis-01",
-    farmId: "farm-solana-01",
-    disasterType: "TYPHOON",
-    damagePercentage: "65.00",
-    estimatedLoss: "84000.00",
-    status: "SUBMITTED",
-    notes:
-      "Nabuwal ang mga pananim sa silangang bahagi ng sakahan dahil sa malakas na hangin at hagupit ng Signal #2.",
-    createdAt: "2026-09-24T06:30:00.000Z",
-  },
-  {
-    id: "dis-02",
-    farmId: "farm-alcala-04",
-    disasterType: "FLOOD",
-    damagePercentage: "40.00",
-    estimatedLoss: "52000.00",
-    status: "SUBMITTED",
-    notes:
-      "Umapaw ang Cagayan River tributary na nagdulot ng pagbaha sa vegetative stage maisan.",
-    createdAt: "2026-09-25T14:15:00.000Z",
-  },
-];
-
-const INITIAL_EXPERT_CASES: ExpertCase[] = [
-  {
-    id: "case-01",
-    observationId: "obs-solana-101",
-    assignedTechnicianId: "tech-maria-02",
-    status: "SUBMITTED",
-    recommendation: null,
-    observation: {
-      title: "Fall Armyworm Infestation sa Gitnang Plot",
-      description:
-        "Napansin ang mga butas sa dahon at lagaslas na supot ng mais. May maliliit na uod sa loob ng whorl.",
-      severity: "HIGH",
-      imageUrl: null,
-    },
-  },
-];
 
 export const TechnicianDashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -136,52 +36,75 @@ export const TechnicianDashboardPage: React.FC = () => {
   >("OVERVIEW");
 
   const [loading, setLoading] = useState(false);
-  const [disasterReports, setDisasterReports] = useState<DisasterReport[]>(
-    INITIAL_DISASTER_REPORTS
-  );
-  const [expertCases, setExpertCases] =
-    useState<ExpertCase[]>(INITIAL_EXPERT_CASES);
+  const [disasterReports, setDisasterReports] = useState<DisasterReport[]>([]);
+  const [expertCases, setExpertCases] = useState<ExpertCase[]>([]);
 
-  // Selected item modals
-  const [selectedDisaster, setSelectedDisaster] =
-    useState<DisasterReport | null>(null);
+  // KPI state — populated from API
+  const [kpi, setKpi] = useState<{
+    totalFarms: number | null;
+    activeHectares: number | null;
+    pendingExpertCases: number | null;
+  }>({ totalFarms: null, activeHectares: null, pendingExpertCases: null });
+  const [kpiLoading, setKpiLoading] = useState(true);
+
+  // Modal state
+  const [selectedDisaster, setSelectedDisaster] = useState<DisasterReport | null>(null);
   const [selectedCase, setSelectedCase] = useState<ExpertCase | null>(null);
   const [advisoryInput, setAdvisoryInput] = useState("");
   const [submittingAction, setSubmittingAction] = useState(false);
 
-  // Load pipeline from backend with fallback
+  // ── Fetch pipeline (cases) ─────────────────────────────────────────────
   const fetchPipeline = async () => {
     setLoading(true);
     try {
       const data = await getCasePipeline();
-      if (data && data.disasterCases && data.disasterCases.length > 0) {
-        setDisasterReports(data.disasterCases);
-      }
-      if (data && data.expertCases && data.expertCases.length > 0) {
-        setExpertCases(data.expertCases);
-      }
+      setDisasterReports(data.disasterCases ?? []);
+      setExpertCases(data.expertCases ?? []);
     } catch {
-      // Keep rich realistic Cagayan default dataset
+      toast.error("Hindi makuha ang mga kaso.", {
+        description: "Subukan muli o i-check ang koneksyon.",
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  // ── Fetch analytics summary (KPIs) ───────────────────────────────────
+  const fetchAnalytics = async () => {
+    setKpiLoading(true);
+    try {
+      const { api } = await import("../../lib/api");
+      const { data } = await api.get("/analytics/summary");
+      const summary = data?.data?.summary ?? data?.data ?? data;
+      setKpi({
+        totalFarms: summary.totalFarms ?? summary.farms ?? null,
+        activeHectares: summary.totalActiveHectares ?? summary.activeHectares ?? null,
+        pendingExpertCases: summary.pendingExpertCases ?? null,
+      });
+    } catch {
+      // KPI cards will show a dash instead of crashing
+    } finally {
+      setKpiLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchPipeline();
+    fetchAnalytics();
   }, []);
 
   const officerName = profile
     ? `${profile.firstName} ${profile.lastName}`.trim()
-    : user?.displayName || "Engr. Juan Mercado (OPA Cagayan)";
+    : user?.displayName || "";
 
+  // ── Status update (disaster reports) ─────────────────────────────────
   const handleStatusUpdate = async (
     disasterId: string,
     newStatus: DisasterReport["status"]
   ) => {
     setSubmittingAction(true);
     try {
-      await api.patch(`/case/pipeline/${disasterId}`, { status: newStatus });
+      await updateCaseStatus(disasterId, { caseType: "DISASTER_REPORT", status: newStatus });
       setDisasterReports((prev) =>
         prev.map((d) => (d.id === disasterId ? { ...d, status: newStatus } : d))
       );
@@ -190,19 +113,15 @@ export const TechnicianDashboardPage: React.FC = () => {
       });
       setSelectedDisaster(null);
     } catch {
-      // Local optimistic update for presentation
-      setDisasterReports((prev) =>
-        prev.map((d) => (d.id === disasterId ? { ...d, status: newStatus } : d))
-      );
-      toast.success("Nai-update ang Status ng Ulat!", {
-        description: `Ang claim ay minarkahan bilang ${newStatus}.`,
+      toast.error("Hindi nai-update ang status.", {
+        description: "Subukan muli o i-check ang koneksyon.",
       });
-      setSelectedDisaster(null);
     } finally {
       setSubmittingAction(false);
     }
   };
 
+  // ── Resolve expert case ───────────────────────────────────────────────
   const handleResolveCase = async (caseId: string) => {
     if (!advisoryInput.trim()) {
       toast.error("Kulang ang Rekomendasyon", {
@@ -214,17 +133,11 @@ export const TechnicianDashboardPage: React.FC = () => {
 
     setSubmittingAction(true);
     try {
-      await api.patch(`/case/expert-requests/${caseId}/resolve`, {
-        recommendation: advisoryInput.trim(),
-      });
+      await resolveExpertCase(caseId, { recommendation: advisoryInput.trim() });
       setExpertCases((prev) =>
         prev.map((c) =>
           c.id === caseId
-            ? {
-                ...c,
-                status: "RESOLVED",
-                recommendation: advisoryInput.trim(),
-              }
+            ? { ...c, status: "RESOLVED", recommendation: advisoryInput.trim() }
             : c
         )
       );
@@ -235,24 +148,9 @@ export const TechnicianDashboardPage: React.FC = () => {
       setSelectedCase(null);
       setAdvisoryInput("");
     } catch {
-      // Local optimistic update
-      setExpertCases((prev) =>
-        prev.map((c) =>
-          c.id === caseId
-            ? {
-                ...c,
-                status: "RESOLVED",
-                recommendation: advisoryInput.trim(),
-              }
-            : c
-        )
-      );
-      toast.success("Naipadala ang Opisyal na Payo sa Magsasaka!", {
-        description:
-          "Nakatanggap ang magsasaka ng abiso sa kanyang Tarabay-Mais app.",
+      toast.error("Hindi naipadala ang rekomendasyon.", {
+        description: "Subukan muli o i-check ang koneksyon.",
       });
-      setSelectedCase(null);
-      setAdvisoryInput("");
     } finally {
       setSubmittingAction(false);
     }
@@ -274,25 +172,33 @@ export const TechnicianDashboardPage: React.FC = () => {
     (c) => c.status === "SUBMITTED"
   ).length;
 
+  // ── KPI display helper ────────────────────────────────────────────────
+  const KpiValue = ({
+    value,
+    loading: isLoading,
+    className = "",
+  }: {
+    value: number | null;
+    loading: boolean;
+    className?: string;
+  }) => {
+    if (isLoading) return <Loader2 className="w-7 h-7 animate-spin text-slate-400" />;
+    if (value === null) return <span className={className}>—</span>;
+    return <span className={className}>{value.toLocaleString()}</span>;
+  };
+
   return (
     <div className="min-h-screen w-full bg-[#061325] text-white font-sans selection:bg-blue-500/30 p-4 sm:p-6 lg:p-8">
-      {/* Desktop-First Responsive Container: Max width 7xl with centered alignment */}
       <div className="max-w-7xl mx-auto space-y-6">
-        
-        {/* ========================================================= */}
-        {/* 1. TOP INSTITUTIONAL HEADER CARD (DA Royal Blue Gradient) */}
-        {/* ========================================================= */}
+
+        {/* ── HEADER ───────────────────────────────────────────────────────── */}
         <header className="w-full bg-gradient-to-r from-[#1e3a8a] via-[#1d4ed8] to-[#1e40af] text-white rounded-3xl border border-blue-900/30 p-5 sm:p-6 shadow-xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 relative overflow-hidden">
-          {/* Subtle Accent Glow */}
           <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
 
-          {/* Left: Branding & Official Seal */}
           <div className="flex items-center gap-4 z-10">
-            {/* Golden Seal Badge */}
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center text-amber-950 shadow-md shrink-0">
               <Building2 className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2.2]" />
             </div>
-
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
@@ -308,7 +214,6 @@ export const TechnicianDashboardPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Right: Officer on Duty Card & Actions */}
           <div className="flex items-center gap-3 z-10 self-start lg:self-auto">
             <div className="rounded-2xl border border-blue-300/30 bg-blue-950/50 backdrop-blur-md px-4 py-2.5 flex items-center gap-3 shadow-inner">
               <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
@@ -319,12 +224,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                   Officer On Duty:
                 </p>
                 <p className="text-xs sm:text-sm font-extrabold text-white">
-                  {officerName}
+                  {officerName || "—"}
                 </p>
               </div>
             </div>
 
-            {/* Logout / Switch Button */}
             <button
               type="button"
               onClick={handleLogout}
@@ -336,141 +240,102 @@ export const TechnicianDashboardPage: React.FC = () => {
           </div>
         </header>
 
-        {/* ========================================================= */}
-        {/* 2. REGIONAL METRIC KPI CARDS (White Containers, Black Text) */}
-        {/* ========================================================= */}
+        {/* ── KPI CARDS ─────────────────────────────────────────────────────── */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          {/* Card 1: Kabuuang Rehistradong Sakahan */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2 relative overflow-hidden group">
+          {/* Kabuuang Rehistradong Sakahan */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2">
             <p className="text-xs font-black text-black tracking-wide uppercase">
               Kabuuang Rehistradong Sakahan
             </p>
-            <p className="text-3xl sm:text-4xl font-black text-black tracking-tight">
-              1,248
-            </p>
+            <div className="text-3xl sm:text-4xl font-black text-black tracking-tight min-h-[40px] flex items-center">
+              <KpiValue value={kpi.totalFarms} loading={kpiLoading} />
+            </div>
             <div className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-300 text-xs font-bold">
               <TrendingUp className="w-3.5 h-3.5" />
-              <span>+12 ngayong linggo</span>
+              <span>Rehistrado sa Sistema</span>
             </div>
           </div>
 
-          {/* Card 2: Aktibong Luwang ng Mais (Corn Ha) */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2 relative overflow-hidden group">
+          {/* Aktibong Luwang ng Mais */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2">
             <p className="text-xs font-black text-black tracking-wide uppercase">
               Aktibong Luwang ng Mais (Corn Ha)
             </p>
-            <p className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight">
-              3,420 ha
-            </p>
-            <p className="text-xs text-black font-semibold">
-              Cagayan River Basin Scope
-            </p>
+            <div className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight min-h-[40px] flex items-center gap-1">
+              <KpiValue value={kpi.activeHectares} loading={kpiLoading} className="text-emerald-600" />
+              {!kpiLoading && kpi.activeHectares !== null && (
+                <span className="text-2xl"> ha</span>
+              )}
+            </div>
+            <p className="text-xs text-black font-semibold">Cagayan River Basin Scope</p>
           </div>
 
-          {/* Card 3: Pending Disaster Claims (Bagyo/Baha) */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2 relative overflow-hidden group">
+          {/* Pending Disaster Claims */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2">
             <p className="text-xs font-black text-black tracking-wide uppercase">
               Pending Disaster Claims (Bagyo/Baha)
             </p>
             <p className="text-3xl sm:text-4xl font-black text-amber-600 tracking-tight">
               {pendingDisastersCount}
             </p>
-            <p className="text-xs text-amber-800 font-extrabold">
-              Kailangang Repasuhin
-            </p>
+            <p className="text-xs text-amber-800 font-extrabold">Kailangang Repasuhin</p>
           </div>
 
-          {/* Card 4: Pest Outbreak Alert Level */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2 relative overflow-hidden group">
+          {/* Pending Expert Cases */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2">
             <p className="text-xs font-black text-black tracking-wide uppercase">
-              Pest Outbreak Alert Level
+              Pending Consultation Cases
             </p>
             <p className="text-3xl sm:text-4xl font-black text-rose-600 tracking-tight">
-              Katamtaman
+              {pendingCasesCount}
             </p>
-            <p className="text-xs text-rose-800 font-bold">
-              Fall Armyworm in Solana
-            </p>
+            <p className="text-xs text-rose-800 font-bold">Naghihintay ng Payo</p>
           </div>
         </section>
 
-        {/* ========================================================= */}
-        {/* 3. HORIZONTAL TAB NAVIGATION BAR (White Line & White Text)*/}
-        {/* ========================================================= */}
+        {/* ── TAB NAV ───────────────────────────────────────────────────────── */}
         <nav className="flex items-center gap-6 sm:gap-8 border-b-2 border-white px-2 overflow-x-auto scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setActiveTab("OVERVIEW")}
-            className={`pb-3.5 text-xs sm:text-sm font-extrabold transition cursor-pointer whitespace-nowrap relative ${
-              activeTab === "OVERVIEW"
-                ? "text-white"
-                : "text-white/80 hover:text-white"
-            }`}
-          >
-            Regional Overview
-            {activeTab === "OVERVIEW" && (
-              <span className="absolute bottom-0 left-0 right-0 h-1 bg-white rounded-full shadow-sm" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("DAMAGE_REPORTS")}
-            className={`pb-3.5 text-xs sm:text-sm font-extrabold transition cursor-pointer whitespace-nowrap relative flex items-center gap-1.5 ${
-              activeTab === "DAMAGE_REPORTS"
-                ? "text-white"
-                : "text-white/80 hover:text-white"
-            }`}
-          >
-            <span>Damage Reports</span>
-            <span className="bg-amber-400 text-black text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-300">
-              {pendingDisastersCount}
-            </span>
-            {activeTab === "DAMAGE_REPORTS" && (
-              <span className="absolute bottom-0 left-0 right-0 h-1 bg-white rounded-full shadow-sm" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("ASSISTANCE_CASES")}
-            className={`pb-3.5 text-xs sm:text-sm font-extrabold transition cursor-pointer whitespace-nowrap relative flex items-center gap-1.5 ${
-              activeTab === "ASSISTANCE_CASES"
-                ? "text-white"
-                : "text-white/80 hover:text-white"
-            }`}
-          >
-            <span>Assistance Cases</span>
-            <span className="bg-blue-400 text-black text-[10px] font-black px-2 py-0.5 rounded-full border border-blue-300">
-              {pendingCasesCount}
-            </span>
-            {activeTab === "ASSISTANCE_CASES" && (
-              <span className="absolute bottom-0 left-0 right-0 h-1 bg-white rounded-full shadow-sm" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("MAP")}
-            className={`pb-3.5 text-xs sm:text-sm font-extrabold transition cursor-pointer whitespace-nowrap relative flex items-center gap-1.5 ${
-              activeTab === "MAP"
-                ? "text-white"
-                : "text-white/80 hover:text-white"
-            }`}
-          >
-            <MapIcon className="w-3.5 h-3.5" />
-            <span>Cagayan Farm & Incident Map</span>
-            {activeTab === "MAP" && (
-              <span className="absolute bottom-0 left-0 right-0 h-1 bg-white rounded-full shadow-sm" />
-            )}
-          </button>
+          {(
+            [
+              { key: "OVERVIEW", label: "Regional Overview" },
+              {
+                key: "DAMAGE_REPORTS",
+                label: "Damage Reports",
+                badge: pendingDisastersCount,
+                badgeColor: "bg-amber-400",
+              },
+              {
+                key: "ASSISTANCE_CASES",
+                label: "Assistance Cases",
+                badge: pendingCasesCount,
+                badgeColor: "bg-blue-400",
+              },
+              { key: "MAP", label: "Cagayan Farm & Incident Map", icon: <MapIcon className="w-3.5 h-3.5" /> },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key as typeof activeTab)}
+              className={`pb-3.5 text-xs sm:text-sm font-extrabold transition cursor-pointer whitespace-nowrap relative flex items-center gap-1.5 ${
+                activeTab === tab.key ? "text-white" : "text-white/80 hover:text-white"
+              }`}
+            >
+              {"icon" in tab && tab.icon}
+              <span>{tab.label}</span>
+              {"badge" in tab && tab.badge > 0 && (
+                <span className={`${tab.badgeColor} text-black text-[10px] font-black px-2 py-0.5 rounded-full border border-white/20`}>
+                  {tab.badge}
+                </span>
+              )}
+              {activeTab === tab.key && (
+                <span className="absolute bottom-0 left-0 right-0 h-1 bg-white rounded-full shadow-sm" />
+              )}
+            </button>
+          ))}
         </nav>
 
-        {/* ========================================================= */}
-        {/* 4. MAIN BODY CONTENT TABS                                 */}
-        {/* ========================================================= */}
-
-        {/* TAB 1: REGIONAL OVERVIEW (Cagayan Municipal Breakdown) */}
+        {/* ── OVERVIEW TAB ─────────────────────────────────────────────────── */}
         {activeTab === "OVERVIEW" && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -480,75 +345,42 @@ export const TechnicianDashboardPage: React.FC = () => {
               </h2>
             </div>
 
-            {/* 6 Municipal Cards (White Containers, Black Text) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {CAGAYAN_MUNICIPALITIES.map((mun) => (
-                <div
-                  key={mun.name}
-                  className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-3.5"
-                >
-                  {/* Card Header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-                        <MapPin className="w-4 h-4 stroke-[2.4]" />
-                      </div>
-                      <h3 className="text-base font-black text-black">
-                        {mun.name}
-                      </h3>
-                    </div>
-                    <span className="bg-slate-100 text-black font-bold text-xs px-2.5 py-1 rounded-xl border border-slate-300">
-                      {mun.farmsCount} Farms
-                    </span>
+            {kpiLoading ? (
+              <div className="flex items-center justify-center py-16 gap-3 text-white/60">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                <span className="text-sm">Kinukuha ang datos mula sa servidor...</span>
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-lg space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <p className="text-2xl font-black text-emerald-700">
+                      {kpi.totalFarms !== null ? kpi.totalFarms.toLocaleString() : "—"}
+                    </p>
+                    <p className="text-xs font-bold text-slate-600 mt-1">Kabuuang Rehistradong Sakahan</p>
                   </div>
-
-                  {/* Bullet Stats with Black Text Labels */}
-                  <div className="space-y-1.5 text-xs text-black font-medium">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-400">•</span>
-                      <span className="text-black font-semibold">Aktibong Taniman:</span>
-                      <span className="font-black text-emerald-800">
-                        {mun.activeHectares} Ektarya
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-400">•</span>
-                      <span className="text-black font-semibold">Pending Damage Claims:</span>
-                      <span
-                        className={`font-black ${
-                          mun.pendingClaims > 0
-                            ? "text-amber-700"
-                            : "text-black/70"
-                        }`}
-                      >
-                        {mun.pendingClaims} report
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-400">•</span>
-                      <span className="text-black font-semibold">Pest Status:</span>
-                      <span
-                        className={`font-black ${
-                          mun.pestStatus.includes("Medium")
-                            ? "text-amber-700"
-                            : mun.pestStatus === "High"
-                            ? "text-rose-700"
-                            : "text-emerald-700"
-                        }`}
-                      >
-                        {mun.pestStatus}
-                      </span>
-                    </div>
+                  <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200">
+                    <p className="text-2xl font-black text-blue-700">
+                      {kpi.activeHectares !== null ? `${kpi.activeHectares.toLocaleString()} ha` : "—"}
+                    </p>
+                    <p className="text-xs font-bold text-slate-600 mt-1">Aktibong Taniman</p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                    <p className="text-2xl font-black text-amber-700">
+                      {kpi.pendingExpertCases !== null ? kpi.pendingExpertCases.toLocaleString() : "—"}
+                    </p>
+                    <p className="text-xs font-bold text-slate-600 mt-1">Pending Expert Cases</p>
                   </div>
                 </div>
-              ))}
-            </div>
+                <p className="text-xs text-slate-500 text-center pt-2">
+                  I-click ang "Damage Reports" o "Assistance Cases" tab para sa detalyadong listahan.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* TAB 2: DAMAGE REPORTS (Disaster Claims Review) */}
+        {/* ── DAMAGE REPORTS TAB ───────────────────────────────────────────── */}
         {activeTab === "DAMAGE_REPORTS" && (
           <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
             <div className="flex justify-between items-center border-b border-slate-200 pb-4">
@@ -561,21 +393,23 @@ export const TechnicianDashboardPage: React.FC = () => {
                   Repasuhin at beripikahin ang claims para sa indemnification payout ng DA at PCIC.
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={fetchPipeline}
                 disabled={loading}
                 className="flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-white bg-blue-50 hover:bg-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl cursor-pointer transition active:scale-95 shadow-xs"
               >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
-                />
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                 <span>Refresh</span>
               </button>
             </div>
 
-            {disasterReports.length === 0 ? (
+            {loading ? (
+              <div className="py-12 flex items-center justify-center gap-2 text-slate-400">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="text-sm">Kinukuha ang mga ulat...</span>
+              </div>
+            ) : disasterReports.length === 0 ? (
               <div className="py-12 text-center text-slate-400 text-sm">
                 Walang pending disaster claims sa kasalukuyan.
               </div>
@@ -594,19 +428,10 @@ export const TechnicianDashboardPage: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {disasterReports.map((report) => (
-                      <tr
-                        key={report.id}
-                        className="hover:bg-slate-50 transition"
-                      >
-                        <td className="py-3.5 px-4 font-bold text-slate-900">
-                          {report.disasterType}
-                        </td>
-                        <td className="py-3.5 px-4 text-xs font-mono text-slate-500">
-                          {report.farmId}
-                        </td>
-                        <td className="py-3.5 px-4 text-xs font-bold text-rose-600">
-                          {report.damagePercentage}%
-                        </td>
+                      <tr key={report.id} className="hover:bg-slate-50 transition">
+                        <td className="py-3.5 px-4 font-bold text-slate-900">{report.disasterType}</td>
+                        <td className="py-3.5 px-4 text-xs font-mono text-slate-500">{report.farmId}</td>
+                        <td className="py-3.5 px-4 text-xs font-bold text-rose-600">{report.damagePercentage}%</td>
                         <td className="py-3.5 px-4 text-xs font-bold text-emerald-700">
                           ₱{Number(report.estimatedLoss || 0).toLocaleString()}
                         </td>
@@ -642,7 +467,7 @@ export const TechnicianDashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3: ASSISTANCE CASES (Observations & Expert Advisory) */}
+        {/* ── ASSISTANCE CASES TAB ─────────────────────────────────────────── */}
         {activeTab === "ASSISTANCE_CASES" && (
           <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
             <div className="flex justify-between items-center border-b border-slate-200 pb-4">
@@ -655,21 +480,23 @@ export const TechnicianDashboardPage: React.FC = () => {
                   Magbigay ng opisyal na rekomendasyon ayon sa DA Region II Corn Techno-Guide.
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={fetchPipeline}
                 disabled={loading}
                 className="flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-white bg-blue-50 hover:bg-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl cursor-pointer transition active:scale-95 shadow-xs"
               >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
-                />
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                 <span>Refresh</span>
               </button>
             </div>
 
-            {expertCases.length === 0 ? (
+            {loading ? (
+              <div className="py-12 flex items-center justify-center gap-2 text-slate-400">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="text-sm">Kinukuha ang mga kaso...</span>
+              </div>
+            ) : expertCases.length === 0 ? (
               <div className="py-12 text-center text-slate-400 text-sm">
                 Walang pending expert consultation cases.
               </div>
@@ -695,32 +522,22 @@ export const TechnicianDashboardPage: React.FC = () => {
                           {ec.status}
                         </span>
                       </div>
-
                       <p className="text-xs text-slate-600 leading-relaxed">
                         {ec.observation?.description}
                       </p>
-
                       <div className="flex items-center gap-2 pt-1">
-                        <span className="text-[11px] text-slate-500">
-                          Severity:
-                        </span>
+                        <span className="text-[11px] text-slate-500">Severity:</span>
                         <span className="text-[11px] font-bold text-rose-600">
-                          {ec.observation?.severity || "MEDIUM"}
+                          {ec.observation?.severity || "—"}
                         </span>
                       </div>
-
                       {ec.recommendation && (
                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mt-2">
-                          <p className="text-[11px] font-bold text-emerald-900">
-                            Naipadalang Rekomendasyon:
-                          </p>
-                          <p className="text-xs text-emerald-800 mt-0.5">
-                            {ec.recommendation}
-                          </p>
+                          <p className="text-[11px] font-bold text-emerald-900">Naipadalang Rekomendasyon:</p>
+                          <p className="text-xs text-emerald-800 mt-0.5">{ec.recommendation}</p>
                         </div>
                       )}
                     </div>
-
                     {ec.status !== "RESOLVED" && (
                       <button
                         type="button"
@@ -738,7 +555,7 @@ export const TechnicianDashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 4: CAGAYAN FARM & INCIDENT MAP */}
+        {/* ── MAP TAB ───────────────────────────────────────────────────────── */}
         {activeTab === "MAP" && (
           <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
@@ -751,14 +568,10 @@ export const TechnicianDashboardPage: React.FC = () => {
                   Rehiyon II Geo-monitoring para sa mga aktibong pananim at alert zones.
                 </p>
               </div>
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
-                Live GIS Feed
-              </span>
             </div>
 
-            {/* Stylized Visual Interactive Map Box */}
-            <div className="w-full h-96 bg-[#040e1c] rounded-2xl border border-slate-200 relative overflow-hidden flex items-center justify-center p-6 shadow-inner">
-              {/* Grid Lines Pattern */}
+            {/* Map placeholder — real map integration pending */}
+            <div className="w-full h-96 bg-[#040e1c] rounded-2xl border border-slate-200 relative overflow-hidden flex flex-col items-center justify-center gap-4 p-6 shadow-inner">
               <div
                 className="absolute inset-0 opacity-15"
                 style={{
@@ -767,72 +580,14 @@ export const TechnicianDashboardPage: React.FC = () => {
                   backgroundSize: "32px 32px",
                 }}
               />
-
-              {/* Cagayan River Stylized Curved Path */}
-              <svg
-                className="absolute inset-0 w-full h-full pointer-events-none opacity-40"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M 120 0 Q 300 180, 500 220 T 900 400"
-                  fill="none"
-                  stroke="#38bdf8"
-                  strokeWidth="8"
-                  strokeDasharray="6 6"
-                />
-              </svg>
-
-              {/* Pin Clusters for Key Municipalities */}
-              <div className="absolute top-16 left-1/4 transform -translate-x-1/2 flex flex-col items-center group cursor-pointer">
-                <div className="w-10 h-10 rounded-full bg-amber-500/40 border-2 border-amber-300 flex items-center justify-center text-amber-200 font-black text-xs animate-pulse shadow-md">
-                  312
-                </div>
-                <span className="mt-1 bg-slate-900/90 text-white font-bold text-[11px] px-2 py-0.5 rounded shadow">
-                  Solana (FAW Alert)
-                </span>
-              </div>
-
-              <div className="absolute top-28 right-1/3 flex flex-col items-center group cursor-pointer">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/40 border-2 border-emerald-300 flex items-center justify-center text-emerald-200 font-black text-xs shadow-md">
-                  245
-                </div>
-                <span className="mt-1 bg-slate-900/90 text-white font-bold text-[11px] px-2 py-0.5 rounded shadow">
-                  Amulung (Normal)
-                </span>
-              </div>
-
-              <div className="absolute bottom-20 left-1/3 flex flex-col items-center group cursor-pointer">
-                <div className="w-10 h-10 rounded-full bg-blue-500/40 border-2 border-blue-300 flex items-center justify-center text-blue-200 font-black text-xs shadow-md">
-                  156
-                </div>
-                <span className="mt-1 bg-slate-900/90 text-white font-bold text-[11px] px-2 py-0.5 rounded shadow">
-                  Tuguegarao City
-                </span>
-              </div>
-
-              <div className="absolute bottom-16 right-1/4 flex flex-col items-center group cursor-pointer">
-                <div className="w-10 h-10 rounded-full bg-amber-500/40 border-2 border-amber-300 flex items-center justify-center text-amber-200 font-black text-xs shadow-md">
-                  210
-                </div>
-                <span className="mt-1 bg-slate-900/90 text-white font-bold text-[11px] px-2 py-0.5 rounded shadow">
-                  Alcala (Flood Alert)
-                </span>
-              </div>
-
-              {/* Legend overlay bottom left */}
-              <div className="absolute bottom-3 left-3 bg-[#0a1b33]/90 border border-slate-700 p-2.5 rounded-xl text-[10px] space-y-1 backdrop-blur-md text-white">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                  <span>Normal Agronomic Condition</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                  <span>Pest & Water Incident Zone</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-0.5 bg-sky-400" />
-                  <span>Cagayan River Basin Tributary</span>
-                </div>
+              <MapPin className="w-12 h-12 text-blue-400/60 relative z-10" />
+              <div className="text-center relative z-10 space-y-1">
+                <p className="text-sm font-bold text-white/80">
+                  Mapa ay hindi pa available
+                </p>
+                <p className="text-xs text-white/50">
+                  Ang interactive farm map ay ilalagay dito kapag naikonekta na ang GIS integration.
+                </p>
               </div>
             </div>
           </div>
@@ -840,9 +595,7 @@ export const TechnicianDashboardPage: React.FC = () => {
 
       </div>
 
-      {/* ========================================================= */}
-      {/* 5. MODAL: DISASTER REPORT INSPECTION & ACTIONS            */}
-      {/* ========================================================= */}
+      {/* ── DISASTER INSPECTION MODAL ────────────────────────────────────── */}
       {selectedDisaster && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5 text-slate-900">
@@ -864,15 +617,11 @@ export const TechnicianDashboardPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                 <div>
                   <p className="text-slate-500">Uri ng Sakuna:</p>
-                  <p className="font-bold text-slate-900 text-sm">
-                    {selectedDisaster.disasterType}
-                  </p>
+                  <p className="font-bold text-slate-900 text-sm">{selectedDisaster.disasterType}</p>
                 </div>
                 <div>
                   <p className="text-slate-500">Porsyento ng Pinsala:</p>
-                  <p className="font-black text-rose-600 text-sm">
-                    {selectedDisaster.damagePercentage}%
-                  </p>
+                  <p className="font-black text-rose-600 text-sm">{selectedDisaster.damagePercentage}%</p>
                 </div>
                 <div>
                   <p className="text-slate-500">Tinatayang Halaga ng Lugi:</p>
@@ -882,43 +631,32 @@ export const TechnicianDashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-slate-500">Kasalukuyang Status:</p>
-                  <p className="font-bold text-amber-600 text-sm">
-                    {selectedDisaster.status}
-                  </p>
+                  <p className="font-bold text-amber-600 text-sm">{selectedDisaster.status}</p>
                 </div>
               </div>
-
               <div>
-                <p className="text-slate-700 font-bold mb-1">
-                  Ulat at Paliwanag ng Magsasaka:
-                </p>
+                <p className="text-slate-700 font-bold mb-1">Ulat at Paliwanag ng Magsasaka:</p>
                 <p className="bg-slate-50 p-3.5 rounded-2xl text-slate-700 border border-slate-200 leading-relaxed">
                   {selectedDisaster.notes || "Walang karagdagang tala."}
                 </p>
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="button"
-                onClick={() =>
-                  handleStatusUpdate(selectedDisaster.id, "INSPECTED")
-                }
+                onClick={() => handleStatusUpdate(selectedDisaster.id, "INSPECTED")}
                 disabled={submittingAction}
-                className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
+                className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs disabled:opacity-60"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Markahan bilang Na-inspeksyon</span>
               </button>
-
               <button
                 type="button"
-                onClick={() =>
-                  handleStatusUpdate(selectedDisaster.id, "RESOLVED")
-                }
+                onClick={() => handleStatusUpdate(selectedDisaster.id, "RESOLVED")}
                 disabled={submittingAction}
-                className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
+                className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs disabled:opacity-60"
               >
                 <ShieldCheck className="w-4 h-4" />
                 <span>Aprubahan ang Claim</span>
@@ -928,9 +666,7 @@ export const TechnicianDashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* 6. MODAL: EXPERT ADVISORY PRESCRIPTION FORM               */}
-      {/* ========================================================= */}
+      {/* ── EXPERT ADVISORY MODAL ─────────────────────────────────────────── */}
       {selectedCase && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5 text-slate-900">
@@ -953,14 +689,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                 <p className="font-bold text-slate-900 text-sm">
                   {selectedCase.observation?.title}
                 </p>
-                <p className="text-slate-600">
-                  {selectedCase.observation?.description}
-                </p>
+                <p className="text-slate-600">{selectedCase.observation?.description}</p>
                 <p className="text-rose-600 font-bold pt-1">
                   Severity: {selectedCase.observation?.severity}
                 </p>
               </div>
-
               <div>
                 <label className="block text-slate-700 font-bold mb-1.5">
                   Agronomic Advisory / Rekomendasyon ng Technician:
@@ -979,10 +712,13 @@ export const TechnicianDashboardPage: React.FC = () => {
               type="button"
               onClick={() => handleResolveCase(selectedCase.id)}
               disabled={submittingAction}
-              className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer shadow-md"
+              className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer shadow-md disabled:opacity-60"
             >
-              <Send className="w-4 h-4" />
-              <span>Ipadala ang Opisyal na Rekomendasyon</span>
+              {submittingAction ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Ipinapadala...</>
+              ) : (
+                <><Send className="w-4 h-4" /> Ipadala ang Opisyal na Rekomendasyon</>
+              )}
             </button>
           </div>
         </div>

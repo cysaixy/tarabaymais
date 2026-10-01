@@ -5,6 +5,7 @@ import {
   getSummaryAnalytics,
   getBarangayDistribution,
 } from "../controllers/analyticsController";
+import { exportAnalyticsReport } from "../controllers/analytics.controller";
 import { Role } from "@prisma/client";
 
 const router = Router();
@@ -22,6 +23,12 @@ router.get(
   "/barangays",
   authorize([Role.OFFICER, Role.TECHNICIAN]),
   getBarangayDistribution,
+);
+
+router.get(
+  "/export",
+  authorize([Role.OFFICER, Role.TECHNICIAN]),
+  exportAnalyticsReport,
 );
 
 export default router;

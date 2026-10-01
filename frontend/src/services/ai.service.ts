@@ -34,7 +34,8 @@ export const scanPlantHealth = async (imageFile: File): Promise<ScanDiagnosisRes
   const { data } = await api.post("/ai/scan", fd, {
     headers: { "Content-Type": "multipart/form-data" },
   });
-  return data.data;
+  // Backend wraps the result as { data: { diagnosis: {...} } }
+  return (data.data?.diagnosis ?? data.data) as ScanDiagnosisResult;
 };
 
 /**

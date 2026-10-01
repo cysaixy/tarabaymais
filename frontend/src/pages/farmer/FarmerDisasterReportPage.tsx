@@ -20,15 +20,7 @@ import {
   getOfflineQueue,
   queueOfflineAction,
 } from "../../services/sync.service";
-
-interface FarmContext {
-  farmId: string;
-  farmName: string;
-  farmerName: string;
-  municipality: string;
-  barangay: string;
-  areaHectares: number;
-}
+import { useFarmContext } from "../../hooks/useFarmContext";
 
 const EVENT_TYPES = [
   { id: "FLOOD", label: "Flood" },
@@ -41,31 +33,18 @@ export const FarmerDisasterReportPage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const farmCtx = useFarmContext();
+
   // Tab State
   const [activeTab, setActiveTab] = useState<"report" | "status">("report");
 
-  // Active Farm Context
-  const [farmData, setFarmData] = useState<FarmContext>({
-    farmId: "farm-local-01",
-    farmName: "Basi Corn Plantation #1",
-    farmerName: "Mang Danilo Ramos",
-    municipality: "Solana",
-    barangay: "Basi East",
-    areaHectares: 2.5,
-  });
-
-  const [queueCount, setQueueCount] = useState(2);
+  const [queueCount, setQueueCount] = useState(0);
 
   // Form Fields
   const [disasterType, setDisasterType] = useState<string>("FLOOD");
-  const [eventDate, setEventDate] = useState<string>(() => {
-    const today = new Date();
-    return today.toISOString().split("T")[0];
-  });
-  const [affectedHectares, setAffectedHectares] = useState<string>("1.5");
-  const [description, setDescription] = useState<string>(
-    "Nalubog sa baha ang mas mababang bahagi ng taniman dahil sa pag-apaw ng ilog ng Cagayan."
-  );
+  const [eventDate, setEventDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [affectedHectares, setAffectedHectares] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
 
   // Photo Evidence
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -76,30 +55,10 @@ export const FarmerDisasterReportPage: React.FC = () => {
   const [claimList, setClaimList] = useState<DisasterReport[]>([]);
   const [claimsLoading, setClaimsLoading] = useState(false);
 
-  // Load local context on mount
+  // Load queue count on mount
   useEffect(() => {
-    try {
-      const savedFarm = localStorage.getItem("tarabay_active_farm");
-      if (savedFarm) {
-        const parsed = JSON.parse(savedFarm);
-        setFarmData((prev) => ({
-          ...prev,
-          farmId: parsed.farmId || prev.farmId,
-          farmName: parsed.farmName || prev.farmName,
-          farmerName: parsed.farmerName || prev.farmerName,
-          municipality: parsed.municipality || prev.municipality,
-          barangay: parsed.barangay || prev.barangay,
-          areaHectares: parsed.areaHectares || prev.areaHectares,
-        }));
-      }
-    } catch {
-      // Ignore
-    }
-
     const q = getOfflineQueue();
-    if (q.length > 0) {
-      setQueueCount(q.length);
-    }
+    setQueueCount(q.length);
   }, []);
 
   // Fetch claims when switching to status tab
@@ -107,35 +66,17 @@ export const FarmerDisasterReportPage: React.FC = () => {
     if (activeTab === "status") {
       setClaimsLoading(true);
       getCasePipeline()
-        .then((res) => {
-          setClaimList(res.disasterCases || []);
-        })
-        .catch(() => {
-          // Fallback mock items
-          setClaimList([
-            {
-              id: "dis-01",
-              farmId: farmData.farmId,
-              disasterType: "FLOOD",
-              damagePercentage: "60.00",
-              estimatedLoss: "54000.00",
-              status: "UNDER_REVIEW",
-              notes: "Nalubog sa baha ang mas mababang bahagi ng taniman sa Basi East.",
-              createdAt: new Date().toISOString(),
-            },
-          ]);
-        })
-        .finally(() => {
-          setClaimsLoading(false);
-        });
+        .then((res) => { setClaimList(res.disasterCases || []); })
+        .catch(() => { setClaimList([]); })
+        .finally(() => { setClaimsLoading(false); });
     }
-  }, [activeTab, farmData.farmId]);
+  }, [activeTab]);
 
   // Derived calculations
   const haNum = parseFloat(affectedHectares) || 0;
-  const totalHa = farmData.areaHectares || 2.5;
+  const totalHa = farmCtx.areaHectares || 2.5;
   const damagePct = Math.min(100, Math.max(1, Math.round((haNum / totalHa) * 100)));
-  const estimatedLossPhp = Math.round(haNum * 36000); // ~₱36,000 baseline loss per corn ha
+  const estimatedLossPhp = Math.round(haNum * 36000);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -159,10 +100,18 @@ export const FarmerDisasterReportPage: React.FC = () => {
 
     setSubmitting(true);
 
+    if (!farmCtx.farmId) {
+      toast.error("Walang aktibong sakahan.", {
+        description: "Mag-onboard muna o magdagdag ng sakahan.",
+      });
+      setSubmitting(false);
+      return;
+    }
+
     const notesWithContext = `${description.trim()}\n\n[Petsa ng Kalamidad: ${eventDate}] [Naapektuhan: ${haNum} ha mula sa ${totalHa} ha (${damagePct}%)]`;
 
     try {
-      await createDisasterReport(farmData.farmId, {
+      await createDisasterReport(farmCtx.farmId, {
         disasterType,
         damagePercentage: damagePct,
         estimatedLoss: estimatedLossPhp,
@@ -181,7 +130,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
         actionType: "CREATE_DISASTER_REPORT",
         displayTitle: `Ulat ng Kalamidad: ${disasterType} (${damagePct}%)`,
         payload: {
-          farmId: farmData.farmId,
+          farmId: farmCtx.farmId,
           disasterType,
           damagePercentage: damagePct,
           estimatedLoss: estimatedLossPhp,
@@ -231,7 +180,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
                 Ulat ng Pinsala ng Bagyo/Baha
               </h1>
               <p className="text-[11px] sm:text-xs text-emerald-200/90 font-medium">
-                {farmData.municipality}, Cagayan • Corn Field
+                {farmCtx.municipality || "Cagayan"}, Cagayan • Corn Field
               </p>
             </div>
           </div>
@@ -362,12 +311,14 @@ export const FarmerDisasterReportPage: React.FC = () => {
                 
                 {/* Helper Footnote */}
                 <div className="flex justify-between items-center text-[11px] text-slate-500 pt-0.5 font-medium">
-                  <span>Kabuuang Sukat ng Sakahan: {totalHa} Ektarya</span>
+                  <span>Kabuuang Sukat: {totalHa} ha</span>
                   <span className="font-bold text-[#9f1239]">
                     ~{damagePct}% Pinsala (₱{estimatedLossPhp.toLocaleString()})
                   </span>
                 </div>
               </div>
+              <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                Kabuuang Sukat ng Sakahan: {totalHa} ha</p>
 
               {/* Section 4: Description Textarea */}
               <div className="space-y-1.5">

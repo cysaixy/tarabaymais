@@ -173,3 +173,79 @@ export const createObservation = asyncHandler(
     return sendSuccess(res, 201, { data: { observation, autoEscalatedCase } });
   },
 );
+
+/** GET /api/v1/activities or /api/v1/activities/:cropCycleId */
+export const getCropActivities = asyncHandler(
+  async (req: Request, res: Response) => {
+    const cropCycleId = req.params["cropCycleId"] as string | undefined;
+    const user = req.user!;
+
+    let whereClause: Prisma.CropActivityWhereInput = {};
+
+    if (cropCycleId) {
+      whereClause = {
+        cropCycleId,
+        ...(user.role === Role.FARMER && {
+          cropCycle: { farm: { farmerId: user.id } },
+        }),
+      };
+    } else if (user.role === Role.FARMER) {
+      whereClause = {
+        cropCycle: { farm: { farmerId: user.id } },
+      };
+    }
+
+    const activities = await prisma.cropActivity.findMany({
+      where: whereClause,
+      include: {
+        cropCycle: {
+          include: { farm: true },
+        },
+      },
+      orderBy: { performedAt: "desc" },
+    });
+
+    return sendSuccess(res, 200, { data: { activities } });
+  },
+);
+
+/** GET /api/v1/observations or /api/v1/observations/:cropCycleId */
+export const getCropObservations = asyncHandler(
+  async (req: Request, res: Response) => {
+    const cropCycleId = req.params["cropCycleId"] as string | undefined;
+    const user = req.user!;
+
+    let whereClause: Prisma.ObservationWhereInput = {};
+
+    if (cropCycleId) {
+      whereClause = {
+        cropCycleId,
+        ...(user.role === Role.FARMER && { farmerId: user.id }),
+      };
+    } else if (user.role === Role.FARMER) {
+      whereClause = {
+        farmerId: user.id,
+      };
+    }
+
+    const observations = await prisma.observation.findMany({
+      where: whereClause,
+      include: {
+        expertRequest: {
+          include: {
+            assignedTechnician: {
+              select: { firstName: true, lastName: true, phone: true },
+            },
+          },
+        },
+        cropCycle: {
+          include: { farm: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return sendSuccess(res, 200, { data: { observations } });
+  },
+);
+
