@@ -66,3 +66,59 @@ export const listCropCycles = async (farmId: string): Promise<CropCycle[]> => {
   const { data } = await api.get(`/crop-cycles/farm/${farmId}`);
   return data.data.cropCycles;
 };
+
+/** A crop cycle enriched with the farm it belongs to (for display context). */
+export interface ActiveCropCycle {
+  cropCycle: CropCycle;
+  farm: Farm;
+}
+
+/**
+ * Resolves the farmer's current working crop cycle for quick-action screens
+ * (record activity, observation, etc.).
+ *
+ * Strategy (option A — auto-select, no picker):
+ *   1. List the farmer's farms.
+ *   2. Walk farms in order, preferring the most recently planted ACTIVE cycle.
+ *   3. Fall back to the most recent cycle of any status if none are ACTIVE.
+ *
+ * Returns `null` when the farmer has no farm or no crop cycle yet, so callers
+ * can render an onboarding empty-state instead of guessing an id.
+ */
+export const getActiveCropCycle = async (): Promise<ActiveCropCycle | null> => {
+  const farms = await listFarms();
+  if (farms.length === 0) return null;
+
+  const plantedTime = (c: CropCycle) => {
+    const t = new Date(c.plantingDate).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  };
+
+  let best: ActiveCropCycle | null = null;
+  let bestIsActive = false;
+
+  for (const farm of farms) {
+    // Reuse cycles embedded in the farm payload if present, else fetch them.
+    const cycles =
+      farm.cropCycles && farm.cropCycles.length > 0
+        ? farm.cropCycles
+        : await listCropCycles(farm.id);
+
+    for (const cycle of cycles) {
+      const isActive = cycle.status === "ACTIVE";
+
+      // Prefer ACTIVE cycles; among the same active-ness, prefer newer planting.
+      if (
+        best === null ||
+        (isActive && !bestIsActive) ||
+        (isActive === bestIsActive &&
+          plantedTime(cycle) > plantedTime(best.cropCycle))
+      ) {
+        best = { cropCycle: cycle, farm };
+        bestIsActive = isActive;
+      }
+    }
+  }
+
+  return best;
+};
