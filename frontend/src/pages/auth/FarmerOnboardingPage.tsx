@@ -76,6 +76,8 @@ const friendlyAuthError = (err: unknown): string => {
         return "Nag-expire na ang code. Humiling ng bago.";
       case "auth/too-many-requests":
         return "Masyadong maraming subok. Pakisubukan mamaya.";
+      case "auth/operation-not-allowed":
+        return "Naka-disable ang Phone Auth o hindi pa na-add ang test phone number sa Firebase Console.";
       default:
         return "Nabigo ang pagpapatunay. Pakisubukan muli.";
     }
@@ -389,7 +391,9 @@ export const FarmerOnboardingPage: React.FC = () => {
                   {step === 3 && "Siklo ng Tanim na Mais"}
                 </h2>
                 <p className="text-[11px] sm:text-xs text-emerald-200/90 font-medium">
-                  {municipality}, Cagayan • Corn Field
+                  {step === 0
+                    ? "Cagayan Valley • Corn Farming System"
+                    : `${municipality}, Cagayan • Corn Field`}
                 </p>
               </div>
             </div>

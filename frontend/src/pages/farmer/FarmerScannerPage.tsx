@@ -21,6 +21,10 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { scanPlantHealth, type ScanDiagnosisResult } from "../../services/ai.service";
+import {
+  listObservations,
+  type ObservationRecord,
+} from "../../services/observation.service";
 import { getOfflineQueue } from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
 
@@ -41,11 +45,63 @@ export const FarmerScannerPage: React.FC = () => {
   // Diagnosis State
   const [diagnosis, setDiagnosis] = useState<ScanDiagnosisResult | null>(null);
 
-  // Checklist state for "Susunod na mga Gawain"
-  const [tasks, setTasks] = useState([
-    { id: 1, title: "Iulanay na Pataba", time: "Sa loob ng 3 araw", done: false },
-    { id: 2, title: "Suriin sa Peste", time: "Sa loob ng 5 araw", done: false },
-  ]);
+  // Compute DAP and stage-aware contextual farming tasks
+  const dap = farmCtx.plantingDate
+    ? Math.max(0, Math.floor((Date.now() - new Date(farmCtx.plantingDate).getTime()) / 86400000))
+    : null;
+
+  const defaultTasks = React.useMemo(() => {
+    if (dap === null || dap < 15) {
+      return [
+        { id: 1, title: "Suriin ang usbong laban sa Fall Armyworm", time: "Sa loob ng 2 araw", done: false },
+        { id: 2, title: "Ihanda ang unang pataba (Basal Fertilizer)", time: "DAP 10-14", done: false },
+      ];
+    }
+    if (dap < 45) {
+      return [
+        { id: 1, title: "Mag-side dress ng Urea (46-0-0)", time: "Sa loob ng 3 araw", done: false },
+        { id: 2, title: "Suriin sa mga peste at paninilaw ng dahon", time: "Lingguhang inspeksyon", done: false },
+      ];
+    }
+    if (dap < 75) {
+      return [
+        { id: 1, title: "Siguraduhing may sapat na patubig sa Tasseling", time: "Sa loob ng 2 araw", done: false },
+        { id: 2, title: "Bantayan ang silking laban sa Earworm", time: "DAP 50-60", done: false },
+      ];
+    }
+    return [
+      { id: 1, title: "Suriin ang moisture ng butil bago umani", time: "Sa loob ng 5 araw", done: false },
+      { id: 2, title: "Ihanda ang pag-ani at bibilhan", time: "DAP 90-105", done: false },
+    ];
+  }, [dap]);
+
+  const [tasks, setTasks] = useState(defaultTasks);
+
+  useEffect(() => {
+    setTasks(defaultTasks);
+  }, [defaultTasks]);
+
+  // Real latest scan observation from the backend
+  const [latestScan, setLatestScan] = useState<ObservationRecord | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (farmCtx.cropCycleId) {
+      listObservations(farmCtx.cropCycleId)
+        .then((records) => {
+          if (active && records && records.length > 0) {
+            const sorted = [...records].sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            setLatestScan(sorted[0] || null);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [farmCtx.cropCycleId]);
 
   // Load queue count on mount
   useEffect(() => {
@@ -392,7 +448,7 @@ export const FarmerScannerPage: React.FC = () => {
               </div>
 
               <div className="rounded-xl bg-[#047857] text-white font-black text-xs px-3 py-1 shadow-sm shrink-0">
-                Area 41
+                {farmCtx.areaHectares ? `${farmCtx.areaHectares} ha` : "Sakahan"}
               </div>
             </div>
 
@@ -453,15 +509,27 @@ export const FarmerScannerPage: React.FC = () => {
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
                   Kamakailang Scan
                 </p>
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 font-bold text-amber-950">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Possible Leaf Blight</span>
+                {latestScan ? (
+                  <div
+                    onClick={() => navigate("/farmer/history")}
+                    className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3 flex items-center justify-between text-xs cursor-pointer hover:bg-amber-100/70 transition"
+                  >
+                    <div className="flex items-center gap-2 font-bold text-amber-950">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="truncate max-w-[190px]">{latestScan.title}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {new Date(latestScan.createdAt).toLocaleDateString("fil-PH", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    Setyembre 20
-                  </span>
-                </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-center text-xs text-slate-500">
+                    Wala pang kamakailang scan sa kasalukuyang pananim.
+                  </div>
+                )}
               </div>
 
             </div>

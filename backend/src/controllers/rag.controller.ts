@@ -40,7 +40,12 @@ export const handleRagChat = asyncHandler(
     const userId = req.user?.id;
 
     // 1. Fetch relevant vector knowledge (top 4 chunks)
-    const knowledgeChunks = await RagService.retrieveRelevantChunks(prompt, 4);
+    let knowledgeChunks: any[] = [];
+    try {
+      knowledgeChunks = await RagService.retrieveRelevantChunks(prompt, 4);
+    } catch (err) {
+      console.warn("⚠️ [RAG] Vector retrieval failed, proceeding with direct context:", err);
+    }
 
     // 2. Optionally enrich with farm context if a crop cycle is provided
     let farmContext = null;

@@ -41,6 +41,8 @@ const friendlyAuthError = (err: unknown): string => {
         return "Nag-expire na ang code. Humiling ng bago.";
       case "auth/too-many-requests":
         return "Masyadong maraming subok. Pakisubukan mamaya.";
+      case "auth/operation-not-allowed":
+        return "Naka-disable ang Phone Auth o hindi pa na-add ang test phone number sa Firebase Console.";
       default:
         return "Nabigo ang pag-login. Pakisubukan muli.";
     }

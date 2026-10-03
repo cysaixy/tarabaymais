@@ -1,4 +1,5 @@
 import "dotenv/config";
+// Environment configuration updated with Google Gemini AI key
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
