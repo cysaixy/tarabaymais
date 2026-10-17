@@ -249,7 +249,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder="Hal. Paninilaw ng Mais pagkatapos ng Baha"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-3 text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-[#c2410c] transition"
+                  className="w-full rounded-2xl border bg-white px-3.5 py-3 text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-[#c2410c] transition"
                 />
               </div>
 
@@ -263,7 +263,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
                   value={problemDescription}
                   onChange={(e) => setProblemDescription(e.target.value)}
                   placeholder="Isalaysay ang nararanasang problema o itanong ang nais malaman..."
-                  className="w-full rounded-2xl border border-slate-300 bg-white p-3.5 text-xs font-medium text-slate-800 outline-none focus:border-[#c2410c] transition placeholder:text-slate-400 leading-relaxed resize-none"
+                  className="w-full rounded-2xl border bg-white p-3.5 text-xs font-medium outline-none focus:border-[#c2410c] transition placeholder:text-slate-400 leading-relaxed resize-none"
                 />
               </div>
 

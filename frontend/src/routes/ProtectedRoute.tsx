@@ -21,7 +21,7 @@ const homeFor = (role: UserRole | null): string =>
  *   own home area (role-mismatch protection).
  */
 export const ProtectedRoute: React.FC<GuardProps> = ({ allowedRoles }) => {
-  const { user, role, loading } = useAuth();
+  const { user, profile, role, loading } = useAuth();
 
   if (loading) {
     return (
@@ -39,8 +39,10 @@ export const ProtectedRoute: React.FC<GuardProps> = ({ allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Signed in but no backend profile yet → complete registration.
-  if (!role) {
+  // Signed in but no synced backend profile yet (e.g. /auth/me returned 401 on
+  // a refresh/deeplink) → complete registration. `role` can be a provisional
+  // token-claim value here, so the profile is the authoritative signal.
+  if (!profile || !role) {
     return <Navigate to="/onboarding" replace />;
   }
 

@@ -39,11 +39,32 @@ export const getOfflineQueue = (): SyncActionItem[] => {
   }
 };
 
+/**
+ * Strips an unusable `blob:` object URL from an offline payload's `imageUrl`.
+ *
+ * Offline photo sync is deferred to the PWA phase. A `blob:` URL is only valid
+ * in the tab that created it, so persisting it to the queue would sync a dead
+ * link. Until real offline upload exists, we queue the observation text without
+ * a photo rather than a broken reference.
+ */
+const stripBlobImageUrl = (
+  payload: Record<string, unknown>,
+): Record<string, unknown> => {
+  const url = payload.imageUrl;
+  if (typeof url === "string" && url.startsWith("blob:")) {
+    const sanitized = { ...payload };
+    delete sanitized.imageUrl;
+    return sanitized;
+  }
+  return payload;
+};
+
 /** Queues an action item when offline */
 export const queueOfflineAction = (item: Omit<SyncActionItem, "clientRefId" | "clientTimestamp">) => {
   const current = getOfflineQueue();
   const newItem: SyncActionItem = {
     ...item,
+    payload: stripBlobImageUrl(item.payload),
     clientRefId: `temp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     clientTimestamp: new Date().toISOString(),
   };

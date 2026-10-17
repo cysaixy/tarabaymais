@@ -25,6 +25,7 @@ import {
   getOfflineQueue,
   queueOfflineAction,
 } from "../../services/sync.service";
+import { ApiError } from "../../lib/api";
 
 /**
  * Optional category suggestions. These are *not* a restriction — the farmer
@@ -179,9 +180,7 @@ export const FarmerActivityPage: React.FC = () => {
       // Offline-first fallback: only queue when the failure looks like a
       // connectivity problem. Real validation/permission errors (4xx) should
       // surface to the farmer instead of being silently queued.
-      const status = (err as { response?: { status?: number } })?.response
-        ?.status;
-      const isNetworkError = status === undefined; // no HTTP response => offline
+      const isNetworkError = err instanceof ApiError && err.isNetworkError;
 
       if (isNetworkError) {
         queueOfflineAction({
@@ -202,10 +201,11 @@ export const FarmerActivityPage: React.FC = () => {
         navigate("/farmer");
       } else {
         console.error("Activity submit failed:", err);
-        toast.error("Hindi Nai-save ang Gawain", {
-          description:
-            "May problema sa server. Pakisuri ang detalye at subukang muli.",
-        });
+        const description =
+          err instanceof ApiError
+            ? err.message
+            : "May problema sa server. Pakisuri ang detalye at subukang muli.";
+        toast.error("Hindi Nai-save ang Gawain", { description });
       }
     } finally {
       setSubmitting(false);

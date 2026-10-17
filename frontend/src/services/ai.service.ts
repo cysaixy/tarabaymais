@@ -31,9 +31,9 @@ export const scanPlantHealth = async (imageFile: File): Promise<ScanDiagnosisRes
   const fd = new FormData();
   fd.append("image", imageFile);
 
-  const { data } = await api.post("/ai/scan", fd, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  // Do NOT set Content-Type: the api client lets the browser attach the
+  // multipart boundary automatically for FormData bodies.
+  const { data } = await api.post("/ai/scan", fd);
   // Backend wraps the result as { data: { diagnosis: {...} } }
   return (data.data?.diagnosis ?? data.data) as ScanDiagnosisResult;
 };

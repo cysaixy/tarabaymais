@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AxiosError } from "axios";
+import { ApiError } from "../../lib/api";
 import { createFarm } from "../../services/farm.service";
 
 const inputClass =
@@ -43,13 +43,11 @@ const AddFarmPage = () => {
       navigate("/farmer/farms", { replace: true });
     } catch (err) {
       console.error("Create farm failed:", err);
-      if (err instanceof AxiosError && err.response?.data) {
-        const body = err.response.data as {
-          error?: string;
-          details?: FieldErrors;
-        };
-        setError(body.error ?? "Failed to register farm.");
-        if (body.details) setFieldErrors(body.details);
+      if (err instanceof ApiError) {
+        setError(err.message || "Failed to register farm.");
+        if (err.details && typeof err.details === "object") {
+          setFieldErrors(err.details as FieldErrors);
+        }
       } else {
         setError("Failed to register farm. Please try again.");
       }

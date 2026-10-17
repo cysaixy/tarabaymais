@@ -8,6 +8,7 @@ import {
   type UserRole,
 } from "./authContext";
 import { getMe, logOut } from "../services/auth.service";
+import { clearFarmContext } from "../hooks/useFarmContext";
 
 /**
  * Reads the role from the Firebase ID token's custom claim. The backend sets
@@ -93,6 +94,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch {
       // Ignore sign-out failures (e.g. already signed out / offline).
     } finally {
+      // Clear the cached active-farm context so the next session (e.g. a
+      // different farmer on a shared device) does not inherit stale farm data.
+      clearFarmContext();
       setUser(null);
       setProfile(null);
       setRole(null);

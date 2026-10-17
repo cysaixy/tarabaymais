@@ -34,8 +34,6 @@ import {
 } from "../../services/ai.service";
 import {
   createDisasterReport,
-  getCasePipeline,
-  type CasePipelineData,
 } from "../../services/case.service";
 import {
   getOfflineQueue,
@@ -104,7 +102,6 @@ export const FarmerDashboardPage: React.FC = () => {
     | "expert"
     | "disaster"
     | "queue"
-    | "history"
     | null
   >(null);
 
@@ -424,25 +421,10 @@ export const FarmerDashboardPage: React.FC = () => {
     }
   };
 
-  // ── 6. History / Pipeline Modal ───────────────────────────────────────────
-  const [historyData, setHistoryData] = useState<CasePipelineData | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
-
-  const handleOpenHistory = async () => {
-    setActiveModal("history");
-    setHistoryLoading(true);
-    try {
-      const data = await getCasePipeline();
-      setHistoryData(data);
-    } catch {
-      toast.error("Hindi makuha ang kasaysayan.", {
-        description: "Subukan muli o i-check ang koneksyon.",
-      });
-      setHistoryData({ expertCases: [], disasterCases: [] });
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
+  // History / pipeline now lives on the dedicated FarmerHistoryPage
+  // (reached via the bottom-nav "History" button → /farmer/history). The old
+  // in-dashboard history modal was never wired to a trigger, so it has been
+  // removed to avoid duplicate, dead code.
 
   // ── Derived lifecycle values ──────────────────────────────────────────────
   const dap = farmContext?.dap ?? null;
@@ -490,7 +472,7 @@ export const FarmerDashboardPage: React.FC = () => {
             <div className="lg:col-span-5 space-y-4 sm:space-y-5">
 
               {/* Farm Profile Card */}
-              <div className="w-full bg-gradient-to-br from-[#023326] via-[#034433] to-[#04281f] text-white rounded-3xl p-5 sm:p-6 shadow-lg border border-emerald-500/20 relative overflow-hidden">
+              <div className="w-full bg-linear-to-br from-[#023326] via-[#034433] to-[#04281f] text-white rounded-3xl p-5 sm:p-6 shadow-lg border border-emerald-500/20 relative overflow-hidden">
                 {farmContextLoading ? (
                   <div className="flex items-center gap-3 py-4">
                     <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
@@ -654,7 +636,7 @@ export const FarmerDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate("/farmer/scanner")}
-                    className="min-h-[120px] sm:min-h-[135px] rounded-3xl bg-[#047857] hover:bg-[#065f46] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
+                    className="min-h-30 sm:min-h-33.75 rounded-3xl bg-[#047857] hover:bg-[#065f46] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
                   >
                     <div className="flex justify-between items-start w-full">
                       <div className="w-10 h-10 rounded-2xl bg-emerald-600/80 flex items-center justify-center shadow-inner">
@@ -678,7 +660,7 @@ export const FarmerDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate("/farmer/activity")}
-                    className="min-h-[120px] sm:min-h-[135px] rounded-3xl bg-[#2563eb] hover:bg-[#1d4ed8] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
+                    className="min-h-30 sm:min-h-33.75 rounded-3xl bg-[#2563eb] hover:bg-[#1d4ed8] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
                   >
                     <div className="w-10 h-10 rounded-2xl bg-blue-500/80 flex items-center justify-center shadow-inner">
                       <ClipboardCheck className="w-5 h-5 text-white stroke-[2.4]" />
@@ -697,7 +679,7 @@ export const FarmerDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate("/farmer/observation")}
-                    className="min-h-[120px] sm:min-h-[135px] rounded-3xl bg-[#7c3aed] hover:bg-[#6d28d9] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
+                    className="min-h-30 sm:min-h-33.75 rounded-3xl bg-[#7c3aed] hover:bg-[#6d28d9] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
                   >
                     <div className="w-10 h-10 rounded-2xl bg-purple-500/80 flex items-center justify-center shadow-inner">
                       <Camera className="w-5 h-5 text-white stroke-[2.4]" />
@@ -716,7 +698,7 @@ export const FarmerDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate("/farmer/chat")}
-                    className="min-h-[120px] sm:min-h-[135px] rounded-3xl bg-[#0d9488] hover:bg-[#0f766e] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
+                    className="min-h-30 sm:min-h-33.75 rounded-3xl bg-[#0d9488] hover:bg-[#0f766e] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
                   >
                     <div className="w-10 h-10 rounded-2xl bg-teal-500/80 flex items-center justify-center shadow-inner">
                       <Bot className="w-5 h-5 text-white stroke-[2.4]" />
@@ -735,7 +717,7 @@ export const FarmerDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate("/farmer/expert-request")}
-                    className="min-h-[120px] sm:min-h-[135px] rounded-3xl bg-[#c2410c] hover:bg-[#9a3412] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
+                    className="min-h-30 sm:min-h-33.75 rounded-3xl bg-[#c2410c] hover:bg-[#9a3412] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
                   >
                     <div className="w-10 h-10 rounded-2xl bg-orange-600/80 flex items-center justify-center shadow-inner">
                       <UserCheck className="w-5 h-5 text-white stroke-[2.4]" />
@@ -754,7 +736,7 @@ export const FarmerDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate("/farmer/disaster")}
-                    className="min-h-[120px] sm:min-h-[135px] rounded-3xl bg-[#9f1239] hover:bg-[#881337] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
+                    className="min-h-30 sm:min-h-33.75 rounded-3xl bg-[#9f1239] hover:bg-[#881337] hover:-translate-y-0.5 active:scale-[0.98] text-white p-4 sm:p-5 flex flex-col justify-between text-left shadow-md hover:shadow-lg transition-all cursor-pointer"
                   >
                     <div className="w-10 h-10 rounded-2xl bg-rose-700/80 flex items-center justify-center shadow-inner">
                       <AlertTriangle className="w-5 h-5 text-white stroke-[2.4]" />
@@ -816,7 +798,7 @@ export const FarmerDashboardPage: React.FC = () => {
             onClick={() => navigate("/farmer/scanner")}
             className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
           >
-            <Scan className="w-5 h-5 stroke-[2]" />
+            <Scan className="w-5 h-5 stroke-2" />
             <span>Scanner</span>
           </button>
           <button
@@ -824,7 +806,7 @@ export const FarmerDashboardPage: React.FC = () => {
             onClick={() => navigate("/farmer/chat")}
             className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
           >
-            <MessageSquare className="w-5 h-5 stroke-[2]" />
+            <MessageSquare className="w-5 h-5 stroke-2" />
             <span>AI Chat</span>
           </button>
           <button
@@ -833,7 +815,7 @@ export const FarmerDashboardPage: React.FC = () => {
             className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer relative"
           >
             <div className="relative">
-              <Clock className="w-5 h-5 stroke-[2]" />
+              <Clock className="w-5 h-5 stroke-2" />
               {queueCount > 0 && (
                 <span className="absolute -top-1 -right-2 bg-amber-500 text-amber-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
                   {queueCount}
@@ -851,7 +833,7 @@ export const FarmerDashboardPage: React.FC = () => {
         {/* 1. AI Scanner */}
         {activeModal === "scanner" && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4">
+            <div className="w-full max-w-lg bg-white rounded-t-4xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4">
               <div className="flex justify-between items-center border-b pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-800">
@@ -950,7 +932,7 @@ export const FarmerDashboardPage: React.FC = () => {
         {/* 2. Activity Modal */}
         {activeModal === "activity" && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4">
+            <div className="w-full max-w-lg bg-white rounded-t-4xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4">
               <div className="flex justify-between items-center border-b pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-800">
@@ -997,7 +979,7 @@ export const FarmerDashboardPage: React.FC = () => {
         {/* 3. Observation Modal */}
         {activeModal === "observation" && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4">
+            <div className="w-full max-w-lg bg-white rounded-t-4xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4">
               <div className="flex justify-between items-center border-b pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center text-purple-800">
@@ -1033,7 +1015,7 @@ export const FarmerDashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Litrato (Opsiyonal)</label>
-                  <input type="file" accept="image/*" onChange={(e) => setObsFile(e.target.files?.[0] || null)} className="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-purple-100 file:text-purple-800 font-medium" />
+                  <input type="file" accept="image/*" onChange={(e) => setObsFile(e.target.files?.[0] || null)} className="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:bg-purple-100 font-medium" />
                 </div>
                 <button type="submit" disabled={obsLoading} className="w-full h-12 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-sm shadow-md cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2">
                   {obsLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Itinatala...</> : "I-submit ang Obserbasyon"}
@@ -1046,7 +1028,7 @@ export const FarmerDashboardPage: React.FC = () => {
         {/* 4. RAG Chat Modal */}
         {activeModal === "chat" && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl p-5 sm:p-6 shadow-2xl h-[85vh] flex flex-col justify-between">
+            <div className="w-full max-w-lg bg-white rounded-t-4xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl h-[85vh] flex flex-col justify-between">
               <div className="flex justify-between items-center border-b pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-teal-100 flex items-center justify-center text-teal-800">
@@ -1086,7 +1068,7 @@ export const FarmerDashboardPage: React.FC = () => {
                 )}
               </div>
               <form onSubmit={handleSendChat} className="flex gap-2 pt-2 border-t">
-                <input type="text" value={chatPrompt} onChange={(e) => setChatPrompt(e.target.value)} placeholder="Itanong ukol sa abono, peste, o ani..." className="flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 outline-none focus:border-teal-600" />
+                <input type="text" value={chatPrompt} onChange={(e) => setChatPrompt(e.target.value)} placeholder="Itanong ukol sa abono, peste, o ani..." className="flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 outline-none" />
                 <button type="submit" disabled={chatLoading} className="h-10 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow cursor-pointer disabled:opacity-50">
                   <Send className="w-3.5 h-3.5" />
                   <span>Ipadala</span>
@@ -1099,7 +1081,7 @@ export const FarmerDashboardPage: React.FC = () => {
         {/* 5. Disaster Modal */}
         {activeModal === "disaster" && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4">
+            <div className="w-full max-w-lg bg-white rounded-t-4xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4">
               <div className="flex justify-between items-center border-b pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center text-rose-800">
@@ -1149,7 +1131,7 @@ export const FarmerDashboardPage: React.FC = () => {
         {/* 6. Offline Queue Modal */}
         {activeModal === "queue" && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="w-full max-w-lg bg-white rounded-t-4xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
               <div className="flex justify-between items-center border-b pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-800">
@@ -1200,71 +1182,6 @@ export const FarmerDashboardPage: React.FC = () => {
                     <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
                     <span>{syncing ? "Isini-sync..." : "I-sync Lahat sa PostgreSQL Database"}</span>
                   </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 7. History Modal */}
-        {activeModal === "history" && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
-              <div className="flex justify-between items-center border-b pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-base text-slate-900">Kasaysayan ng Sakahan</h3>
-                    <p className="text-[11px] text-slate-500">Mga naunang ulat, obserbasyon, at kaso</p>
-                  </div>
-                </div>
-                <button onClick={() => setActiveModal(null)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 cursor-pointer">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {historyLoading ? (
-                <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Kinukuha ang kasaysayan mula sa server...</span>
-                </div>
-              ) : !historyData ||
-                (historyData.disasterCases.length === 0 &&
-                  historyData.expertCases.length === 0) ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  Walang naitalang kaso o ulat pa.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {historyData.disasterCases.map((dc) => (
-                    <div key={dc.id} className="rounded-xl border border-rose-200 bg-rose-50/50 p-3 space-y-1">
-                      <div className="flex justify-between text-xs font-bold text-slate-900">
-                        <span>Disaster Claim: {dc.disasterType}</span>
-                        <span className="text-rose-700 font-extrabold">{dc.damagePercentage}% Pinsala</span>
-                      </div>
-                      <p className="text-[11px] text-slate-600">{dc.notes}</p>
-                      <div className="flex justify-between text-[10px] text-slate-400 pt-1">
-                        <span>Status: {dc.status}</span>
-                        <span>Tinatayang Lugi: ₱{Number(dc.estimatedLoss || 0).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {historyData.expertCases.map((ec) => (
-                    <div key={ec.id} className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-1">
-                      <div className="flex justify-between text-xs font-bold text-slate-900">
-                        <span>Obserbasyon: {ec.observation?.title}</span>
-                        <span className="text-emerald-700 font-extrabold">{ec.status}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-600">{ec.observation?.description}</p>
-                      {ec.recommendation && (
-                        <p className="text-[11px] text-emerald-800 font-bold bg-emerald-100/60 p-2 rounded-lg mt-1">
-                          Payo ng Technician: {ec.recommendation}
-                        </p>
-                      )}
-                    </div>
-                  ))}
                 </div>
               )}
             </div>

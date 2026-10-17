@@ -51,10 +51,9 @@ export const createObservation = async (
     fd.append("image", params.image);
   }
 
-  // Browser automatically sets Content-Type boundary
-  const { data } = await api.post(`/observations/${params.cropCycleId}`, fd, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  // Do NOT set Content-Type: the api client lets the browser attach the
+  // multipart boundary automatically for FormData bodies.
+  const { data } = await api.post(`/observations/${params.cropCycleId}`, fd);
   return data.data;
 };
 

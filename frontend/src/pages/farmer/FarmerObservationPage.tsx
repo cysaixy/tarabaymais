@@ -133,6 +133,9 @@ export const FarmerObservationPage: React.FC = () => {
       navigate("/farmer");
     } catch {
       // Offline fallback: Queue locally
+      // Offline photo sync is deferred to the PWA phase. We queue the
+      // observation text only; the local `blob:` preview URL would be dead
+      // once synced, so it is intentionally NOT included in the payload.
       queueOfflineAction({
         actionType: "CREATE_OBSERVATION",
         displayTitle: title,
@@ -141,15 +144,15 @@ export const FarmerObservationPage: React.FC = () => {
           title,
           description: fullDescription,
           severity,
-          imageUrl: imagePreview || undefined,
         },
       });
 
       setQueueCount((prev) => prev + 1);
 
       toast.info("Nai-save sa Offline Storage (Queue)", {
-        description:
-          "Dahil mahina o walang cellular signal, itinago ito sa telepono. Awtomatikong mai-sync sa DA server kapag nagkaroon ng koneksyon.",
+        description: imagePreview
+          ? "Nai-save nang walang litrato dahil offline. I-attach muli ang litrato kapag may koneksyon na."
+          : "Dahil mahina o walang cellular signal, itinago ito sa telepono. Awtomatikong mai-sync sa DA server kapag nagkaroon ng koneksyon.",
       });
 
       navigate("/farmer");
@@ -369,7 +372,7 @@ export const FarmerObservationPage: React.FC = () => {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Ilarawan ang nakikita sa dahon, tangkay, o lupa..."
-                className="w-full rounded-2xl border border-slate-300 bg-white p-3.5 text-xs font-medium text-slate-800 outline-none focus:border-purple-600 transition placeholder:text-slate-400 leading-relaxed resize-none"
+                className="w-full rounded-2xl border border-slate-300 bg-white p-3.5 text-xs font-medium text-slate-800 outline-none transition leading-relaxed resize-none"
               />
             </div>
 
