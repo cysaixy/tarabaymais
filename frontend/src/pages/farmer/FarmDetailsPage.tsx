@@ -10,17 +10,21 @@ import {
   Save,
   X,
   Calendar,
+  Plus,
 } from "lucide-react";
 import {
   getFarmById,
   updateFarm,
   deleteFarm,
+  createCropCycle,
+  listCropCycles,
   type Farm,
   type CropCycle,
 } from "../../services/farm.service";
 import { ApiError } from "../../lib/api";
 import { LoadingState } from "../../components/LoadingState";
 import { ErrorState } from "../../components/ErrorState";
+import { useFarmSelection } from "../../context/farmSelectionContext";
 
 interface FieldErrors {
   [key: string]: string[] | undefined;
@@ -48,6 +52,9 @@ const FarmDetailsPage = () => {
   const { farmId = "" } = useParams();
   const navigate = useNavigate();
 
+  // Keep the shared selection in sync when cycles change here.
+  const { refresh: refreshSelection } = useFarmSelection();
+
   const [farm, setFarm] = useState<Farm | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -56,6 +63,18 @@ const FarmDetailsPage = () => {
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // ── Add crop cycle form ────────────────────────────────────────────────
+  const [showCycleForm, setShowCycleForm] = useState(false);
+  const [cycleSaving, setCycleSaving] = useState(false);
+  const [cycleVariety, setCycleVariety] = useState("");
+  const [cyclePlantingDate, setCyclePlantingDate] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [cycleHarvestDate, setCycleHarvestDate] = useState("");
+  const [cycleArea, setCycleArea] = useState("");
+  const [cycleError, setCycleError] = useState<string | null>(null);
+  const [cycleFieldErrors, setCycleFieldErrors] = useState<FieldErrors>({});
 
   const [name, setName] = useState("");
   const [municipality, setMunicipality] = useState("");
@@ -153,7 +172,79 @@ const FarmDetailsPage = () => {
     }
   };
 
+  const resetCycleForm = useCallback(() => {
+    setCycleVariety("");
+    setCyclePlantingDate(new Date().toISOString().split("T")[0]);
+    setCycleHarvestDate("");
+    setCycleArea("");
+    setCycleError(null);
+    setCycleFieldErrors({});
+  }, []);
+
+  const handleAddCycle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!farm) return;
+    setCycleSaving(true);
+    setCycleError(null);
+    setCycleFieldErrors({});
+    try {
+      await createCropCycle(farm.id, {
+        cropType: "corn",
+        variety: cycleVariety.trim() || undefined,
+        plantingDate: cyclePlantingDate,
+        expectedHarvestDate: cycleHarvestDate || undefined,
+        areaHectares: Number(cycleArea),
+      });
+
+      // Re-fetch this farm's cycles so the list + remaining area update, and
+      // refresh the shared selection so the cycle appears in every selector.
+      const freshCycles = await listCropCycles(farm.id);
+      setFarm((prev) => (prev ? { ...prev, cropCycles: freshCycles } : prev));
+      void refreshSelection();
+
+      toast.success("Naidagdag ang pananim!", {
+        description: "Available na ito sa mga selector ng pananim.",
+      });
+      resetCycleForm();
+      setShowCycleForm(false);
+    } catch (err) {
+      console.error("Create crop cycle failed:", err);
+      if (err instanceof ApiError) {
+        // The backend area-cap error carries { remainingHectares, ... } in
+        // details; surface a clear message either way.
+        const details = err.details as
+          | { remainingHectares?: number }
+          | undefined;
+        const remaining =
+          details && typeof details.remainingHectares === "number"
+            ? ` May natitira pang ${details.remainingHectares.toFixed(2)} ektarya.`
+            : "";
+        setCycleError((err.message || "Hindi naidagdag ang pananim.") + remaining);
+        if (
+          err.details &&
+          typeof err.details === "object" &&
+          !("remainingHectares" in (err.details as object))
+        ) {
+          setCycleFieldErrors(err.details as FieldErrors);
+        }
+      } else {
+        setCycleError("Hindi naidagdag ang pananim. Pakisubukan muli.");
+      }
+    } finally {
+      setCycleSaving(false);
+    }
+  };
+
   const cycles: CropCycle[] = (farm?.cropCycles ?? []) as CropCycle[];
+
+  // Remaining plantable area = farm area − sum of ACTIVE cycle areas.
+  const farmArea = farm ? Number(farm.areaHectares) : 0;
+  const activeArea = cycles
+    .filter((c) => c.status === "ACTIVE")
+    .reduce((sum, c) => sum + Number(c.areaHectares), 0);
+  const remainingArea = Math.max(0, farmArea - activeArea);
+
+  const cycleFieldErr = (f: string) => cycleFieldErrors[f]?.[0];
 
   return (
     <div className="w-full min-h-screen bg-slate-100 md:bg-slate-950 flex flex-col items-center p-0 md:p-6 lg:p-8 font-sans">
@@ -242,18 +333,146 @@ const FarmDetailsPage = () => {
                 </p>
                 <p className="flex items-center gap-1.5 text-base font-bold text-emerald-700">
                   <Sprout className="h-5 w-5" />
-                  {Number(farm.areaHectares).toFixed(2)} ektarya
+                  {farmArea.toFixed(2)} ektarya (kabuuan)
                 </p>
+                <div className="flex items-center justify-between rounded-2xl bg-emerald-50 px-3.5 py-2.5 text-sm">
+                  <span className="font-semibold text-slate-600">Natitirang mataniman</span>
+                  <span className="font-black text-emerald-700">
+                    {remainingArea.toFixed(2)} / {farmArea.toFixed(2)} ha
+                  </span>
+                </div>
               </div>
 
               {/* Crop cycles */}
               <div>
-                <h2 className="mb-2 text-sm font-black uppercase tracking-wide text-slate-500">
-                  Mga Pananim ({cycles.length})
-                </h2>
+                <div className="mb-2 flex items-center justify-between">
+                  <h2 className="text-sm font-black uppercase tracking-wide text-slate-500">
+                    Mga Pananim ({cycles.length})
+                  </h2>
+                  {!showCycleForm && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCycleForm(true)}
+                      className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl bg-emerald-600 px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Magdagdag
+                    </button>
+                  )}
+                </div>
+
+                {/* Add crop cycle form */}
+                {showCycleForm && (
+                  <form
+                    onSubmit={handleAddCycle}
+                    className="mb-3 rounded-3xl border-2 border-emerald-100 bg-emerald-50/40 p-4 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-emerald-800">
+                        Bagong Pananim (Crop Cycle)
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCycleForm(false);
+                          resetCycleForm();
+                        }}
+                        className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-slate-500 hover:bg-slate-100"
+                        aria-label="Isara"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">
+                        Uri / Variety (hal. Hybrid, IPB Var 6)
+                      </label>
+                      <input
+                        className={inputClass}
+                        value={cycleVariety}
+                        onChange={(e) => setCycleVariety(e.target.value)}
+                        placeholder="Opsyonal — default: Mais"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">
+                        Petsa ng Pagtatanim
+                      </label>
+                      <input
+                        type="date"
+                        className={inputClass}
+                        value={cyclePlantingDate}
+                        max={new Date().toISOString().split("T")[0]}
+                        onChange={(e) => setCyclePlantingDate(e.target.value)}
+                        required
+                      />
+                      {cycleFieldErr("plantingDate") && (
+                        <p className="mt-1 text-sm font-semibold text-red-600">
+                          {cycleFieldErr("plantingDate")}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">
+                        Inaasahang Petsa ng Ani (opsyonal)
+                      </label>
+                      <input
+                        type="date"
+                        className={inputClass}
+                        value={cycleHarvestDate}
+                        onChange={(e) => setCycleHarvestDate(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">
+                        Laki ng Taniman (ektarya)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        inputMode="decimal"
+                        className={inputClass}
+                        value={cycleArea}
+                        onChange={(e) => setCycleArea(e.target.value)}
+                        required
+                        placeholder={`Hal. 1.5 — natitira: ${remainingArea.toFixed(2)} ha`}
+                      />
+                      {cycleFieldErr("areaHectares") && (
+                        <p className="mt-1 text-sm font-semibold text-red-600">
+                          {cycleFieldErr("areaHectares")}
+                        </p>
+                      )}
+                      <p className="mt-1 text-[11px] font-medium text-slate-500">
+                        Natitirang mataniman: {remainingArea.toFixed(2)} ha sa {farmArea.toFixed(2)} ha
+                      </p>
+                    </div>
+
+                    {cycleError && (
+                      <p className="rounded-2xl bg-red-50 border-2 border-red-100 px-4 py-3 text-sm font-semibold text-red-700">
+                        {cycleError}
+                      </p>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={cycleSaving}
+                      className="inline-flex w-full min-h-13 items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-base font-black text-white shadow-md transition-colors hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      <Plus className="h-5 w-5" />
+                      {cycleSaving ? "Idinadagdag..." : "Idagdag ang Pananim"}
+                    </button>
+                  </form>
+                )}
+
                 {cycles.length === 0 ? (
                   <p className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-medium text-slate-500">
-                    Wala pang pananim sa sakahang ito.
+                    Wala pang pananim sa sakahang ito. Magdagdag ng isa para
+                    makapagtala ng gawain at obserbasyon.
                   </p>
                 ) : (
                   <ul className="space-y-2">
@@ -261,9 +480,15 @@ const FarmDetailsPage = () => {
                       <li key={c.id} className="rounded-2xl border-2 border-slate-100 bg-white p-4 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-bold text-slate-900 capitalize">{c.variety || c.cropType || "Mais"}</p>
-                          <p className="flex items-center gap-1 text-xs font-medium text-slate-500 mt-0.5">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {new Date(c.plantingDate).toLocaleDateString("fil-PH")}
+                          <p className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5" />
+                              {new Date(c.plantingDate).toLocaleDateString("fil-PH")}
+                            </span>
+                            <span className="flex items-center gap-1 text-emerald-700 font-bold">
+                              <Sprout className="h-3.5 w-3.5" />
+                              {Number(c.areaHectares).toFixed(2)} ha
+                            </span>
                           </p>
                         </div>
                         <span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold ${STATUS_STYLE[c.status]}`}>

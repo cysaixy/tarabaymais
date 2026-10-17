@@ -22,6 +22,7 @@ import {
 import { useFarmSelection } from "../../context/farmSelectionContext";
 import { ApiError } from "../../lib/api";
 import { FarmCycleSelector } from "../../components/FarmCycleSelector";
+import { caseStatusDisplay, CASE_STATUS_TIMELINE } from "../../lib/caseStatus";
 
 /** Suggested loss per hectare (₱) — an estimate only, farmer can override. */
 const SUGGESTED_LOSS_PER_HA = 36000;
@@ -59,6 +60,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
   // Pipeline Status List
   const [claimList, setClaimList] = useState<DisasterReport[]>([]);
   const [claimsLoading, setClaimsLoading] = useState(false);
+  const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null);
 
   // Load queue count on mount
   useEffect(() => {
@@ -293,7 +295,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
                         <span>{evt.label}</span>
                         {isSelected && (
                           <div className="w-4 h-4 rounded-full bg-[#e11d48] text-white flex items-center justify-center">
-                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            <Check className="w-2.5 h-2.5 stroke-3" />
                           </div>
                         )}
                       </button>
@@ -312,7 +314,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
                     type="date"
                     value={eventDate}
                     onChange={(e) => setEventDate(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-3 text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-[#9f1239] transition"
+                    className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-3 text-xs sm:text-sm font-semibold text-slate-800 outline-none transition"
                   />
                   <Calendar className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none" />
                 </div>
@@ -331,7 +333,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
                   value={affectedHectares}
                   onChange={(e) => setAffectedHectares(e.target.value)}
                   placeholder="Hal. 1.5"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-3 text-sm font-extrabold text-[#9f1239] outline-none focus:border-[#9f1239] transition"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-3 text-sm font-extrabold text-[#9f1239] outline-none transition"
                 />
                 
                 {/* Helper Footnote */}
@@ -359,7 +361,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
                     setEstimatedLoss(e.target.value);
                   }}
                   placeholder="Hal. 54000"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-3 text-sm font-extrabold text-[#9f1239] outline-none focus:border-[#9f1239] transition"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-3 text-sm font-extrabold text-[#9f1239] outline-none transition"
                 />
                 <p className="text-[11px] font-medium text-slate-500">
                   Mungkahi base sa ~₱{SUGGESTED_LOSS_PER_HA.toLocaleString()}/ha ({haNum || 0} ha = ₱{suggestedLoss.toLocaleString()}). Maaari mong baguhin ito ayon sa aktwal na pagkakalkula.
@@ -376,7 +378,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Ilarawan kung ano ang nangyari sa pananim..."
-                  className="w-full rounded-2xl border border-slate-300 bg-white p-3.5 text-xs font-medium text-slate-800 outline-none focus:border-[#9f1239] transition placeholder:text-slate-400 leading-relaxed resize-none"
+                  className="w-full rounded-2xl border border-slate-300 bg-white p-3.5 text-xs font-medium text-slate-800 outline-none transition leading-relaxed resize-none"
                 />
               </div>
 
@@ -444,35 +446,23 @@ export const FarmerDisasterReportPage: React.FC = () => {
                 ) : (
                   <div className="space-y-3">
                     {claimList.map((c) => {
-                      const statusColor =
-                        c.status === "RESOLVED"
-                          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                          : c.status === "INSPECTED"
-                          ? "bg-purple-100 text-purple-800 border-purple-300"
-                          : c.status === "UNDER_REVIEW"
-                          ? "bg-amber-100 text-amber-900 border-amber-300"
-                          : c.status === "REJECTED"
-                          ? "bg-rose-100 text-rose-800 border-rose-300"
-                          : "bg-blue-100 text-blue-800 border-blue-300";
-
-                      const statusTagalog =
-                        c.status === "RESOLVED"
-                          ? "Aprubado sa Tulong / Payout"
-                          : c.status === "INSPECTED"
-                          ? "Nainspeksyon na sa Bukid"
-                          : c.status === "UNDER_REVIEW"
-                          ? "Sinusuri ng Technician"
-                          : c.status === "REJECTED"
-                          ? "Hindi Naaprubahan"
-                          : "Naipasa (Waiting Review)";
-
+                      const display = caseStatusDisplay(c.status);
+                      const expanded = expandedClaimId === c.id;
+                      const isRejected = c.status === "REJECTED";
                       return (
                         <div
                           key={c.id}
-                          className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-2 hover:border-slate-300 transition"
+                          className="rounded-2xl border border-slate-200 bg-slate-50/70 overflow-hidden hover:border-slate-300 transition"
                         >
-                          <div className="flex justify-between items-start gap-2">
-                            <div>
+                          {/* Header row — tap to expand */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedClaimId(expanded ? null : c.id)
+                            }
+                            className="w-full p-4 flex justify-between items-start gap-2 text-left cursor-pointer"
+                          >
+                            <div className="min-w-0">
                               <span className="font-extrabold text-xs sm:text-sm text-slate-900">
                                 Kalamidad: {c.disasterType}
                               </span>
@@ -485,32 +475,91 @@ export const FarmerDisasterReportPage: React.FC = () => {
                                 })}
                               </p>
                             </div>
-
                             <span
-                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-black border ${statusColor}`}
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-black border shrink-0 ${display.badge}`}
                             >
-                              {statusTagalog}
+                              {display.label}
                             </span>
-                          </div>
+                          </button>
 
-                          <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-200/60">
-                            <div>
-                              <span className="text-[10px] text-slate-500">Antas ng Sira:</span>
-                              <p className="font-bold text-rose-700">{c.damagePercentage}% Pinsala</p>
+                          <div className="px-4 pb-4 space-y-2.5">
+                            <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-200/60">
+                              <div>
+                                <span className="text-[10px] text-slate-500">Antas ng Sira:</span>
+                                <p className="font-bold text-rose-700">{c.damagePercentage}% Pinsala</p>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500">Tinatayang Lugi:</span>
+                                <p className="font-bold text-slate-800">
+                                  ₱{Number(c.estimatedLoss || 0).toLocaleString()}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <span className="text-[10px] text-slate-500">Tinatayang Lugi:</span>
-                              <p className="font-bold text-slate-800">
-                                ₱{Number(c.estimatedLoss || 0).toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
 
-                          {c.notes && (
-                            <p className="text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/80 leading-snug">
-                              {c.notes}
-                            </p>
-                          )}
+                            {expanded && (
+                              <>
+                                {/* Status timeline (skipped for rejected) */}
+                                {!isRejected && (
+                                  <div className="flex items-center justify-between pt-1">
+                                    {CASE_STATUS_TIMELINE.map((step, idx) => {
+                                      const reached = display.step >= idx;
+                                      return (
+                                        <React.Fragment key={step.key}>
+                                          <div className="flex flex-col items-center gap-1 flex-1">
+                                            <div
+                                              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                                                reached
+                                                  ? "bg-emerald-600 text-white"
+                                                  : "bg-slate-200 text-slate-400"
+                                              }`}
+                                            >
+                                              {idx + 1}
+                                            </div>
+                                            <span
+                                              className={`text-[9px] font-bold text-center ${reached ? "text-emerald-700" : "text-slate-400"}`}
+                                            >
+                                              {step.label}
+                                            </span>
+                                          </div>
+                                          {idx < CASE_STATUS_TIMELINE.length - 1 && (
+                                            <div
+                                              className={`h-0.5 flex-1 -mt-4 ${display.step > idx ? "bg-emerald-600" : "bg-slate-200"}`}
+                                            />
+                                          )}
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {c.farm && (
+                                  <p className="text-[11px] text-slate-600">
+                                    Sakahan:{" "}
+                                    <strong className="text-slate-900">{c.farm.name}</strong>{" "}
+                                    ({c.farm.barangay}, {c.farm.municipality})
+                                  </p>
+                                )}
+
+                                {c.verifiedBy && (
+                                  <p className="text-[11px] text-slate-600">
+                                    Ni-verify ni:{" "}
+                                    <strong className="text-slate-900">
+                                      {c.verifiedBy.firstName} {c.verifiedBy.lastName}
+                                    </strong>
+                                  </p>
+                                )}
+
+                                {c.notes && (
+                                  <div>
+                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">Paliwanag</p>
+                                    <p className="text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/80 leading-snug whitespace-pre-line">
+                                      {c.notes}
+                                    </p>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </div>
                       );
                     })}

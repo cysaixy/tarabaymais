@@ -7,29 +7,44 @@ export interface CreateDisasterReportPayload {
   notes?: string;
 }
 
+/** Backend `CaseStatus` enum values (shared by expert + disaster cases). */
+export type CaseStatus =
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "INSPECTED"
+  | "RESOLVED"
+  | "REJECTED";
+
 export interface DisasterReport {
   id: string;
   farmId: string;
   disasterType: string;
   damagePercentage: string | number;
   estimatedLoss?: string | number | null;
-  status: "SUBMITTED" | "UNDER_REVIEW" | "INSPECTED" | "RESOLVED" | "REJECTED";
+  status: CaseStatus;
   notes?: string | null;
   createdAt: string;
+  updatedAt?: string;
+  verifiedBy?: { firstName: string; lastName: string } | null;
+  farm?: { name: string; barangay: string; municipality: string };
 }
 
 export interface ExpertCase {
   id: string;
   observationId: string;
   assignedTechnicianId?: string | null;
-  status: string;
+  status: CaseStatus;
   recommendation?: string | null;
+  createdAt?: string;
+  resolvedAt?: string | null;
   observation?: {
     title: string;
     description: string;
     severity: string;
     imageUrl?: string | null;
+    cropCycle?: { farm?: { name: string; barangay: string; municipality: string } };
   };
+  assignedTechnician?: { firstName: string; lastName: string; phone?: string } | null;
 }
 
 export interface CasePipelineData {

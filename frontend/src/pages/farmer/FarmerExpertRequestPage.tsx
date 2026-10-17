@@ -14,13 +14,18 @@ import { createObservation } from "../../services/observation.service";
 import { getCasePipeline, type ExpertCase } from "../../services/case.service";
 import { getOfflineQueue, queueOfflineAction } from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
+import { useFarmSelection } from "../../context/farmSelectionContext";
 import { useAuth } from "../../context/authContext";
 import { ApiError } from "../../lib/api";
+import { FarmCycleSelector } from "../../components/FarmCycleSelector";
+import { caseStatusDisplay, CASE_STATUS_TIMELINE } from "../../lib/caseStatus";
 
 export const FarmerExpertRequestPage: React.FC = () => {
   const navigate = useNavigate();
 
   const farmCtx = useFarmContext();
+  const { selectedCycle } = useFarmSelection();
+  const cropCycleId = selectedCycle?.id ?? "";
   const { profile } = useAuth();
 
   // Tab State
@@ -37,6 +42,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
   // Expert Cases List
   const [expertCases, setExpertCases] = useState<ExpertCase[]>([]);
   const [casesLoading, setCasesLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Load queue count on mount
   useEffect(() => {
@@ -66,15 +72,14 @@ export const FarmerExpertRequestPage: React.FC = () => {
       return;
     }
 
-    setSubmitting(true);
-
-    if (!farmCtx.cropCycleId) {
-      toast.error("Walang aktibong pananim.", {
-        description: "Mag-onboard muna o magdagdag ng crop cycle sa inyong sakahan.",
+    if (!cropCycleId) {
+      toast.error("Walang napiling pananim.", {
+        description: "Pumili ng sakahan at pananim sa itaas.",
       });
-      setSubmitting(false);
       return;
     }
+
+    setSubmitting(true);
 
     const farmerName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : "";
     const farmerPhone = profile?.phone || "";
@@ -83,7 +88,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
     try {
       // High severity observation triggers auto-escalation to expertRequest in backend
       await createObservation({
-        cropCycleId: farmCtx.cropCycleId,
+        cropCycleId,
         title: subject.trim(),
         description: fullNotes,
         severity: "HIGH",
@@ -115,7 +120,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
         actionType: "CREATE_OBSERVATION",
         displayTitle: `Humingi ng Tulong: ${subject.trim()}`,
         payload: {
-          cropCycleId: farmCtx.cropCycleId,
+          cropCycleId,
           title: subject.trim(),
           description: fullNotes,
           severity: "HIGH",
@@ -254,6 +259,9 @@ export const FarmerExpertRequestPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Shared farm + crop cycle selector (drives cropCycleId) */}
+              <FarmCycleSelector label="Para saang pananim ang tulong?" />
+
               {/* Field 1: Paksa / Pamagat */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-800">
@@ -286,7 +294,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={submitting}
+                disabled={submitting || !cropCycleId}
                 className="w-full h-14 rounded-2xl bg-[#c2410c] hover:bg-[#9a3412] active:scale-[0.98] text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer disabled:opacity-50"
               >
                 {submitting ? (
@@ -343,60 +351,113 @@ export const FarmerExpertRequestPage: React.FC = () => {
                 ) : (
                   <div className="space-y-3">
                     {expertCases.map((ec) => {
-                      const isResolved = ec.status === "RESOLVED";
+                      const display = caseStatusDisplay(ec.status);
+                      const expanded = expandedId === ec.id;
+                      const isRejected = ec.status === "REJECTED";
                       return (
                         <div
                           key={ec.id}
-                          className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-2.5 hover:border-slate-300 transition"
+                          className="rounded-2xl border border-slate-200 bg-slate-50/70 overflow-hidden hover:border-slate-300 transition"
                         >
-                          <div className="flex justify-between items-start gap-2">
-                            <div>
-                              <h4 className="font-extrabold text-xs sm:text-sm text-slate-900">
+                          {/* Header row — tap to expand */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedId(expanded ? null : ec.id)
+                            }
+                            className="w-full p-4 flex justify-between items-start gap-2 text-left cursor-pointer"
+                          >
+                            <div className="min-w-0">
+                              <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">
                                 {ec.observation?.title || "Katanungan sa Taniman"}
                               </h4>
                               <p className="text-[10px] text-slate-400 mt-0.5">
                                 Kaso ID: #{ec.id.slice(0, 8)}
+                                {ec.createdAt
+                                  ? ` • ${new Date(ec.createdAt).toLocaleDateString("fil-PH", { month: "short", day: "numeric", year: "numeric" })}`
+                                  : ""}
                               </p>
                             </div>
-
                             <span
-                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-black border ${
-                                isResolved
-                                  ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                                  : ec.status === "IN_PROGRESS"
-                                  ? "bg-purple-100 text-purple-800 border-purple-300"
-                                  : "bg-amber-100 text-amber-900 border-amber-300"
-                              }`}
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-black border shrink-0 ${display.badge}`}
                             >
-                              {isResolved
-                                ? "Nalutas na (May Payo)"
-                                : ec.status === "IN_PROGRESS"
-                                ? "Kasalukuyang Sinusuri"
-                                : "Nakatanggap na ang LGU"}
+                              {display.label}
                             </span>
-                          </div>
+                          </button>
 
-                          {ec.observation?.description && (
-                            <p className="text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/80 leading-snug">
-                              {ec.observation.description}
-                            </p>
-                          )}
+                          {expanded && (
+                            <div className="px-4 pb-4 space-y-3 border-t border-slate-200/70 pt-3">
+                              {/* Status timeline (skipped for rejected) */}
+                              {!isRejected && (
+                                <div className="flex items-center justify-between">
+                                  {CASE_STATUS_TIMELINE.map((step, idx) => {
+                                    const reached = display.step >= idx;
+                                    return (
+                                      <React.Fragment key={step.key}>
+                                        <div className="flex flex-col items-center gap-1 flex-1">
+                                          <div
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                                              reached
+                                                ? "bg-emerald-600 text-white"
+                                                : "bg-slate-200 text-slate-400"
+                                            }`}
+                                          >
+                                            {idx + 1}
+                                          </div>
+                                          <span
+                                            className={`text-[9px] font-bold text-center ${reached ? "text-emerald-700" : "text-slate-400"}`}
+                                          >
+                                            {step.label}
+                                          </span>
+                                        </div>
+                                        {idx < CASE_STATUS_TIMELINE.length - 1 && (
+                                          <div
+                                            className={`h-0.5 flex-1 -mt-4 ${display.step > idx ? "bg-emerald-600" : "bg-slate-200"}`}
+                                          />
+                                        )}
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </div>
+                              )}
 
-                          {/* Technician's Official Recommendation */}
-                          {ec.recommendation ? (
-                            <div className="rounded-xl border border-emerald-300 bg-emerald-50/80 p-3 space-y-1">
-                              <div className="flex items-center gap-1.5 text-xs font-black text-emerald-950">
-                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Opisyal na Payo ng LGU Agri-Technician:</span>
-                              </div>
-                              <p className="text-xs text-emerald-900 font-medium leading-relaxed">
-                                {ec.recommendation}
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50 p-2 rounded-xl border border-amber-200">
-                              <MessageSquare className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              <span>Naghihintay ng tugon mula sa nakatalagang technician sa {farmCtx.municipality || "inyong munisipalidad"}.</span>
+                              {ec.observation?.description && (
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">Detalye</p>
+                                  <p className="text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/80 leading-snug whitespace-pre-line">
+                                    {ec.observation.description}
+                                  </p>
+                                </div>
+                              )}
+
+                              {ec.assignedTechnician && (
+                                <p className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                                  <UserCheck className="w-3.5 h-3.5 text-[#c2410c] shrink-0" />
+                                  Technician:{" "}
+                                  <strong className="text-slate-900">
+                                    {ec.assignedTechnician.firstName} {ec.assignedTechnician.lastName}
+                                  </strong>
+                                  {ec.assignedTechnician.phone ? ` • ${ec.assignedTechnician.phone}` : ""}
+                                </p>
+                              )}
+
+                              {/* Technician's Official Recommendation */}
+                              {ec.recommendation ? (
+                                <div className="rounded-xl border border-emerald-300 bg-emerald-50/80 p-3 space-y-1">
+                                  <div className="flex items-center gap-1.5 text-xs font-black text-emerald-950">
+                                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>Opisyal na Payo ng LGU Agri-Technician:</span>
+                                  </div>
+                                  <p className="text-xs text-emerald-900 font-medium leading-relaxed whitespace-pre-line">
+                                    {ec.recommendation}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50 p-2 rounded-xl border border-amber-200">
+                                  <MessageSquare className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>Naghihintay ng tugon mula sa nakatalagang technician sa {farmCtx.municipality || "inyong munisipalidad"}.</span>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

@@ -42,8 +42,9 @@ import {
   clearOfflineQueue,
   sendBatchSync,
 } from "../../services/sync.service";
-import { getActiveCropCycle } from "../../services/farm.service";
 import { useAuth } from "../../context/authContext";
+import { useFarmSelection } from "../../context/farmSelectionContext";
+import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 import { ApiError } from "../../lib/api";
 
 /** True only for genuine connectivity failures (safe to queue offline). */
@@ -82,20 +83,30 @@ export const FarmerDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
 
-  // ── Farm Context (resolved from API) ──────────────────────────────────────
-  const [farmContextLoading, setFarmContextLoading] = useState(true);
-  const [farmContext, setFarmContext] = useState<{
-    farmName: string;
-    municipality: string;
-    barangay: string;
-    variety: string;
-    areaHectares: number;
-    ownership: string;
-    cropCycleId: string;
-    farmId: string;
-    dap: number | null;
-    plantingDate: string;
-  } | null>(null);
+  // ── Farm Context from the shared FarmSelection (single source of truth) ───
+  const {
+    selectedFarm,
+    selectedCycle,
+    loading: selectionLoading,
+  } = useFarmSelection();
+
+  const farmContextLoading = selectionLoading;
+  const farmContext = React.useMemo(() => {
+    if (!selectedFarm) return null;
+    return {
+      farmName: selectedFarm.name,
+      municipality: selectedFarm.municipality,
+      barangay: selectedFarm.barangay,
+      variety:
+        selectedCycle?.variety || selectedCycle?.cropType || "Mais",
+      areaHectares: Number(selectedFarm.areaHectares),
+      ownership: "",
+      cropCycleId: selectedCycle?.id ?? "",
+      farmId: selectedFarm.id,
+      dap: selectedCycle ? computeDAP(selectedCycle.plantingDate) : null,
+      plantingDate: selectedCycle?.plantingDate ?? "",
+    };
+  }, [selectedFarm, selectedCycle]);
 
   const [queueCount, setQueueCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
@@ -111,40 +122,8 @@ export const FarmerDashboardPage: React.FC = () => {
     | null
   >(null);
 
-  // ── Bootstrap: resolve active crop cycle from API ────────────────────────
+  // Load offline queue count on mount.
   useEffect(() => {
-    const bootstrap = async () => {
-      setFarmContextLoading(true);
-      try {
-        const active = await getActiveCropCycle();
-        if (active) {
-          const { cropCycle, farm } = active;
-          const dap = computeDAP(cropCycle.plantingDate);
-          setFarmContext({
-            farmName: farm.name,
-            municipality: farm.municipality,
-            barangay: farm.barangay,
-            variety: cropCycle.variety || cropCycle.cropType || "Mais",
-            areaHectares: Number(farm.areaHectares),
-            ownership: "",
-            cropCycleId: cropCycle.id,
-            farmId: farm.id,
-            dap,
-            plantingDate: cropCycle.plantingDate,
-          });
-        }
-      } catch {
-        toast.error("Hindi makuha ang impormasyon ng sakahan.", {
-          description: "Subukan muli o i-check ang koneksyon.",
-        });
-      } finally {
-        setFarmContextLoading(false);
-      }
-    };
-
-    bootstrap();
-
-    // Load offline queue count
     const q = getOfflineQueue();
     setQueueCount(q.length);
   }, []);
@@ -552,6 +531,11 @@ export const FarmerDashboardPage: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Shared farm + crop cycle switcher — changes apply app-wide */}
+              {!farmContextLoading && (
+                <FarmCycleSelector label="Piliin ang sakahan / pananim" />
+              )}
 
               {/* Crop Lifecycle Engine Card */}
               {!farmContextLoading && farmContext && dap !== null && growthStage && (
