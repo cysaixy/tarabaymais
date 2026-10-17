@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -10,22 +10,20 @@ import {
   Sparkles,
   Check,
   WifiOff,
-  Sprout,
-  AlertCircle,
 } from "lucide-react";
 import {
   createActivity,
   type ActivityType,
 } from "../../services/activity.service";
 import {
-  getActiveCropCycle,
-  type ActiveCropCycle,
-} from "../../services/farm.service";
-import {
   getOfflineQueue,
   queueOfflineAction,
 } from "../../services/sync.service";
 import { ApiError } from "../../lib/api";
+import { useFarmSelection } from "../../context/farmSelectionContext";
+import { LoadingState } from "../../components/LoadingState";
+import { ErrorState } from "../../components/ErrorState";
+import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 
 /**
  * Optional category suggestions. These are *not* a restriction — the farmer
@@ -76,10 +74,15 @@ const todayIso = () => new Date().toISOString().split("T")[0];
 export const FarmerActivityPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // ── Real farm/crop context loaded from the backend ────────────────────────
-  const [loadingContext, setLoadingContext] = useState(true);
-  const [context, setContext] = useState<ActiveCropCycle | null>(null);
-  const [contextError, setContextError] = useState<string | null>(null);
+  // ── Shared farm/crop selection ────────────────────────────────────────────
+  const {
+    selectedFarm,
+    selectedCycle,
+    loading: selectionLoading,
+    error: selectionError,
+    refresh: refreshSelection,
+  } = useFarmSelection();
+  const cropCycleId = selectedCycle?.id ?? "";
 
   const [queueCount, setQueueCount] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -106,23 +109,8 @@ export const FarmerActivityPage: React.FC = () => {
 
   const [submitting, setSubmitting] = useState(false);
 
-  const loadContext = useCallback(async () => {
-    setLoadingContext(true);
-    setContextError(null);
-    try {
-      const active = await getActiveCropCycle();
-      setContext(active);
-    } catch (err) {
-      console.error("Failed to load farm context:", err);
-      setContextError(
-        "Hindi makuha ang impormasyon ng sakahan. Pakisuri ang koneksyon.",
-      );
-    } finally {
-      setLoadingContext(false);
-    }
-  }, []);
-
-  // Online/offline detection, queue count, and initial context load.
+  // Online/offline detection + queue count. Farm/crop selection is provided by
+  // the shared FarmSelection context, so no per-page context fetch is needed.
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -130,20 +118,19 @@ export const FarmerActivityPage: React.FC = () => {
     window.addEventListener("offline", handleOffline);
 
     setQueueCount(getOfflineQueue().length);
-    void loadContext();
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [loadContext]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!context) {
-      toast.error("Walang aktibong taniman", {
-        description: "Kailangan munang magparehistro ng sakahan at taniman.",
+    if (!cropCycleId) {
+      toast.error("Walang napiling pananim", {
+        description: "Pumili ng sakahan at pananim sa itaas.",
       });
       return;
     }
@@ -163,7 +150,6 @@ export const FarmerActivityPage: React.FC = () => {
     // otherwise inferred from what they typed (defaults to OTHER).
     const activityType: ActivityType =
       selectedCategory ?? inferActivityType(combinedDescription);
-    const cropCycleId = context.cropCycle.id;
 
     try {
       await createActivity(cropCycleId, {
@@ -173,7 +159,7 @@ export const FarmerActivityPage: React.FC = () => {
       });
 
       toast.success("Nai-save ang Gawain!", {
-        description: `Matagumpay na naitala sa ${context.farm.name}.`,
+        description: `Matagumpay na naitala sa ${selectedFarm?.name ?? "sakahan"}.`,
       });
       navigate("/farmer");
     } catch (err) {
@@ -216,9 +202,9 @@ export const FarmerActivityPage: React.FC = () => {
     navigate("/farmer/history");
   };
 
-  // Context label shown in the header (municipality from the real farm record).
-  const headerContext = context
-    ? `${context.farm.municipality}, Cagayan • ${context.farm.name}`
+  // Context label shown in the header (municipality from the selected farm).
+  const headerContext = selectedFarm
+    ? `${selectedFarm.municipality}, Cagayan • ${selectedFarm.name}`
     : "Cagayan • Corn Field";
 
   return (
@@ -264,61 +250,27 @@ export const FarmerActivityPage: React.FC = () => {
         {/* ========================================================= */}
         <main className="flex-1 p-4 sm:p-5 space-y-4 overflow-y-auto">
           {/* --- Loading state --- */}
-          {loadingContext && (
-            <div className="w-full bg-white rounded-3xl p-8 shadow-sm border border-slate-200/80 flex flex-col items-center justify-center gap-3 text-slate-500">
-              <RefreshCw className="w-7 h-7 animate-spin text-emerald-600" />
-              <p className="text-sm font-semibold">
-                Kinukuha ang inyong taniman...
-              </p>
-            </div>
+          {selectionLoading && (
+            <LoadingState label="Kinukuha ang inyong taniman..." />
           )}
 
-          {/* --- Error loading context --- */}
-          {!loadingContext && contextError && (
-            <div className="w-full bg-white rounded-3xl p-6 shadow-sm border border-red-200 flex flex-col items-center gap-3 text-center">
-              <AlertCircle className="w-9 h-9 text-red-500" />
-              <p className="text-sm font-semibold text-slate-700">
-                {contextError}
-              </p>
-              <button
-                type="button"
-                onClick={() => void loadContext()}
-                className="mt-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 text-sm font-bold text-white transition active:scale-[0.98] cursor-pointer"
-              >
-                Subukang Muli
-              </button>
-            </div>
+          {/* --- Error loading farms --- */}
+          {!selectionLoading && selectionError && (
+            <ErrorState
+              message="Hindi makuha ang impormasyon ng sakahan. Pakisuri ang koneksyon."
+              onRetry={() => void refreshSelection()}
+            />
           )}
 
-          {/* --- Empty state: no farm / no crop cycle --- */}
-          {!loadingContext && !contextError && !context && (
-            <div className="w-full bg-white rounded-3xl p-6 shadow-sm border border-emerald-200 flex flex-col items-center gap-3 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                <Sprout className="w-8 h-8 text-emerald-600" />
-              </div>
-              <h2 className="text-base font-black text-slate-800">
-                Wala pang Taniman
-              </h2>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                Kailangan munang magparehistro ng sakahan at tanim na mais bago
-                makapagtala ng gawain.
-              </p>
-              <button
-                type="button"
-                onClick={() => navigate("/onboarding")}
-                className="mt-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 text-sm font-bold text-white transition active:scale-[0.98] cursor-pointer"
-              >
-                Magrehistro ng Sakahan
-              </button>
-            </div>
-          )}
-
-          {/* --- Ready: the real form --- */}
-          {!loadingContext && !contextError && context && (
+          {/* --- Ready: selector + the real form --- */}
+          {!selectionLoading && !selectionError && (
             <form
               onSubmit={handleSubmit}
               className="w-full bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-4"
             >
+              {/* Shared farm + crop cycle selector (drives cropCycleId) */}
+              <FarmCycleSelector label="Para saang pananim?" />
+
               {/* Card Header */}
               <div>
                 <div className="flex items-center gap-2 text-[#2563eb]">
@@ -330,9 +282,9 @@ export const FarmerActivityPage: React.FC = () => {
                 <p className="text-xs text-slate-500 font-medium mt-1 leading-snug">
                   Itala ang pataba, patubig, o pagpuksa sa peste sa{" "}
                   <span className="font-bold text-slate-700">
-                    {context.cropCycle.variety ?? "mais"}
-                  </span>{" "}
-                  ({context.farm.name}).
+                    {selectedCycle?.variety ?? "mais"}
+                  </span>
+                  {selectedFarm ? ` (${selectedFarm.name}).` : "."}
                 </p>
               </div>
 
@@ -435,7 +387,7 @@ export const FarmerActivityPage: React.FC = () => {
               {/* Section 6: Primary Action Button */}
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !cropCycleId}
                 className="w-full h-14 rounded-2xl bg-[#2563eb] hover:bg-[#1d4ed8] active:scale-[0.98] text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer disabled:opacity-50"
               >
                 {submitting ? (

@@ -15,6 +15,7 @@ import { getCasePipeline, type ExpertCase } from "../../services/case.service";
 import { getOfflineQueue, queueOfflineAction } from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
 import { useAuth } from "../../context/authContext";
+import { ApiError } from "../../lib/api";
 
 export const FarmerExpertRequestPage: React.FC = () => {
   const navigate = useNavigate();
@@ -94,8 +95,22 @@ export const FarmerExpertRequestPage: React.FC = () => {
       });
 
       setActiveTab("status");
-    } catch {
-      // Offline fallback: Queue locally
+    } catch (err) {
+      // Only queue on a genuine connectivity failure; a 4xx/5xx must surface.
+      const isNetworkError =
+        (err instanceof ApiError && err.isNetworkError) || !navigator.onLine;
+
+      if (!isNetworkError) {
+        console.error("Expert request submit failed:", err);
+        const description =
+          err instanceof ApiError
+            ? err.message
+            : "May problema sa server. Pakisuri ang detalye at subukang muli.";
+        toast.error("Hindi Naipadala ang Kahilingan", { description });
+        setSubmitting(false);
+        return;
+      }
+
       queueOfflineAction({
         actionType: "CREATE_OBSERVATION",
         displayTitle: `Humingi ng Tulong: ${subject.trim()}`,

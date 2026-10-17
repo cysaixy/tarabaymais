@@ -17,7 +17,10 @@ import {
   getOfflineQueue,
   queueOfflineAction,
 } from "../../services/sync.service";
-import { useFarmContext } from "../../hooks/useFarmContext";
+import { useFarmSelection } from "../../context/farmSelectionContext";
+import { ApiError } from "../../lib/api";
+import { LoadingState } from "../../components/LoadingState";
+import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 
 const SYMPTOM_OPTIONS = [
   "Butas-butas na dahon (Uod/FAW)",
@@ -32,7 +35,9 @@ export const FarmerObservationPage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const farmCtx = useFarmContext();
+  const { selectedFarm, selectedCycle, loading: selectionLoading } =
+    useFarmSelection();
+  const cropCycleId = selectedCycle?.id ?? "";
 
   const [queueCount, setQueueCount] = useState(0);
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
@@ -102,9 +107,9 @@ export const FarmerObservationPage: React.FC = () => {
         : ""
     }`;
 
-    if (!farmCtx.cropCycleId) {
-      toast.error("Walang aktibong pananim.", {
-        description: "Mag-onboard muna o magdagdag ng crop cycle sa inyong sakahan.",
+    if (!cropCycleId) {
+      toast.error("Walang napiling pananim.", {
+        description: "Pumili ng sakahan at pananim sa itaas.",
       });
       setSubmitting(false);
       return;
@@ -112,7 +117,7 @@ export const FarmerObservationPage: React.FC = () => {
 
     try {
       const res = await createObservation({
-        cropCycleId: farmCtx.cropCycleId,
+        cropCycleId,
         title,
         description: fullDescription,
         severity,
@@ -131,8 +136,23 @@ export const FarmerObservationPage: React.FC = () => {
       }
 
       navigate("/farmer");
-    } catch {
-      // Offline fallback: Queue locally
+    } catch (err) {
+      // Only queue when the failure is a connectivity problem. Real
+      // validation/permission errors (4xx) must surface to the farmer instead
+      // of being silently queued.
+      const isNetworkError = err instanceof ApiError && err.isNetworkError;
+
+      if (!isNetworkError) {
+        console.error("Observation submit failed:", err);
+        const description =
+          err instanceof ApiError
+            ? err.message
+            : "May problema sa server. Pakisuri ang detalye at subukang muli.";
+        toast.error("Hindi Nai-save ang Obserbasyon", { description });
+        setSubmitting(false);
+        return;
+      }
+
       // Offline photo sync is deferred to the PWA phase. We queue the
       // observation text only; the local `blob:` preview URL would be dead
       // once synced, so it is intentionally NOT included in the payload.
@@ -140,7 +160,7 @@ export const FarmerObservationPage: React.FC = () => {
         actionType: "CREATE_OBSERVATION",
         displayTitle: title,
         payload: {
-          cropCycleId: farmCtx.cropCycleId,
+          cropCycleId,
           title,
           description: fullDescription,
           severity,
@@ -190,7 +210,7 @@ export const FarmerObservationPage: React.FC = () => {
                 Pagsusuri sa Tanim
               </h1>
               <p className="text-[11px] sm:text-xs text-emerald-200/90 font-medium">
-                {farmCtx.municipality || "Cagayan"}, Cagayan • Corn Field
+                {selectedFarm?.municipality || "Cagayan"}, Cagayan • Corn Field
               </p>
             </div>
           </div>
@@ -210,8 +230,14 @@ export const FarmerObservationPage: React.FC = () => {
         {/* 2. MAIN CARD CONTENT CONTAINER                            */}
         {/* ========================================================= */}
         <main className="flex-1 p-4 sm:p-5 space-y-4 overflow-y-auto">
+          {selectionLoading ? (
+            <LoadingState label="Kinukuha ang inyong taniman..." />
+          ) : (
           <div className="w-full bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-5">
-            
+
+            {/* Shared farm + crop cycle selector (drives cropCycleId) */}
+            <FarmCycleSelector label="Para saang pananim?" />
+
             {/* Card Header */}
             <div>
               <div className="flex items-center gap-2 text-[#7e22ce]">
@@ -407,7 +433,7 @@ export const FarmerObservationPage: React.FC = () => {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || !cropCycleId}
               className="w-full h-14 rounded-2xl bg-[#7e22ce] hover:bg-[#6b21a8] active:scale-[0.98] text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer disabled:opacity-50"
             >
               {submitting ? (
@@ -424,6 +450,7 @@ export const FarmerObservationPage: React.FC = () => {
             </button>
 
           </div>
+          )}
         </main>
 
       </div>

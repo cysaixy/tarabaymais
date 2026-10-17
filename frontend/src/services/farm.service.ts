@@ -52,6 +52,34 @@ export const createFarm = async (payload: CreateFarmPayload): Promise<Farm> => {
   return data.data.farm;
 };
 
+/** Partial update of a farm. Endpoint: PATCH /farm/:farmId */
+export type UpdateFarmPayload = Partial<CreateFarmPayload>;
+
+export const updateFarm = async (
+  farmId: string,
+  payload: UpdateFarmPayload,
+): Promise<Farm> => {
+  const { data } = await api.patch(`/farm/${farmId}`, payload);
+  return data.data.farm;
+};
+
+/**
+ * Deletes a farm (and cascades its crop cycles on the backend).
+ * Endpoint: DELETE /farm/:farmId → { deletedCropCycles: number }
+ */
+export const deleteFarm = async (
+  farmId: string,
+): Promise<{ deletedCropCycles: number }> => {
+  const { data } = await api.delete(`/farm/${farmId}`);
+  return data.data;
+};
+
+/** Fetches a single farm (with its crop cycles) by filtering the farms list. */
+export const getFarmById = async (farmId: string): Promise<Farm | null> => {
+  const farms = await listFarms();
+  return farms.find((f) => f.id === farmId) ?? null;
+};
+
 /** Creates a crop cycle nested under a farm */
 export const createCropCycle = async (
   farmId: string,

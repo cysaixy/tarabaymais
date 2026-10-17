@@ -1,6 +1,7 @@
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ProtectedRoute } from "./ProtectedRoute";
+import { FarmSelectionProvider } from "../context/FarmSelectionProvider";
 
 import FarmerLoginPage from "../pages/auth/FarmerLoginPage";
 import FarmerOnboardingPage from "../pages/auth/FarmerOnboardingPage";
@@ -13,6 +14,9 @@ import FarmerExpertRequestPage from "../pages/farmer/FarmerExpertRequestPage";
 import FarmerScannerPage from "../pages/farmer/FarmerScannerPage";
 import FarmerActivityPage from "../pages/farmer/FarmerActivityPage";
 import FarmerHistoryPage from "../pages/farmer/FarmerHistoryPage";
+import MyFarmsPage from "../pages/farmer/MyFarmsPage";
+import AddFarmPage from "../pages/farmer/AddFarmPage";
+import FarmDetailsPage from "../pages/farmer/FarmDetailsPage";
 import TechnicianDashboardPage from "../pages/technician/TechnicianDashboardPage";
 
 // ---------------------------------------------------------------------------
@@ -45,6 +49,10 @@ const farmerRoutes = (
     <Route path="/farmer/scanner" element={<FarmerScannerPage />} />
     <Route path="/farmer/activity" element={<FarmerActivityPage />} />
     <Route path="/farmer/history" element={<FarmerHistoryPage />} />
+    <Route path="/farmer/farms" element={<MyFarmsPage />} />
+    {/* `/new` must precede the `:farmId` param route so it is not captured. */}
+    <Route path="/farmer/farms/new" element={<AddFarmPage />} />
+    <Route path="/farmer/farms/:farmId" element={<FarmDetailsPage />} />
   </>
 );
 
@@ -71,9 +79,17 @@ export const AppRouter: React.FC = () => {
     <Routes>
       {publicRoutes}
 
-      {/* Farmer-only area */}
+      {/* Farmer-only area, wrapped in the shared farm/cycle selection context. */}
       <Route element={<ProtectedRoute allowedRoles={["FARMER"]} />}>
-        {farmerRoutes}
+        <Route
+          element={
+            <FarmSelectionProvider>
+              <Outlet />
+            </FarmSelectionProvider>
+          }
+        >
+          {farmerRoutes}
+        </Route>
       </Route>
 
       {/* Technician/Officer municipal area */}

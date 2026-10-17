@@ -1,109 +1,141 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { listFarms } from "../../services/farm.service";
-import type { Farm } from "../../services/farm.service";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ChevronLeft, Plus, MapPin, Sprout, Tractor } from "lucide-react";
+import { listFarms, type Farm, type CropCycle } from "../../services/farm.service";
+import { LoadingState } from "../../components/LoadingState";
+import { EmptyState } from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
+
+/** Count of ACTIVE crop cycles embedded in the farm payload. */
+const activeCycleCount = (farm: Farm): number =>
+  (farm.cropCycles ?? []).filter(
+    (c) => (c as CropCycle).status === "ACTIVE",
+  ).length;
 
 const MyFarmsPage = () => {
+  const navigate = useNavigate();
   const [farms, setFarms] = useState<Farm[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const data = await listFarms();
-        if (active) setFarms(data);
-      } catch (err) {
-        console.error("Failed to load farms:", err);
-        if (active) setError("Could not load your farms. Please try again.");
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const data = await listFarms();
+      setFarms(data);
+    } catch (err) {
+      console.error("Failed to load farms:", err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10">
-      <div className="mb-8 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-teal-400">
-            Farmer
-          </p>
-          <h1 className="mt-1 text-3xl font-bold text-white">My Farms</h1>
-          <p className="mt-2 text-slate-400">
-            Farms registered under your account.
-          </p>
-        </div>
-        <Link
-          to="/farmer/farms/new"
-          className="shrink-0 rounded-lg bg-teal-500 px-4 py-2.5 font-medium text-slate-950 transition hover:bg-teal-400"
-        >
-          + Add Farm
-        </Link>
-      </div>
-
-      {loading && (
-        <div className="flex items-center gap-2 text-slate-400">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-700 border-t-teal-500" />
-          <span className="text-sm">Loading farms...</span>
-        </div>
-      )}
-
-      {!loading && error && (
-        <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
-          {error}
-        </p>
-      )}
-
-      {!loading && !error && farms.length === 0 && (
-        <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-10 text-center">
-          <p className="text-slate-300">You haven't registered any farms yet.</p>
-          <Link
-            to="/farmer/farms/new"
-            className="mt-4 inline-block rounded-lg bg-teal-500 px-4 py-2.5 font-medium text-slate-950 transition hover:bg-teal-400"
+    <div className="w-full min-h-screen bg-slate-100 md:bg-slate-950 flex flex-col items-center p-0 md:p-6 lg:p-8 font-sans">
+      <div className="w-full md:max-w-3xl bg-slate-50 text-slate-900 shadow-2xl flex flex-col md:rounded-[36px] md:border-2 md:border-emerald-800/40 min-h-screen relative pb-24">
+        {/* Header */}
+        <header className="w-full bg-[#03543f] text-white px-5 sm:px-8 pt-5 pb-4 flex items-center gap-3 shadow-md">
+          <button
+            type="button"
+            onClick={() => navigate("/farmer")}
+            aria-label="Bumalik"
+            className="w-11 h-11 rounded-2xl bg-emerald-800/50 hover:bg-emerald-700 flex items-center justify-center shrink-0"
           >
-            Register your first farm
-          </Link>
-        </div>
-      )}
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <div>
+            <h1 className="text-lg sm:text-2xl font-black tracking-tight leading-tight">
+              Mga Sakahan Ko
+            </h1>
+            <p className="text-xs sm:text-sm text-emerald-200/90 font-medium mt-0.5">
+              Lahat ng nakarehistrong sakahan
+            </p>
+          </div>
+        </header>
 
-      {!loading && !error && farms.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {farms.map((farm) => (
-            <div
-              key={farm.id}
-              className="rounded-xl border border-slate-800 bg-slate-900/60 p-5"
-            >
-              <h2 className="text-lg font-semibold text-white">{farm.name}</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                {farm.barangay}, {farm.municipality}
-              </p>
-              <dl className="mt-4 space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <dt className="text-slate-500">Area</dt>
-                  <dd className="text-teal-300">
-                    {Number(farm.areaHectares).toFixed(2)} ha
-                  </dd>
-                </div>
-                {farm.latitude != null && farm.longitude != null && (
-                  <div className="flex justify-between">
-                    <dt className="text-slate-500">Coordinates</dt>
-                    <dd className="text-slate-300">
-                      {Number(farm.latitude).toFixed(4)},{" "}
-                      {Number(farm.longitude).toFixed(4)}
-                    </dd>
-                  </div>
-                )}
-              </dl>
+        <main className="flex-1 px-4 sm:px-6 pt-5 space-y-4">
+          {loading ? (
+            <LoadingState label="Kinukuha ang mga sakahan..." />
+          ) : error ? (
+            <ErrorState
+              message="Hindi makuha ang listahan ng sakahan. Pakisubukan muli."
+              onRetry={load}
+            />
+          ) : farms.length === 0 ? (
+            <EmptyState
+              icon={<Tractor className="h-12 w-12" />}
+              title="Wala pang sakahan"
+              message="Magdagdag ng unang sakahan para masimulan ang pagtatala ng pananim."
+              action={
+                <button
+                  type="button"
+                  onClick={() => navigate("/farmer/farms/new")}
+                  className="inline-flex min-h-13 items-center gap-2 rounded-2xl bg-emerald-600 px-6 text-base font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                >
+                  <Plus className="h-5 w-5" />
+                  Magdagdag ng Sakahan
+                </button>
+              }
+            />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {farms.map((farm) => {
+                const active = activeCycleCount(farm);
+                return (
+                  <button
+                    key={farm.id}
+                    type="button"
+                    onClick={() => navigate(`/farmer/farms/${farm.id}`)}
+                    className="text-left rounded-3xl border-2 border-slate-100 bg-white p-5 shadow-sm transition-colors hover:border-emerald-300"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h2 className="text-lg font-black text-slate-900 leading-tight">
+                        {farm.name}
+                      </h2>
+                      <span
+                        className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold ${
+                          active > 0
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {active > 0 ? `${active} Aktibo` : "Walang aktibo"}
+                      </span>
+                    </div>
+                    <p className="mt-1 flex items-center gap-1 text-sm font-medium text-slate-500">
+                      <MapPin className="h-4 w-4 shrink-0" />
+                      {farm.barangay}, {farm.municipality}
+                    </p>
+                    <p className="mt-3 flex items-center gap-1.5 text-sm font-bold text-emerald-700">
+                      <Sprout className="h-4 w-4" />
+                      {Number(farm.areaHectares).toFixed(2)} ektarya
+                    </p>
+                  </button>
+                );
+              })}
             </div>
-          ))}
-        </div>
-      )}
-    </main>
+          )}
+        </main>
+
+        {/* Floating Add button (thumb reach) */}
+        {!loading && !error && farms.length > 0 && (
+          <button
+            type="button"
+            onClick={() => navigate("/farmer/farms/new")}
+            className="fixed md:absolute bottom-6 right-6 inline-flex min-h-14 items-center gap-2 rounded-2xl bg-emerald-600 px-6 text-base font-black text-white shadow-xl transition-colors hover:bg-emerald-700 z-10"
+          >
+            <Plus className="h-6 w-6" />
+            Magdagdag
+          </button>
+        )}
+      </div>
+    </div>
   );
 };
 

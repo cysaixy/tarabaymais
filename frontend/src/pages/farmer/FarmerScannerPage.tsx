@@ -11,7 +11,6 @@ import {
   Sparkles,
   AlertTriangle,
   CheckCircle2,
-  Calendar,
   Home,
   MessageSquare,
   Clock,
@@ -23,19 +22,25 @@ import {
 import { scanPlantHealth, type ScanDiagnosisResult } from "../../services/ai.service";
 import {
   listObservations,
+  createObservation,
   type ObservationRecord,
 } from "../../services/observation.service";
 import { getOfflineQueue } from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
+import { useFarmSelection } from "../../context/farmSelectionContext";
+import { ApiError } from "../../lib/api";
+import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 
 export const FarmerScannerPage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const farmCtx = useFarmContext();
+  const { selectedCycle } = useFarmSelection();
   const [queueCount, setQueueCount] = useState(0);
 
   // Camera & Image State
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
 
@@ -44,42 +49,7 @@ export const FarmerScannerPage: React.FC = () => {
 
   // Diagnosis State
   const [diagnosis, setDiagnosis] = useState<ScanDiagnosisResult | null>(null);
-
-  // Compute DAP and stage-aware contextual farming tasks
-  const dap = farmCtx.plantingDate
-    ? Math.max(0, Math.floor((Date.now() - new Date(farmCtx.plantingDate).getTime()) / 86400000))
-    : null;
-
-  const defaultTasks = React.useMemo(() => {
-    if (dap === null || dap < 15) {
-      return [
-        { id: 1, title: "Suriin ang usbong laban sa Fall Armyworm", time: "Sa loob ng 2 araw", done: false },
-        { id: 2, title: "Ihanda ang unang pataba (Basal Fertilizer)", time: "DAP 10-14", done: false },
-      ];
-    }
-    if (dap < 45) {
-      return [
-        { id: 1, title: "Mag-side dress ng Urea (46-0-0)", time: "Sa loob ng 3 araw", done: false },
-        { id: 2, title: "Suriin sa mga peste at paninilaw ng dahon", time: "Lingguhang inspeksyon", done: false },
-      ];
-    }
-    if (dap < 75) {
-      return [
-        { id: 1, title: "Siguraduhing may sapat na patubig sa Tasseling", time: "Sa loob ng 2 araw", done: false },
-        { id: 2, title: "Bantayan ang silking laban sa Earworm", time: "DAP 50-60", done: false },
-      ];
-    }
-    return [
-      { id: 1, title: "Suriin ang moisture ng butil bago umani", time: "Sa loob ng 5 araw", done: false },
-      { id: 2, title: "Ihanda ang pag-ani at bibilhan", time: "DAP 90-105", done: false },
-    ];
-  }, [dap]);
-
-  const [tasks, setTasks] = useState(defaultTasks);
-
-  useEffect(() => {
-    setTasks(defaultTasks);
-  }, [defaultTasks]);
+  const [logging, setLogging] = useState(false);
 
   // Real latest scan observation from the backend
   const [latestScan, setLatestScan] = useState<ObservationRecord | null>(null);
@@ -113,6 +83,7 @@ export const FarmerScannerPage: React.FC = () => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const url = URL.createObjectURL(file);
+      setImageFile(file);
       setImagePreview(url);
       await runDiagnosis(file);
     }
@@ -132,31 +103,20 @@ export const FarmerScannerPage: React.FC = () => {
           ? `Natukoy: ${res.diseaseDetected}`
           : "Malusog ang pananim!",
       });
-    } catch {
-      // Grounded realistic fallback adhering to DA Region II corn guides
-      setTimeout(() => {
-        setDiagnosis({
-          isCornPlant: true,
-          diseaseDetected: "Fall Armyworm (Uod sa Puso ng Mais)",
-          confidence: 0.94,
-          severity: "HIGH",
-          description:
-            "May nakitang mga butas na hugis bintana (window-pane) at pinong dumi ng uod sa gitnang usbong (whorl) ng mais.",
-          recommendedAction:
-            "Mag-aplay ng bio-control agent tulad ng Bacillus thuringiensis (Bt) o Chlorantraniliprole sa maagang umaga o dapithapon. Siguraduhing maabot ang loob ng puso ng mais.",
-        });
-        // Smoothly slide the white info container upward
-        setSheetOpen(true);
-        toast.info("Offline AI Diagnosis Ready", {
-          description: "Ginamit ang nakaimbak na DA Region II Corn Vision Model.",
-        });
-      }, 1200);
+    } catch (err) {
+      // No fabricated fallback: show the real reason and let the farmer retry.
+      const description =
+        err instanceof ApiError
+          ? err.message
+          : "Hindi matapos ang pagsusuri. Pakisubukan muli o i-check ang koneksyon.";
+      toast.error("Hindi Natapos ang Pag-scan", { description });
     } finally {
       setScanning(false);
     }
   };
 
   const handleResetScanner = () => {
+    setImageFile(null);
     setImagePreview(null);
     setDiagnosis(null);
     setSheetOpen(false);
@@ -165,10 +125,61 @@ export const FarmerScannerPage: React.FC = () => {
     }
   };
 
-  const handleToggleTask = (id: number) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
-    );
+  /**
+   * Logs the current scan result as an Observation on the selected crop cycle,
+   * attaching the original photo and the AI diagnosis JSON. Honest errors only:
+   * a 4xx/5xx surfaces the backend message; nothing is fabricated.
+   */
+  const handleLogObservation = async () => {
+    if (!diagnosis) return;
+    const cropCycleId = selectedCycle?.id ?? "";
+    if (!cropCycleId) {
+      toast.error("Walang napiling pananim", {
+        description: "Pumili ng sakahan at pananim sa ibaba bago i-log.",
+      });
+      return;
+    }
+
+    setLogging(true);
+    try {
+      const title = diagnosis.diseaseDetected || "Resulta ng AI Scan";
+      const description = [
+        diagnosis.description,
+        diagnosis.recommendedAction
+          ? `Inirerekomendang aksyon: ${diagnosis.recommendedAction}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      const res = await createObservation({
+        cropCycleId,
+        title,
+        description: description || "Resulta ng AI Plant Scan.",
+        severity: diagnosis.severity || "LOW",
+        image: imageFile,
+        aiDiagnosis: diagnosis as unknown as Record<string, unknown>,
+      });
+
+      if (res.autoEscalatedCase) {
+        toast.warning("Mataas ang Pinsala (Auto-Escalated)", {
+          description:
+            "Awtomatikong naipasa ang kaso sa LGU Agricultural Technician.",
+        });
+      } else {
+        toast.success("Na-log bilang Obserbasyon!", {
+          description: "Nai-save ang resulta ng scan sa record ng pananim.",
+        });
+      }
+      navigate("/farmer/history");
+    } catch (err) {
+      const description =
+        err instanceof ApiError
+          ? err.message
+          : "Hindi na-save ang obserbasyon. Pakisubukan muli.";
+      toast.error("Hindi Na-log ang Obserbasyon", { description });
+    } finally {
+      setLogging(false);
+    }
   };
 
   const handleQueueClick = () => {
@@ -405,26 +416,32 @@ export const FarmerScannerPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Quick Action Escalation Buttons */}
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => navigate("/farmer/observation")}
-                    className="rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs py-3 px-3 shadow-md flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-center"
-                  >
-                    <span>I-record bilang Ulat</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigate("/farmer/chat")}
-                    className="rounded-2xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs py-3 px-3 shadow-md flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-center"
-                  >
-                    <span>Magtanong sa AI</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                {/* Farm + crop cycle selection for logging this result */}
+                <div className="pt-1">
+                  <FarmCycleSelector label="I-log sa aling pananim?" />
                 </div>
+
+                {/* Log as Observation (uses selected cycle + aiDiagnosis) */}
+                <button
+                  type="button"
+                  onClick={handleLogObservation}
+                  disabled={logging || !selectedCycle}
+                  className="w-full rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-sm py-3.5 px-3 shadow-md flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-center disabled:opacity-50"
+                >
+                  <span>
+                    {logging ? "Ini-log..." : "I-log bilang Obserbasyon"}
+                  </span>
+                  {!logging && <ArrowRight className="w-4 h-4" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/farmer/chat")}
+                  className="w-full rounded-2xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs py-3 px-3 shadow-md flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-center"
+                >
+                  <span>Magtanong sa AI tungkol dito</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
 
@@ -452,60 +469,10 @@ export const FarmerScannerPage: React.FC = () => {
               </div>
             </div>
 
-            {/* CARD 2: SUSUNOD NA MGA GAWAIN & KAMAKAILANG SCAN (MATCHES INSPIRATION) */}
+            {/* CARD 2: KAMAKAILANG SCAN (real backend data only) */}
             <div className="w-full bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200/80 space-y-3.5">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
-                  <Calendar className="w-4 h-4 text-emerald-600" />
-                  <span>Susunod na mga Gawain</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => navigate("/farmer")}
-                  className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-0.5 cursor-pointer"
-                >
-                  <span>Lahat</span>
-                  <ChevronLeft className="w-3 h-3 rotate-180" />
-                </button>
-              </div>
-
-              {/* Checkbox Tasks */}
+              {/* Kamakailang Scan */}
               <div className="space-y-2">
-                {tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    onClick={() => handleToggleTask(task.id)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 flex items-center justify-between cursor-pointer hover:bg-slate-100/80 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition ${
-                          task.done
-                            ? "border-emerald-600 bg-emerald-600 text-white"
-                            : "border-slate-300 bg-white"
-                        }`}
-                      >
-                        {task.done && <CheckCircle2 className="w-3.5 h-3.5" />}
-                      </div>
-                      <div>
-                        <p
-                          className={`text-xs font-bold text-slate-900 ${
-                            task.done ? "line-through text-slate-400" : ""
-                          }`}
-                        >
-                          {task.title}
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-medium">
-                          {task.time}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Kamakailang Scan Divider & Item */}
-              <div className="pt-2 border-t border-slate-100 space-y-2">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
                   Kamakailang Scan
                 </p>

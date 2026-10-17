@@ -17,6 +17,7 @@ import {
   Send,
   Calendar,
   Loader2,
+  Tractor,
 } from "lucide-react";
 import {
   createActivity,
@@ -43,6 +44,11 @@ import {
 } from "../../services/sync.service";
 import { getActiveCropCycle } from "../../services/farm.service";
 import { useAuth } from "../../context/authContext";
+import { ApiError } from "../../lib/api";
+
+/** True only for genuine connectivity failures (safe to queue offline). */
+const isOfflineError = (err: unknown): boolean =>
+  (err instanceof ApiError && err.isNetworkError) || !navigator.onLine;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -195,7 +201,15 @@ export const FarmerDashboardPage: React.FC = () => {
       setActDesc("");
       setActCost("");
       setActiveModal(null);
-    } catch {
+    } catch (err) {
+      if (!isOfflineError(err)) {
+        const description =
+          err instanceof ApiError
+            ? err.message
+            : "May problema sa server. Pakisubukan muli.";
+        toast.error("Hindi Naitala ang Gawain", { description });
+        return;
+      }
       queueOfflineAction({
         actionType: "CREATE_CROP_ACTIVITY",
         payload: {
@@ -252,7 +266,15 @@ export const FarmerDashboardPage: React.FC = () => {
       setObsDesc("");
       setObsFile(null);
       setActiveModal(null);
-    } catch {
+    } catch (err) {
+      if (!isOfflineError(err)) {
+        const description =
+          err instanceof ApiError
+            ? err.message
+            : "May problema sa server. Pakisubukan muli.";
+        toast.error("Hindi Nai-record ang Obserbasyon", { description });
+        return;
+      }
       queueOfflineAction({
         actionType: "CREATE_OBSERVATION",
         payload: {
@@ -396,7 +418,15 @@ export const FarmerDashboardPage: React.FC = () => {
       setDisasterLoss("");
       setDisasterNotes("");
       setActiveModal(null);
-    } catch {
+    } catch (err) {
+      if (!isOfflineError(err)) {
+        const description =
+          err instanceof ApiError
+            ? err.message
+            : "May problema sa server. Pakisubukan muli.";
+        toast.error("Hindi Naisumite ang Ulat", { description });
+        return;
+      }
       queueOfflineAction({
         actionType: "CREATE_DISASTER_REPORT",
         payload: {
@@ -453,6 +483,14 @@ export const FarmerDashboardPage: React.FC = () => {
             <span className="hidden md:inline-flex items-center gap-1.5 rounded-full bg-emerald-950/60 border border-emerald-400/30 px-3.5 py-1 text-xs font-semibold text-emerald-200">
               🏛️ DA Region II Connected
             </span>
+            <button
+              onClick={() => navigate("/farmer/farms")}
+              type="button"
+              className="bg-emerald-800/60 hover:bg-emerald-700 active:scale-95 border border-emerald-400/30 text-emerald-100 font-black text-xs sm:text-sm px-4 py-2 rounded-full flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            >
+              <Tractor className="w-4 h-4" />
+              <span className="hidden sm:inline">Mga Sakahan</span>
+            </button>
             <button
               onClick={() => setActiveModal("queue")}
               type="button"

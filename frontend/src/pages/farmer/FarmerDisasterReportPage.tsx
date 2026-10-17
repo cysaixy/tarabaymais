@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -6,7 +6,6 @@ import {
   RefreshCw,
   AlertTriangle,
   Calendar,
-  UploadCloud,
   FileText,
   Clock,
   Check,
@@ -20,7 +19,12 @@ import {
   getOfflineQueue,
   queueOfflineAction,
 } from "../../services/sync.service";
-import { useFarmContext } from "../../hooks/useFarmContext";
+import { useFarmSelection } from "../../context/farmSelectionContext";
+import { ApiError } from "../../lib/api";
+import { FarmCycleSelector } from "../../components/FarmCycleSelector";
+
+/** Suggested loss per hectare (₱) — an estimate only, farmer can override. */
+const SUGGESTED_LOSS_PER_HA = 36000;
 
 const EVENT_TYPES = [
   { id: "FLOOD", label: "Flood" },
@@ -31,9 +35,8 @@ const EVENT_TYPES = [
 
 export const FarmerDisasterReportPage: React.FC = () => {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const farmCtx = useFarmContext();
+  const { selectedFarm } = useFarmSelection();
 
   // Tab State
   const [activeTab, setActiveTab] = useState<"report" | "status">("report");
@@ -45,9 +48,11 @@ export const FarmerDisasterReportPage: React.FC = () => {
   const [eventDate, setEventDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
   const [affectedHectares, setAffectedHectares] = useState<string>("");
   const [description, setDescription] = useState<string>("");
-
-  // Photo Evidence
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  // Editable estimated loss. Seeded from a per-hectare suggestion but the
+  // farmer can override it; `lossEdited` stops the suggestion from clobbering
+  // a manual value when the hectares change.
+  const [estimatedLoss, setEstimatedLoss] = useState<string>("");
+  const [lossEdited, setLossEdited] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -74,18 +79,20 @@ export const FarmerDisasterReportPage: React.FC = () => {
 
   // Derived calculations
   const haNum = parseFloat(affectedHectares) || 0;
-  const totalHa = farmCtx.areaHectares || 2.5;
-  const damagePct = Math.min(100, Math.max(1, Math.round((haNum / totalHa) * 100)));
-  const estimatedLossPhp = Math.round(haNum * 36000);
+  const totalHa = selectedFarm ? Number(selectedFarm.areaHectares) : 0;
+  const damagePct =
+    totalHa > 0
+      ? Math.min(100, Math.max(1, Math.round((haNum / totalHa) * 100)))
+      : 0;
+  const suggestedLoss = Math.round(haNum * SUGGESTED_LOSS_PER_HA);
+  const estimatedLossPhp = Math.round(Number(estimatedLoss) || 0);
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const url = URL.createObjectURL(file);
-      setImagePreview(url);
-      toast.success("Nailakip ang ebidensya ng pinsala!");
+  // Keep the suggestion in sync with hectares until the farmer edits it.
+  useEffect(() => {
+    if (!lossEdited) {
+      setEstimatedLoss(haNum > 0 ? String(suggestedLoss) : "");
     }
-  };
+  }, [haNum, suggestedLoss, lossEdited]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,20 +105,20 @@ export const FarmerDisasterReportPage: React.FC = () => {
       return;
     }
 
-    setSubmitting(true);
-
-    if (!farmCtx.farmId) {
-      toast.error("Walang aktibong sakahan.", {
-        description: "Mag-onboard muna o magdagdag ng sakahan.",
+    const farmId = selectedFarm?.id ?? "";
+    if (!farmId) {
+      toast.error("Walang napiling sakahan.", {
+        description: "Pumili ng sakahan sa itaas.",
       });
-      setSubmitting(false);
       return;
     }
+
+    setSubmitting(true);
 
     const notesWithContext = `${description.trim()}\n\n[Petsa ng Kalamidad: ${eventDate}] [Naapektuhan: ${haNum} ha mula sa ${totalHa} ha (${damagePct}%)]`;
 
     try {
-      await createDisasterReport(farmCtx.farmId, {
+      await createDisasterReport(farmId, {
         disasterType,
         damagePercentage: damagePct,
         estimatedLoss: estimatedLossPhp,
@@ -124,13 +131,28 @@ export const FarmerDisasterReportPage: React.FC = () => {
       });
 
       setActiveTab("status");
-    } catch {
-      // Offline Queue Fallback
+    } catch (err) {
+      // Only queue on a genuine connectivity failure. A 4xx/5xx from the server
+      // must surface its message and NOT be silently queued.
+      const isNetworkError =
+        (err instanceof ApiError && err.isNetworkError) || !navigator.onLine;
+
+      if (!isNetworkError) {
+        console.error("Disaster report submit failed:", err);
+        const description =
+          err instanceof ApiError
+            ? err.message
+            : "May problema sa server. Pakisuri ang detalye at subukang muli.";
+        toast.error("Hindi Naisumite ang Ulat", { description });
+        setSubmitting(false);
+        return;
+      }
+
       queueOfflineAction({
         actionType: "CREATE_DISASTER_REPORT",
         displayTitle: `Ulat ng Kalamidad: ${disasterType} (${damagePct}%)`,
         payload: {
-          farmId: farmCtx.farmId,
+          farmId,
           disasterType,
           damagePercentage: damagePct,
           estimatedLoss: estimatedLossPhp,
@@ -180,7 +202,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
                 Ulat ng Pinsala ng Bagyo/Baha
               </h1>
               <p className="text-[11px] sm:text-xs text-emerald-200/90 font-medium">
-                {farmCtx.municipality || "Cagayan"}, Cagayan • Corn Field
+                {selectedFarm?.municipality || "Cagayan"}, Cagayan • Corn Field
               </p>
             </div>
           </div>
@@ -245,6 +267,9 @@ export const FarmerDisasterReportPage: React.FC = () => {
                   I-report ang pinsala sa Mais dulot ng Bagyo, Baha, o Tagtuyot para sa PCIC insurance at emergency assistance.
                 </p>
               </div>
+
+              {/* Shared farm selector (farm-only; drives farmId) */}
+              <FarmCycleSelector farmOnly label="Aling sakahan ang naapektuhan?" />
 
               {/* Section 1: Event Type (2x2 Grid) */}
               <div className="space-y-2">
@@ -311,14 +336,35 @@ export const FarmerDisasterReportPage: React.FC = () => {
                 
                 {/* Helper Footnote */}
                 <div className="flex justify-between items-center text-[11px] text-slate-500 pt-0.5 font-medium">
-                  <span>Kabuuang Sukat: {totalHa} ha</span>
+                  <span>Kabuuang Sukat: {totalHa || "—"} ha</span>
                   <span className="font-bold text-[#9f1239]">
-                    ~{damagePct}% Pinsala (₱{estimatedLossPhp.toLocaleString()})
+                    ~{damagePct}% Pinsala
                   </span>
                 </div>
               </div>
-              <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-                Kabuuang Sukat ng Sakahan: {totalHa} ha</p>
+
+              {/* Estimated loss — editable, clearly labeled as an estimate */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-800">
+                  Tinatayang Halaga ng Pinsala (₱) — Estimate lang
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="100"
+                  inputMode="numeric"
+                  value={estimatedLoss}
+                  onChange={(e) => {
+                    setLossEdited(true);
+                    setEstimatedLoss(e.target.value);
+                  }}
+                  placeholder="Hal. 54000"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-3 text-sm font-extrabold text-[#9f1239] outline-none focus:border-[#9f1239] transition"
+                />
+                <p className="text-[11px] font-medium text-slate-500">
+                  Mungkahi base sa ~₱{SUGGESTED_LOSS_PER_HA.toLocaleString()}/ha ({haNum || 0} ha = ₱{suggestedLoss.toLocaleString()}). Maaari mong baguhin ito ayon sa aktwal na pagkakalkula.
+                </p>
+              </div>
 
               {/* Section 4: Description Textarea */}
               <div className="space-y-1.5">
@@ -334,59 +380,8 @@ export const FarmerDisasterReportPage: React.FC = () => {
                 />
               </div>
 
-              {/* Hidden File Input */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="image/*"
-                capture="environment"
-                onChange={handlePhotoSelect}
-                className="hidden"
-              />
-
-              {/* Section 5: Damage Photo Evidence */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-800">
-                  Litrato ng Nasirang Taniman (Damage Photo Evidence)
-                </label>
-
-                <div className="w-full border-2 border-dashed border-rose-300 rounded-3xl p-3 bg-rose-50/20 flex flex-col items-center justify-center relative overflow-hidden transition-colors hover:border-rose-400">
-                  {imagePreview ? (
-                    <div className="relative w-full rounded-2xl overflow-hidden shadow-inner bg-slate-900 flex items-center justify-center">
-                      <img
-                        src={imagePreview}
-                        alt="Disaster damage evidence"
-                        className="w-full max-h-48 object-cover rounded-2xl"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="absolute top-2.5 right-2.5 bg-[#e11d48] hover:bg-[#be123c] text-white font-extrabold text-[11px] px-3.5 py-1 rounded-full shadow-md active:scale-95 transition cursor-pointer"
-                      >
-                        Palitan
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full py-6 flex flex-col items-center justify-center gap-2 text-center group cursor-pointer"
-                    >
-                      <div className="w-12 h-12 rounded-2xl bg-rose-100 border border-rose-200 text-[#9f1239] flex items-center justify-center group-hover:scale-105 transition shadow-sm">
-                        <UploadCloud className="w-6 h-6 stroke-[2.2]" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-800">
-                          Kuhanan ng litrato ang pinsala
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-medium">
-                          Ebidensya para sa mabilis na claim ng tulong
-                        </p>
-                      </div>
-                    </button>
-                  )}
-                </div>
-              </div>
+              {/* Photo evidence deferred: the backend has no disaster-image
+                  field yet, so the control is intentionally omitted (PWA phase). */}
 
               {/* Section 6: Oversized Submit Button */}
               <button
