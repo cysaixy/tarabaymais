@@ -25,7 +25,6 @@ import {
   Leaf,
   Wheat,
   Trophy,
-  CloudSun,
   Droplets,
   Wind,
   MapPin,
@@ -33,7 +32,9 @@ import {
   Sun,
   CloudRain,
   Cloud,
+  RefreshCw as RefreshCwIcon,
 } from "lucide-react";
+import { useWeather } from "../../hooks/useWeather";
 import {
   createActivity,
   type ActivityType,
@@ -158,109 +159,173 @@ const resolveGrowthStage = (
   };
 };
 
-// ─── Weather Widget ────────────────────────────────────────────────────────
+const WeatherIcon: React.FC<{ name: string; className?: string }> = ({
+  name,
+  className,
+}) => {
+  switch (name) {
+    case "Sun":
+      return <Sun className={className} />;
+    case "CloudSun":
+      return <CloudRain className={className} />;
+    case "Cloud":
+      return <Cloud className={className} />;
+    case "AlertTriangle":
+      return <AlertTriangle className={className} />;
+    case "CloudRain":
+    default:
+      return <CloudRain className={className} />;
+  }
+};
+
+// ─── Dynamic Weather Card (uses Open-Meteo API) ──────────────────────────────
 
 /**
- * Shape of data returned by the future weather API endpoint.
- * TODO: Replace STATIC_WEATHER with a fetch/useQuery call to:
- *   GET /api/v1/weather?municipality=Iguig&province=Cagayan
- * when the backend integration is ready.
+ * DynamicWeatherCard — displays live weather for the selected farm location.
+ * Uses Open-Meteo (free, no API key) with geocoding for municipality lookup.
+ * Falls back gracefully: municipality → province → region → static default.
+ * Card gradient changes based on current weather condition.
  */
-export interface WeatherData {
-  temperatureCelsius: number;
-  feelsLikeCelsius: number;
-  conditionLabel: string; // e.g. "Maliwanag, Maulan sa hapon"
-  conditionIcon: React.ComponentType<{ className?: string }>; // Lucide icon component
-  humidityPercent: number;
-  windKph: number;
-  daAdvisory: string; // Contextual farming tip from DA
+const DynamicWeatherCard: React.FC<{
   municipality: string;
   province: string;
-}
-
-/** Maps condition label to a Lucide icon component. */
-const getWeatherIcon = (
-  condition: string,
-): React.ComponentType<{ className?: string }> => {
-  const c = condition.toLowerCase();
-  if (c.includes("bagyo") || c.includes("storm") || c.includes("thunder"))
-    return CloudRain; // CloudLightning not imported, use CloudRain
-  if (c.includes("ulan") || c.includes("rain") || c.includes("maulan"))
-    return CloudRain;
-  if (c.includes("malwanag") || c.includes("sunny") || c.includes("clear"))
-    return Sun;
-  if (c.includes("ulap") || c.includes("cloud") || c.includes("overcast"))
-    return Cloud;
-  return CloudSun; // default partly cloudy
-};
-
-/** Static fallback — swap this out once the backend endpoint is live. */
-const STATIC_WEATHER: WeatherData = {
-  temperatureCelsius: 34,
-  feelsLikeCelsius: 38,
-  conditionLabel: "Maliwanag, Maulan sa hapon",
-  conditionIcon: getWeatherIcon("Maliwanag, Maulan sa hapon"),
-  humidityPercent: 78,
-  windKph: 12,
-  daAdvisory:
-    "Maaraw ngayon — mag-irig ng mais bago mag-alas dos ng hapon upang maiwasan ang pagkatuyo ng lupa.",
-  municipality: "Iguig",
-  province: "Cagayan",
-};
-
-/** Formats the current datetime in Filipino-friendly locale string. */
-const getFormattedDateTime = (): string => {
-  const now = new Date();
-  return now.toLocaleString("fil-PH", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
+  cropStage?: string;
+}> = ({ municipality, province = "Cagayan", cropStage }) => {
+  const {
+    weather,
+    loading,
+    error,
+    gradientClass,
+    iconName,
+    refresh,
+    isUsingFallback,
+  } = useWeather({
+    municipality,
+    province,
+    cropStage,
+    autoRefresh: true,
+    refreshIntervalMs: 30 * 60 * 1000, // 30 minutes
   });
-};
 
-/**
- * WeatherCard — displays today's weather + DA advisory.
- * Accepts a `data` prop so it can be driven by an API response in the future.
- * Falls back to STATIC_WEATHER when no prop is supplied.
- */
-const WeatherCard: React.FC<{ data?: WeatherData }> = ({
-  data = STATIC_WEATHER,
-}) => {
-  const [dateTime, setDateTime] = React.useState(getFormattedDateTime);
+  const [dateTime, setDateTime] = React.useState(() =>
+    new Date().toLocaleString("fil-PH", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }),
+  );
 
-  // Update clock every minute so the timestamp stays accurate.
+  // Update clock every minute
   React.useEffect(() => {
-    const id = setInterval(() => setDateTime(getFormattedDateTime()), 60_000);
+    const id = setInterval(
+      () =>
+        setDateTime(
+          new Date().toLocaleString("fil-PH", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          }),
+        ),
+      60_000,
+    );
     return () => clearInterval(id);
   }, []);
 
+  const gradient = weather
+    ? gradientClass
+    : "from-slate-400 via-slate-500 to-slate-600";
+
+  // Loading skeleton
+  if (loading && !weather) {
+    return (
+      <div className="w-full relative overflow-hidden rounded-3xl shadow-lg">
+        <div className={`absolute inset-0 bg-linear-to-br ${gradient}`} />
+        <div className="relative z-10 p-5 sm:p-6 space-y-4 animate-pulse">
+          <div className="h-3 w-1/4 bg-white/20 rounded" />
+          <div className="h-12 w-24 bg-white/20 rounded" />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="h-12 bg-white/15 rounded-2xl" />
+            <div className="h-12 bg-white/15 rounded-2xl" />
+          </div>
+          <div className="h-8 bg-white/15 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  // Error state with fallback data
+  if (error && !weather) {
+    return (
+      <div className="w-full relative overflow-hidden rounded-3xl shadow-lg bg-linear-to-br from-slate-400 via-slate-500 to-slate-600">
+        <div className="relative z-10 p-5 sm:p-6 space-y-4 text-center">
+          <AlertTriangle className="w-12 h-12 text-amber-200 mx-auto" />
+          <p className="text-sm font-bold text-white">
+            Hindi nakakuha ng weather data
+          </p>
+          <p className="text-xs text-slate-200/80">{error}</p>
+          <button
+            onClick={refresh}
+            className="mx-auto px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold text-white transition"
+          >
+            Subukan Muli
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No data yet
+  if (!weather) {
+    return (
+      <div className="w-full relative overflow-hidden rounded-3xl shadow-lg bg-linear-to-br from-slate-400 via-slate-500 to-slate-600">
+        <div className="relative z-10 p-5 sm:p-6 space-y-4 text-center animate-pulse">
+          <div className="h-3 w-1/4 bg-white/20 rounded mx-auto" />
+          <div className="h-12 w-24 bg-white/20 rounded mx-auto" />
+        </div>
+      </div>
+    );
+  }
+
+  // Render with live data
   return (
     <div className="w-full relative overflow-hidden rounded-3xl shadow-lg">
-      {/* Sky gradient background */}
-      <div className="absolute inset-0 bg-linear-to-br from-[#0369a1] via-[#0284c7] to-[#0891b2]" />
+      {/* Dynamic gradient background based on weather */}
+      <div className={`absolute inset-0 bg-linear-to-br ${gradient}`} />
 
-      {/* Decorative cloud blobs */}
+      {/* Decorative blobs */}
       <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/10" />
       <div className="absolute bottom-4 -left-8 w-24 h-24 rounded-full bg-white/8" />
+
+      {/* Fallback indicator */}
+      {isUsingFallback && (
+        <div className="absolute top-2 right-2 z-10">
+          <span className="bg-amber-500/90 text-amber-950 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
+            <RefreshCwIcon className="w-2.5 h-2.5" /> Default Cagayan
+          </span>
+        </div>
+      )}
 
       {/* Card content */}
       <div className="relative z-10 p-5 sm:p-6 space-y-4">
         {/* ── Top row: label + location ── */}
         <div className="flex justify-between items-start">
           <div>
-            <p className="text-[10px] sm:text-[11px] font-black tracking-widest uppercase text-sky-200">
+            <p className="text-[10px] sm:text-[11px] font-black tracking-widest uppercase text-white/80">
               Panahon Ngayon
             </p>
-            <p className="text-[11px] sm:text-xs text-sky-100/80 mt-0.5 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-sky-100" />{" "}
-              {data.municipality}, {data.province}
+            <p className="text-[11px] sm:text-xs text-white/70 mt-0.5 flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5" /> {weather.municipality},{" "}
+              {weather.province}
             </p>
           </div>
           <span className="text-4xl leading-none drop-shadow-md select-none text-white">
-            <data.conditionIcon className="w-12 h-12" />
+            <WeatherIcon name={iconName} className="w-12 h-12" />
           </span>
         </div>
 
@@ -268,39 +333,39 @@ const WeatherCard: React.FC<{ data?: WeatherData }> = ({
         <div>
           <div className="flex items-end gap-1 leading-none">
             <span className="text-6xl font-black text-white tracking-tighter">
-              {data.temperatureCelsius}°
+              {weather.temperatureCelsius}°
             </span>
-            <span className="text-xl font-bold text-sky-100 mb-2">C</span>
+            <span className="text-xl font-bold text-white/90 mb-2">C</span>
           </div>
-          <p className="text-sm text-sky-100 font-semibold mt-1">
-            {data.conditionLabel}
+          <p className="text-sm text-white/90 font-semibold mt-1">
+            {weather.conditionLabel}
           </p>
-          <p className="text-[11px] text-sky-200/80 mt-0.5">
-            Nararamdaman: {data.feelsLikeCelsius}°C
+          <p className="text-[11px] text-white/70 mt-0.5">
+            Nararamdaman: {weather.feelsLikeCelsius}°C
           </p>
         </div>
 
         {/* ── Stats row ── */}
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-3 py-2.5 flex items-center gap-2">
-            <Droplets className="w-5 h-5 text-sky-100" />
+            <Droplets className="w-5 h-5 text-white" />
             <div>
-              <p className="text-[9px] text-sky-200/80 font-semibold uppercase tracking-wide">
+              <p className="text-[9px] text-white/70 font-semibold uppercase tracking-wide">
                 Halumigmig
               </p>
               <p className="text-xs font-black text-white">
-                {data.humidityPercent}%
+                {weather.humidityPercent}%
               </p>
             </div>
           </div>
           <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-3 py-2.5 flex items-center gap-2">
-            <Wind className="w-5 h-5 text-sky-100" />
+            <Wind className="w-5 h-5 text-white" />
             <div>
-              <p className="text-[9px] text-sky-200/80 font-semibold uppercase tracking-wide">
+              <p className="text-[9px] text-white/70 font-semibold uppercase tracking-wide">
                 Hangin
               </p>
               <p className="text-xs font-black text-white">
-                {data.windKph} km/h
+                {weather.windKph} km/h
               </p>
             </div>
           </div>
@@ -312,12 +377,25 @@ const WeatherCard: React.FC<{ data?: WeatherData }> = ({
             <AlertTriangle className="w-3.5 h-3.5" /> Payo ng DA
           </p>
           <p className="text-[11px] sm:text-xs text-white/90 leading-relaxed">
-            {data.daAdvisory}
+            {weather.daAdvisory}
           </p>
         </div>
 
-        {/* ── Timestamp ── */}
-        <p className="text-[10px] text-sky-300/70 text-right">{dateTime}</p>
+        {/* ── Timestamp + Refresh ── */}
+        <div className="flex justify-between items-center">
+          <p className="text-[10px] text-white/60">{dateTime}</p>
+          <button
+            onClick={refresh}
+            disabled={loading}
+            className="text-[10px] text-white/70 hover:text-white font-medium flex items-center gap-1 transition disabled:opacity-50"
+            title="I-refresh ang weather data"
+          >
+            <RefreshCwIcon
+              className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+            />
+            Update
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -762,9 +840,20 @@ export const FarmerDashboardPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
             {/* ── LEFT COLUMN ─────────────────────────────────────────────── */}
             <div className="lg:col-span-5 space-y-4 sm:space-y-5">
-              {/* Weather Card — static data, backend-integration-ready */}
-              {/* TODO: Pass live data from GET /api/v1/weather once backend is available */}
-              <WeatherCard />
+              {/* Weather Card — Dynamic Open-Meteo API with municipality-level geocoding */}
+              {!farmContextLoading && farmContext ? (
+                <DynamicWeatherCard
+                  municipality={farmContext.municipality}
+                  province="Cagayan"
+                  cropStage={growthStage?.tagalogLabel}
+                />
+              ) : (
+                <DynamicWeatherCard
+                  municipality="Iguig"
+                  province="Cagayan"
+                  cropStage={undefined}
+                />
+              )}
 
               {/* Shared farm + crop cycle switcher — changes apply app-wide */}
               {!farmContextLoading && (
