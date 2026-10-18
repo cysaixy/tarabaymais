@@ -26,6 +26,8 @@ import {
   type DisasterReport,
   type ExpertCase,
 } from "../../services/case.service";
+import { getAnalyticsSummary } from "../../services/analytics.service";
+import { caseStatusDisplay } from "../../lib/caseStatus";
 
 export const TechnicianDashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -69,17 +71,16 @@ export const TechnicianDashboardPage: React.FC = () => {
     }
   };
 
-  // ── Fetch analytics summary (KPIs) ───────────────────────────────────
+  // ── Fetch analytics summary (KPIs) via the service layer ─────────────
   const fetchAnalytics = async () => {
     setKpiLoading(true);
     try {
-      const { api } = await import("../../lib/api");
-      const { data } = await api.get("/analytics/summary");
-      const summary = data?.data?.summary ?? data?.data ?? data;
+      const summary = await getAnalyticsSummary();
       setKpi({
-        totalFarms: summary.totalFarms ?? summary.farms ?? null,
-        activeHectares: summary.totalActiveHectares ?? summary.activeHectares ?? null,
-        pendingExpertCases: summary.pendingExpertCases ?? null,
+        totalFarms: summary.totalFarms,
+        // Round hectares for a clean KPI display (Decimal → number).
+        activeHectares: Math.round(summary.totalActiveHectares * 100) / 100,
+        pendingExpertCases: summary.pendingExpertCases,
       });
     } catch {
       // KPI cards will show a dash instead of crashing
@@ -192,11 +193,11 @@ export const TechnicianDashboardPage: React.FC = () => {
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* ── HEADER ───────────────────────────────────────────────────────── */}
-        <header className="w-full bg-gradient-to-r from-[#1e3a8a] via-[#1d4ed8] to-[#1e40af] text-white rounded-3xl border border-blue-900/30 p-5 sm:p-6 shadow-xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 relative overflow-hidden">
+        <header className="w-full bg-linear-to-r from-[#1e3a8a] via-[#1d4ed8] to-[#1e40af] text-white rounded-3xl border border-blue-900/30 p-5 sm:p-6 shadow-xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
 
           <div className="flex items-center gap-4 z-10">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center text-amber-950 shadow-md shrink-0">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-amber-400 to-amber-500 flex items-center justify-center text-amber-950 shadow-md shrink-0">
               <Building2 className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2.2]" />
             </div>
             <div className="space-y-1">
@@ -247,7 +248,7 @@ export const TechnicianDashboardPage: React.FC = () => {
             <p className="text-xs font-black text-black tracking-wide uppercase">
               Kabuuang Rehistradong Sakahan
             </p>
-            <div className="text-3xl sm:text-4xl font-black text-black tracking-tight min-h-[40px] flex items-center">
+            <div className="text-3xl sm:text-4xl font-black text-black tracking-tight min-h-10 flex items-center">
               <KpiValue value={kpi.totalFarms} loading={kpiLoading} />
             </div>
             <div className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-300 text-xs font-bold">
@@ -261,7 +262,7 @@ export const TechnicianDashboardPage: React.FC = () => {
             <p className="text-xs font-black text-black tracking-wide uppercase">
               Aktibong Luwang ng Mais (Corn Ha)
             </p>
-            <div className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight min-h-[40px] flex items-center gap-1">
+            <div className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight min-h-10 flex items-center gap-1">
               <KpiValue value={kpi.activeHectares} loading={kpiLoading} className="text-emerald-600" />
               {!kpiLoading && kpi.activeHectares !== null && (
                 <span className="text-2xl"> ha</span>
@@ -437,15 +438,9 @@ export const TechnicianDashboardPage: React.FC = () => {
                         </td>
                         <td className="py-3.5 px-4">
                           <span
-                            className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase ${
-                              report.status === "RESOLVED"
-                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                : report.status === "INSPECTED"
-                                ? "bg-blue-100 text-blue-800 border border-blue-300"
-                                : "bg-amber-100 text-amber-800 border border-amber-300"
-                            }`}
+                            className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${caseStatusDisplay(report.status).badge}`}
                           >
-                            {report.status}
+                            {caseStatusDisplay(report.status).label}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
@@ -513,13 +508,9 @@ export const TechnicianDashboardPage: React.FC = () => {
                           {ec.observation?.title || "Obserbasyon sa Sakahan"}
                         </h3>
                         <span
-                          className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
-                            ec.status === "RESOLVED"
-                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                              : "bg-amber-100 text-amber-800 border border-amber-300"
-                          }`}
+                          className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${caseStatusDisplay(ec.status).badge}`}
                         >
-                          {ec.status}
+                          {caseStatusDisplay(ec.status).label}
                         </span>
                       </div>
                       <p className="text-xs text-slate-600 leading-relaxed">
@@ -631,7 +622,9 @@ export const TechnicianDashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-slate-500">Kasalukuyang Status:</p>
-                  <p className="font-bold text-amber-600 text-sm">{selectedDisaster.status}</p>
+                  <p className="font-bold text-amber-600 text-sm">
+                    {caseStatusDisplay(selectedDisaster.status).label}
+                  </p>
                 </div>
               </div>
               <div>
@@ -703,7 +696,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   value={advisoryInput}
                   onChange={(e) => setAdvisoryInput(e.target.value)}
                   placeholder="Hal. Mag-apply ng biopesticide o Neem extract sa hapon. Iwasan ang labis na nitrogen kung may pag-uulan."
-                  className="w-full rounded-2xl border border-slate-300 bg-white p-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-2xl border border-slate-300 bg-white p-3 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </div>
             </div>

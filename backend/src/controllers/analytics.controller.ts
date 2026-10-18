@@ -18,7 +18,7 @@ const exportQuerySchema = z.object({
 
 // ── Controller ────────────────────────────────────────────────────────────────
 
-/** GET /api/v1/analytics-report/export */
+/** GET /api/v1/analytics/export */
 export const exportAnalyticsReport = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const parseResult = exportQuerySchema.safeParse(req.query);

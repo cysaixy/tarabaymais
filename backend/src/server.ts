@@ -13,7 +13,6 @@ import aiRoutes from "./routes/aiRoutes";
 import analyticsRoutes from "./routes/analyticsRoutes";
 import activityRoutes from "./routes/activityRoutes";
 import userRoutes from "./routes/user.routes";
-import analyticsReportRoutes from "./routes/analytics.routes";
 import syncRoutes from "./routes/sync.routes";
 
 import { errorMiddleware } from "./middlewares/error.middleware";
@@ -87,7 +86,6 @@ app.use("/api/v1/case", generalRateLimiter, caseRoutes);
 app.use("/api/v1/analytics", generalRateLimiter, analyticsRoutes);
 app.use("/api/v1/", generalRateLimiter, activityRoutes);
 app.use("/api/v1/register", generalRateLimiter, userRoutes);
-app.use("/api/v1/analytics-report", generalRateLimiter, analyticsReportRoutes);
 app.use("/api/v1/sync", generalRateLimiter, syncRoutes);
 
 // ── Health check ──────────────────────────────────────────────────────────────

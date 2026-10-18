@@ -181,13 +181,6 @@ All endpoints require `authenticate` unless noted. Role via `authorize([...])`.
 
 **Backend Change Requests (do NOT implement — listed for you):** de-dup analytics routes/controllers (C10); install pgvector + ingest embeddings for RAG (C11); server pagination/search (C12); decide DisasterReport image field + Farm ownership field + lookup endpoints (C7, C9, C13).
 
-**Decisions I need from you (❓):**
-1. Orphaned farm pages — wire them in or remove?
-2. Onboarding `ownership`/`scope` — drop (UI-only) or persist (schema change)?
-3. Disaster `estimatedLoss` ₱36,000/ha — keep as labeled estimate, make editable, or compute server-side?
-4. Disaster photo — defer, or raise a backend change to store it?
-5. Scanner "next tasks" — keep as local-only UI, or make it a real feature?
-6. FCM push — in scope for this integration pass, or a later phase?
 
 ---
 
