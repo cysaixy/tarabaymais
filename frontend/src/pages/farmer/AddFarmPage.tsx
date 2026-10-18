@@ -79,7 +79,10 @@ const AddFarmPage = () => {
           </div>
         </header>
 
-        <form onSubmit={handleSubmit} className="flex-1 px-5 sm:px-8 pt-6 space-y-5">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 px-5 sm:px-8 pt-6 space-y-5"
+        >
           <div>
             <label className={labelClass}>Pangalan ng Sakahan</label>
             <input
@@ -90,7 +93,9 @@ const AddFarmPage = () => {
               placeholder="Hal. Sakahan sa Hilaga"
             />
             {err("name") && (
-              <p className="mt-1 text-sm font-semibold text-red-600">{err("name")}</p>
+              <p className="mt-1 text-sm font-semibold text-red-600">
+                {err("name")}
+              </p>
             )}
           </div>
 

@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Bell, BellOff, X } from "lucide-react";
 import { tagalogRelativeTime } from "../lib/relativeTime";
 import type { ExpertCase, DisasterReport } from "../services/case.service";
@@ -59,7 +53,7 @@ export function clearReadNotifications(userId: string): void {
 
 function deriveNotifications(
   expertCases: ExpertCase[],
-  disasterCases: DisasterReport[]
+  disasterCases: DisasterReport[],
 ): DerivedNotification[] {
   const items: DerivedNotification[] = [];
 
@@ -97,7 +91,7 @@ function deriveNotifications(
   }
 
   items.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
   return items;
 }
@@ -139,24 +133,17 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 }) => {
   const bellRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  const [internalOpen, setInternalOpen] = useState(false);
-  const isControlled = isOpen !== undefined;
-  const open = isControlled ? isOpen : internalOpen;
-
-  // Stable ref so callbacks can always read the latest value without
-  // being stale closures — critical for the row-click handler.
-  const openRef = useRef(open);
-  useEffect(() => { openRef.current = open; }, [open]);
-
-  const [readIds, setReadIds] = useState<Set<string>>(() => loadReadIds(userId));
+  const [open, setOpen] = useState(false);
+  const [readIds, setReadIds] = useState<Set<string>>(() =>
+    loadReadIds(userId),
+  );
 
   const bellId = useId();
   const panelId = useId();
 
   const allNotifs = React.useMemo(
     () => deriveNotifications(expertCases, disasterCases),
-    [expertCases, disasterCases]
+    [expertCases, disasterCases],
   );
 
   const visibleNotifs = allNotifs.slice(0, MAX_VISIBLE);
@@ -167,72 +154,59 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   // ── Open / close ───────────────────────────────────────────────────────────
 
-  const setPanelOpen = useCallback(
-    (next: boolean) => {
-      if (!isControlled) setInternalOpen(next);
-      onOpenChange?.(next);
-    },
-    [isControlled, onOpenChange]
-  );
-
+  const openPanel = useCallback(() => setOpen(true), []);
   const closePanel = useCallback(() => {
-    setPanelOpen(false);
-    setTimeout(() => bellRef.current?.focus(), 50);
-  }, [setPanelOpen]);
+    setOpen(false);
+    setTimeout(() => bellRef.current?.focus(), 0);
+  }, []);
+
+  // Move focus into the panel when opened
+  useEffect(() => {
+    if (open) {
+      const first = panelRef.current?.querySelector<HTMLElement>(
+        "button, [href], input, [tabindex]:not([tabindex='-1'])",
+      );
+      first?.focus();
+    }
+  }, [open]);
 
   // Escape key closes the panel
   useEffect(() => {
-    if (!open) return;
+    if (!isPanelOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") closePanel();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [open, closePanel]);
+  }, [isPanelOpen, closePanel]);
 
   // Outside-click: only close if the click landed OUTSIDE both bell and panel.
   // Uses "click" (not "mousedown") so row buttons always fire their onClick first.
   useEffect(() => {
-    if (!open) return;
+    if (!isPanelOpen) return;
     const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
       if (
-        panelRef.current?.contains(target) ||
-        bellRef.current?.contains(target)
+        panelRef.current &&
+        !panelRef.current.contains(e.target as Node) &&
+        bellRef.current &&
+        !bellRef.current.contains(e.target as Node)
       ) {
-        return; // click was inside — do nothing
+        closePanel();
       }
-      closePanel();
     };
-    // Capture phase so this runs after all bubbling handlers have fired
-    document.addEventListener("click", handler, { capture: true });
-    return () => document.removeEventListener("click", handler, { capture: true });
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [open, closePanel]);
-
-  // ── Actions ───────────────────────────────────────────────────────────────
 
   const markAllRead = () => {
     setReadIds(new Set(allNotifs.map((n) => n.id)));
   };
 
-  // Capture the caseId/type into local variables BEFORE closing the panel so
-  // there is no stale-closure risk at all.
-  const handleRowClick = useCallback(
-    (caseId: string, type: NotifType, notifId: string) => {
-      // 1. Mark as read
-      setReadIds((prev) => new Set([...prev, notifId]));
-      // 2. Close the panel
-      setPanelOpen(false);
-      if (!isControlled) setInternalOpen(false);
-      // 3. Open the modal in the next frame — panel is already gone from state
-      requestAnimationFrame(() => {
-        onOpenCase(caseId, type);
-      });
-    },
-    [setPanelOpen, isControlled, onOpenCase]
-  );
-
-  // ── Render ────────────────────────────────────────────────────────────────
+  const handleRowClick = (notif: DerivedNotification) => {
+    setReadIds((prev) => new Set([...prev, notif.id]));
+    closePanel();
+    onOpenCase(notif.caseId, notif.type);
+  };
 
   return (
     <div className="relative">
@@ -241,10 +215,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         ref={bellRef}
         id={bellId}
         type="button"
-        onClick={() => setPanelOpen(!open)}
+        onClick={() => (open ? closePanel() : openPanel())}
         aria-label={`Mga abiso, ${unreadCount} bago`}
         aria-haspopup="true"
-        aria-expanded={open}
+        aria-expanded={isPanelOpen}
         aria-controls={panelId}
         className="relative flex h-[52px] w-[52px] items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95 cursor-pointer"
       >
@@ -259,7 +233,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         )}
       </button>
 
-      {/* Backdrop — mobile only, purely visual; does NOT intercept clicks */}
+      {/* Backdrop (mobile) */}
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/40 md:hidden pointer-events-none"
@@ -267,7 +241,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         />
       )}
 
-      {/* Panel */}
+      {/* Dropdown panel */}
       {open && (
         <div
           ref={panelRef}
@@ -303,7 +277,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           {/* List */}
           {visibleNotifs.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-              <BellOff className="h-12 w-12 text-slate-300" aria-hidden="true" />
+              <BellOff
+                className="h-12 w-12 text-slate-300"
+                aria-hidden="true"
+              />
               <p className="text-base font-semibold text-slate-500">
                 Wala pang bagong abiso
               </p>

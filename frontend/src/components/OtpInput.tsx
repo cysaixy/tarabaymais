@@ -99,7 +99,6 @@ export const OtpInput: FC<OtpInputProps> = ({
           const digit = value[i] ?? "";
           const isActive = focused && i === activeIndex;
           const isFilled = digit !== "";
-          const isEmpty = !isFilled;
 
           let boxClass =
             "h-14 sm:h-16 rounded-xl sm:rounded-2xl border-2 flex items-center justify-center text-2xl sm:text-3xl font-black leading-none text-slate-900 transition-all select-none";

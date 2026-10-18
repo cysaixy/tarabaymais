@@ -14,7 +14,11 @@ import FarmerDisasterReportPage from "../pages/farmer/FarmerDisasterReportPage";
 import FarmerExpertRequestPage from "../pages/farmer/FarmerExpertRequestPage";
 import FarmerScannerPage from "../pages/farmer/FarmerScannerPage";
 import FarmerActivityPage from "../pages/farmer/FarmerActivityPage";
-import FarmerHistoryPage from "../pages/farmer/FarmerHistoryPage";
+import FarmerHistoryHubPage from "../pages/farmer/FarmerHistoryHubPage";
+import FarmerActivitiesHistoryPage from "../pages/farmer/FarmerActivitiesHistoryPage";
+import FarmerObservationsHistoryPage from "../pages/farmer/FarmerObservationsHistoryPage";
+import FarmerDisastersHistoryPage from "../pages/farmer/FarmerDisastersHistoryPage";
+import FarmerSyncQueuePage from "../pages/farmer/FarmerSyncQueuePage";
 import MyFarmsPage from "../pages/farmer/MyFarmsPage";
 import AddFarmPage from "../pages/farmer/AddFarmPage";
 import FarmDetailsPage from "../pages/farmer/FarmDetailsPage";
@@ -49,7 +53,12 @@ const farmerRoutes = (
     />
     <Route path="/farmer/scanner" element={<FarmerScannerPage />} />
     <Route path="/farmer/activity" element={<FarmerActivityPage />} />
-    <Route path="/farmer/history" element={<FarmerHistoryPage />} />
+    {/* History Hub + Sub-pages */}
+    <Route path="/farmer/history" element={<FarmerHistoryHubPage />} />
+    <Route path="/farmer/history/activities" element={<FarmerActivitiesHistoryPage />} />
+    <Route path="/farmer/history/observations" element={<FarmerObservationsHistoryPage />} />
+    <Route path="/farmer/history/disasters" element={<FarmerDisastersHistoryPage />} />
+    <Route path="/farmer/history/sync-queue" element={<FarmerSyncQueuePage />} />
     <Route path="/farmer/farms" element={<MyFarmsPage />} />
     {/* `/new` must precede the `:farmId` param route so it is not captured. */}
     <Route path="/farmer/farms/new" element={<AddFarmPage />} />

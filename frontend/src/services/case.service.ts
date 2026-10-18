@@ -64,7 +64,11 @@ export interface ExpertCase {
       [key: string]: unknown;
     } | null;
   };
-  assignedTechnician?: { firstName: string; lastName: string; phone?: string } | null;
+  assignedTechnician?: {
+    firstName: string;
+    lastName: string;
+    phone?: string;
+  } | null;
 }
 
 export interface CasePipelineData {
@@ -78,7 +82,7 @@ export interface CasePipelineData {
  */
 export const createDisasterReport = async (
   farmId: string,
-  payload: CreateDisasterReportPayload
+  payload: CreateDisasterReportPayload,
 ): Promise<DisasterReport> => {
   const { data } = await api.post(`/case/disaster-report/${farmId}`, payload);
   return data.data.disasterReport;
@@ -99,7 +103,7 @@ export const getCasePipeline = async (): Promise<CasePipelineData> => {
  */
 export const updateCaseStatus = async (
   caseId: string,
-  payload: { caseType: "DISASTER_REPORT" | "EXPERT_REQUEST"; status: string }
+  payload: { caseType: "DISASTER_REPORT" | "EXPERT_REQUEST"; status: string },
 ): Promise<void> => {
   await api.patch(`/case/pipeline/${caseId}`, payload);
 };
@@ -110,7 +114,7 @@ export const updateCaseStatus = async (
  */
 export const resolveExpertCase = async (
   caseId: string,
-  payload: { recommendation: string }
+  payload: { recommendation: string },
 ): Promise<void> => {
   await api.patch(`/case/expert-requests/${caseId}/resolve`, payload);
 };

@@ -46,7 +46,9 @@ export const FarmerDisasterReportPage: React.FC = () => {
 
   // Form Fields
   const [disasterType, setDisasterType] = useState<string>("FLOOD");
-  const [eventDate, setEventDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [eventDate, setEventDate] = useState<string>(
+    () => new Date().toISOString().split("T")[0],
+  );
   const [affectedHectares, setAffectedHectares] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   // Editable estimated loss. Seeded from a per-hectare suggestion but the
@@ -73,9 +75,15 @@ export const FarmerDisasterReportPage: React.FC = () => {
     if (activeTab === "status") {
       setClaimsLoading(true);
       getCasePipeline()
-        .then((res) => { setClaimList(res.disasterCases || []); })
-        .catch(() => { setClaimList([]); })
-        .finally(() => { setClaimsLoading(false); });
+        .then((res) => {
+          setClaimList(res.disasterCases || []);
+        })
+        .catch(() => {
+          setClaimList([]);
+        })
+        .finally(() => {
+          setClaimsLoading(false);
+        });
     }
   }, [activeTab]);
 
@@ -185,7 +193,6 @@ export const FarmerDisasterReportPage: React.FC = () => {
     <div className="w-full min-h-screen bg-slate-100 md:bg-slate-950 flex flex-col items-center justify-start p-0 md:p-6 lg:p-8 font-sans selection:bg-rose-500/30">
       {/* Responsive Container: Mobile Viewport (412x917 edge-to-edge) vs Tablet/Desktop Card (md/lg) */}
       <div className="w-full md:max-w-md lg:max-w-lg bg-slate-50 text-slate-900 shadow-2xl flex flex-col justify-between overflow-x-hidden md:rounded-[36px] md:border-2 md:border-emerald-800/40 min-h-screen relative pb-6">
-        
         {/* ========================================================= */}
         {/* 1. TOP HEADER (Deep Emerald #03543f)                      */}
         {/* ========================================================= */}
@@ -256,7 +263,6 @@ export const FarmerDisasterReportPage: React.FC = () => {
         <main className="flex-1 p-4 sm:p-5 space-y-4 overflow-y-auto">
           {activeTab === "report" ? (
             <div className="w-full bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-4">
-              
               {/* Card Header */}
               <div>
                 <div className="flex items-center gap-2 text-[#9f1239]">
@@ -266,12 +272,16 @@ export const FarmerDisasterReportPage: React.FC = () => {
                   </h2>
                 </div>
                 <p className="text-xs text-slate-500 font-medium mt-1 leading-snug">
-                  I-report ang pinsala sa Mais dulot ng Bagyo, Baha, o Tagtuyot para sa PCIC insurance at emergency assistance.
+                  I-report ang pinsala sa Mais dulot ng Bagyo, Baha, o Tagtuyot
+                  para sa PCIC insurance at emergency assistance.
                 </p>
               </div>
 
               {/* Shared farm selector (farm-only; drives farmId) */}
-              <FarmCycleSelector farmOnly label="Aling sakahan ang naapektuhan?" />
+              <FarmCycleSelector
+                farmOnly
+                label="Aling sakahan ang naapektuhan?"
+              />
 
               {/* Section 1: Event Type (2x2 Grid) */}
               <div className="space-y-2">
@@ -335,7 +345,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
                   placeholder="Hal. 1.5"
                   className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-3 text-sm font-extrabold text-[#9f1239] outline-none transition"
                 />
-                
+
                 {/* Helper Footnote */}
                 <div className="flex justify-between items-center text-[11px] text-slate-500 pt-0.5 font-medium">
                   <span>Kabuuang Sukat: {totalHa || "—"} ha</span>
@@ -364,7 +374,9 @@ export const FarmerDisasterReportPage: React.FC = () => {
                   className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-3 text-sm font-extrabold text-[#9f1239] outline-none transition"
                 />
                 <p className="text-[11px] font-medium text-slate-500">
-                  Mungkahi base sa ~₱{SUGGESTED_LOSS_PER_HA.toLocaleString()}/ha ({haNum || 0} ha = ₱{suggestedLoss.toLocaleString()}). Maaari mong baguhin ito ayon sa aktwal na pagkakalkula.
+                  Mungkahi base sa ~₱{SUGGESTED_LOSS_PER_HA.toLocaleString()}/ha
+                  ({haNum || 0} ha = ₱{suggestedLoss.toLocaleString()}). Maaari
+                  mong baguhin ito ayon sa aktwal na pagkakalkula.
                 </p>
               </div>
 
@@ -404,7 +416,6 @@ export const FarmerDisasterReportPage: React.FC = () => {
                   </>
                 )}
               </button>
-
             </div>
           ) : (
             /* ========================================================= */
@@ -427,7 +438,9 @@ export const FarmerDisasterReportPage: React.FC = () => {
                 {claimsLoading ? (
                   <div className="py-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
                     <RefreshCw className="w-4 h-4 animate-spin text-[#9f1239]" />
-                    <span>Kinukuha ang pinakabagong status mula sa DA server...</span>
+                    <span>
+                      Kinukuha ang pinakabagong status mula sa DA server...
+                    </span>
                   </div>
                 ) : claimList.length === 0 ? (
                   <div className="py-8 text-center space-y-2">
@@ -468,11 +481,14 @@ export const FarmerDisasterReportPage: React.FC = () => {
                               </span>
                               <p className="text-[10px] text-slate-400">
                                 Naitala noong:{" "}
-                                {new Date(c.createdAt).toLocaleDateString("fil-PH", {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
+                                {new Date(c.createdAt).toLocaleDateString(
+                                  "fil-PH",
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  },
+                                )}
                               </p>
                             </div>
                             <span
@@ -485,13 +501,22 @@ export const FarmerDisasterReportPage: React.FC = () => {
                           <div className="px-4 pb-4 space-y-2.5">
                             <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-200/60">
                               <div>
-                                <span className="text-[10px] text-slate-500">Antas ng Sira:</span>
-                                <p className="font-bold text-rose-700">{c.damagePercentage}% Pinsala</p>
+                                <span className="text-[10px] text-slate-500">
+                                  Antas ng Sira:
+                                </span>
+                                <p className="font-bold text-rose-700">
+                                  {c.damagePercentage}% Pinsala
+                                </p>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-500">Tinatayang Lugi:</span>
+                                <span className="text-[10px] text-slate-500">
+                                  Tinatayang Lugi:
+                                </span>
                                 <p className="font-bold text-slate-800">
-                                  ₱{Number(c.estimatedLoss || 0).toLocaleString()}
+                                  ₱
+                                  {Number(
+                                    c.estimatedLoss || 0,
+                                  ).toLocaleString()}
                                 </p>
                               </div>
                             </div>
@@ -521,7 +546,8 @@ export const FarmerDisasterReportPage: React.FC = () => {
                                               {step.label}
                                             </span>
                                           </div>
-                                          {idx < CASE_STATUS_TIMELINE.length - 1 && (
+                                          {idx <
+                                            CASE_STATUS_TIMELINE.length - 1 && (
                                             <div
                                               className={`h-0.5 flex-1 -mt-4 ${display.step > idx ? "bg-emerald-600" : "bg-slate-200"}`}
                                             />
@@ -535,7 +561,9 @@ export const FarmerDisasterReportPage: React.FC = () => {
                                 {c.farm && (
                                   <p className="text-[11px] text-slate-600">
                                     Sakahan:{" "}
-                                    <strong className="text-slate-900">{c.farm.name}</strong>{" "}
+                                    <strong className="text-slate-900">
+                                      {c.farm.name}
+                                    </strong>{" "}
                                     ({c.farm.barangay}, {c.farm.municipality})
                                   </p>
                                 )}
@@ -544,14 +572,17 @@ export const FarmerDisasterReportPage: React.FC = () => {
                                   <p className="text-[11px] text-slate-600">
                                     Ni-verify ni:{" "}
                                     <strong className="text-slate-900">
-                                      {c.verifiedBy.firstName} {c.verifiedBy.lastName}
+                                      {c.verifiedBy.firstName}{" "}
+                                      {c.verifiedBy.lastName}
                                     </strong>
                                   </p>
                                 )}
 
                                 {c.notes && (
                                   <div>
-                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">Paliwanag</p>
+                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">
+                                      Paliwanag
+                                    </p>
                                     <p className="text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/80 leading-snug whitespace-pre-line">
                                       {c.notes}
                                     </p>
@@ -569,7 +600,6 @@ export const FarmerDisasterReportPage: React.FC = () => {
             </div>
           )}
         </main>
-
       </div>
     </div>
   );

@@ -58,9 +58,7 @@ const inferActivityType = (text: string): ActivityType => {
   if (has("urea", "abono", "pataba", "fertiliz", "16-20", "46-0-0", "ammon"))
     return "FERTILIZER";
   if (has("tubig", "patubig", "irrig", "dilig", "water")) return "IRRIGATION";
-  if (
-    has("peste", "insekto", "uod", "spray", "pestisid", "pesticide", "pest")
-  )
+  if (has("peste", "insekto", "uod", "spray", "pestisid", "pesticide", "pest"))
     return "PEST_CONTROL";
   if (has("tanim", "binhi", "plant", "seed", "pagtatanim")) return "PLANTING";
   if (has("ani", "harvest", "pag-ani", "anihan")) return "HARVEST";
@@ -137,7 +135,8 @@ export const FarmerActivityPage: React.FC = () => {
 
     if (!quantityBrand.trim() && !additionalDetails.trim()) {
       toast.error("Kulang ang detalye", {
-        description: "Pakilagay ang dami, sako, o karagdagang detalye ng gawain.",
+        description:
+          "Pakilagay ang dami, sako, o karagdagang detalye ng gawain.",
       });
       return;
     }

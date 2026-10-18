@@ -231,7 +231,9 @@ const FarmDetailsPage = () => {
           details && typeof details.remainingHectares === "number"
             ? ` May natitira pang ${details.remainingHectares.toFixed(2)} ektarya.`
             : "";
-        setCycleError((err.message || "Hindi naidagdag ang pananim.") + remaining);
+        setCycleError(
+          (err.message || "Hindi naidagdag ang pananim.") + remaining,
+        );
         if (
           err.details &&
           typeof err.details === "object" &&
@@ -347,31 +349,77 @@ const FarmDetailsPage = () => {
             <form onSubmit={handleSave} className="space-y-5">
               <div>
                 <label className={labelClass}>Pangalan ng Sakahan</label>
-                <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required />
-                {fieldErr("name") && <p className="mt-1 text-sm font-semibold text-red-600">{fieldErr("name")}</p>}
+                <input
+                  className={inputClass}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+                {fieldErr("name") && (
+                  <p className="mt-1 text-sm font-semibold text-red-600">
+                    {fieldErr("name")}
+                  </p>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Munisipyo</label>
-                <input className={inputClass} value={municipality} onChange={(e) => setMunicipality(e.target.value)} required />
-                {fieldErr("municipality") && <p className="mt-1 text-sm font-semibold text-red-600">{fieldErr("municipality")}</p>}
+                <input
+                  className={inputClass}
+                  value={municipality}
+                  onChange={(e) => setMunicipality(e.target.value)}
+                  required
+                />
+                {fieldErr("municipality") && (
+                  <p className="mt-1 text-sm font-semibold text-red-600">
+                    {fieldErr("municipality")}
+                  </p>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Barangay</label>
-                <input className={inputClass} value={barangay} onChange={(e) => setBarangay(e.target.value)} required />
-                {fieldErr("barangay") && <p className="mt-1 text-sm font-semibold text-red-600">{fieldErr("barangay")}</p>}
+                <input
+                  className={inputClass}
+                  value={barangay}
+                  onChange={(e) => setBarangay(e.target.value)}
+                  required
+                />
+                {fieldErr("barangay") && (
+                  <p className="mt-1 text-sm font-semibold text-red-600">
+                    {fieldErr("barangay")}
+                  </p>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Laki (ektarya)</label>
-                <input type="number" step="0.01" min="0" inputMode="decimal" className={inputClass} value={areaHectares} onChange={(e) => setAreaHectares(e.target.value)} required />
-                {fieldErr("areaHectares") && <p className="mt-1 text-sm font-semibold text-red-600">{fieldErr("areaHectares")}</p>}
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  inputMode="decimal"
+                  className={inputClass}
+                  value={areaHectares}
+                  onChange={(e) => setAreaHectares(e.target.value)}
+                  required
+                />
+                {fieldErr("areaHectares") && (
+                  <p className="mt-1 text-sm font-semibold text-red-600">
+                    {fieldErr("areaHectares")}
+                  </p>
+                )}
               </div>
 
               {formError && (
-                <p className="rounded-2xl bg-red-50 border-2 border-red-100 px-4 py-3 text-sm font-semibold text-red-700">{formError}</p>
+                <p className="rounded-2xl bg-red-50 border-2 border-red-100 px-4 py-3 text-sm font-semibold text-red-700">
+                  {formError}
+                </p>
               )}
 
               <div className="flex flex-col gap-3">
-                <button type="submit" disabled={saving} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-lg font-black text-white shadow-md transition-colors hover:bg-emerald-700 disabled:opacity-60">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-lg font-black text-white shadow-md transition-colors hover:bg-emerald-700 disabled:opacity-60"
+                >
                   <Save className="h-5 w-5" />
                   {saving ? "Isinasave..." : "I-save ang Pagbabago"}
                 </button>
@@ -403,7 +451,9 @@ const FarmDetailsPage = () => {
                   {farmArea.toFixed(2)} ektarya (kabuuan)
                 </p>
                 <div className="flex items-center justify-between rounded-2xl bg-emerald-50 px-3.5 py-2.5 text-sm">
-                  <span className="font-semibold text-slate-600">Natitirang mataniman</span>
+                  <span className="font-semibold text-slate-600">
+                    Natitirang mataniman
+                  </span>
                   <span className="font-black text-emerald-700">
                     {remainingArea.toFixed(2)} / {farmArea.toFixed(2)} ha
                   </span>
@@ -515,7 +565,8 @@ const FarmDetailsPage = () => {
                         </p>
                       )}
                       <p className="mt-1 text-[11px] font-medium text-slate-500">
-                        Natitirang mataniman: {remainingArea.toFixed(2)} ha sa {farmArea.toFixed(2)} ha
+                        Natitirang mataniman: {remainingArea.toFixed(2)} ha sa{" "}
+                        {farmArea.toFixed(2)} ha
                       </p>
                     </div>
 
@@ -554,11 +605,15 @@ const FarmDetailsPage = () => {
                           className="w-full rounded-2xl border-2 border-slate-100 bg-white p-4 flex items-center justify-between gap-3 text-left transition-colors hover:border-emerald-200 hover:bg-emerald-50/40"
                         >
                           <div className="min-w-0">
-                            <p className="font-bold text-slate-900 capitalize">{c.variety || c.cropType || "Mais"}</p>
+                            <p className="font-bold text-slate-900 capitalize">
+                              {c.variety || c.cropType || "Mais"}
+                            </p>
                             <p className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5">
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3.5 w-3.5" />
-                                {new Date(c.plantingDate).toLocaleDateString("fil-PH")}
+                                {new Date(c.plantingDate).toLocaleDateString(
+                                  "fil-PH",
+                                )}
                               </span>
                               <span className="flex items-center gap-1 text-emerald-700 font-bold">
                                 <Sprout className="h-3.5 w-3.5" />
@@ -567,7 +622,9 @@ const FarmDetailsPage = () => {
                             </p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
-                            <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${STATUS_STYLE[c.status]}`}>
+                            <span
+                              className={`rounded-full px-3 py-1 text-[11px] font-bold ${STATUS_STYLE[c.status]}`}
+                            >
                               {STATUS_LABEL[c.status]}
                             </span>
                             <Settings2 className="h-4 w-4 text-slate-400" />
@@ -611,13 +668,17 @@ const FarmDetailsPage = () => {
                   <Trash2 className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-900">Tanggalin ang sakahan?</h3>
-                  <p className="text-sm font-medium text-slate-500">Hindi na ito maibabalik.</p>
+                  <h3 className="text-lg font-black text-slate-900">
+                    Tanggalin ang sakahan?
+                  </h3>
+                  <p className="text-sm font-medium text-slate-500">
+                    Hindi na ito maibabalik.
+                  </p>
                 </div>
               </div>
               <p className="text-sm font-medium text-slate-600">
-                Matatanggal din ang lahat ng pananim (crop cycles) na nakatala sa{" "}
-                <span className="font-bold">{farm.name}</span>.
+                Matatanggal din ang lahat ng pananim (crop cycles) na nakatala
+                sa <span className="font-bold">{farm.name}</span>.
               </p>
               <div className="flex flex-col gap-2 pt-1">
                 <button
@@ -676,8 +737,8 @@ const FarmDetailsPage = () => {
               {confirmDeleteCycle ? (
                 <div className="space-y-3">
                   <p className="rounded-2xl bg-red-50 border-2 border-red-100 px-4 py-3 text-sm font-semibold text-red-700">
-                    Sigurado ka bang tatanggalin ang pananim na ito? Hindi na ito
-                    maibabalik.
+                    Sigurado ka bang tatanggalin ang pananim na ito? Hindi na
+                    ito maibabalik.
                   </p>
                   <button
                     type="button"

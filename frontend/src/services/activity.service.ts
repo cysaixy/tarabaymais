@@ -32,7 +32,7 @@ export interface CropActivity {
  */
 export const createActivity = async (
   cropCycleId: string,
-  payload: CreateActivityPayload
+  payload: CreateActivityPayload,
 ): Promise<CropActivity> => {
   const { data } = await api.post(`/activities/${cropCycleId}`, payload);
   return data.data.activity;
@@ -43,10 +43,9 @@ export const createActivity = async (
  * Endpoint: GET /api/v1/activities/:cropCycleId or GET /api/v1/activities
  */
 export const listActivities = async (
-  cropCycleId?: string
+  cropCycleId?: string,
 ): Promise<CropActivity[]> => {
   const url = cropCycleId ? `/activities/${cropCycleId}` : "/activities";
   const { data } = await api.get(url);
   return data.data.activities;
 };
-
