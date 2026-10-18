@@ -33,6 +33,7 @@ import {
   Inbox,
   Search,
   List,
+  UserCheck,
 } from "lucide-react";
 import { parseLegacyCaseDescription } from "../../lib/parseLegacyCaseDescription";
 import { parseDisasterNotes } from "../../lib/parseDisasterNotes";
@@ -143,6 +144,7 @@ export const TechnicianDashboardPage: React.FC = () => {
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const profileTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileProfileTriggerRef = useRef<HTMLButtonElement>(null);
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   // ── Case-list filters ─────────────────────────────────────────────────────
@@ -463,29 +465,28 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* ── A. HEADER (Mobile ONE row ~68px; Desktop single row) ───────────── */}
+      {/* ── A. HEADER ──────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-blue-900/20 bg-[#0F2A5C] text-white shadow-md">
-        <div className="mx-auto flex max-w-[1184px] items-center justify-between px-4 py-2.5 md:py-4 md:px-12 min-h-[72px]">
-          {/* Left: icon (hidden on mobile) + Title & Officer Line */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="hidden md:flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
-              <Building2
-                className="h-7 w-7 text-[#0F2A5C]"
-                aria-hidden="true"
-              />
-            </div>
-            <div>
-              <h1 className="text-[22px] font-bold leading-tight text-white">
-                Officer Portal &middot; DA Region II
-              </h1>
-              <p className="text-[15px] text-slate-300 mt-0.5">
-                Cagayan Valley &middot; Mais at Pinsala ng Sakuna
-              </p>
-            </div>
+
+        {/* ── Mobile row (< md): logo | name·role | bell | avatar ── */}
+        <div className="flex md:hidden items-center justify-between px-3.5 sm:px-4 h-[68px]">
+          {/* amber logo chip */}
+          <div className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
+            <Building2 className="h-[26px] w-[26px] text-[#0F2A5C]" aria-hidden="true" />
           </div>
 
-          {/* Right: bell + ONE profile pill (min-h-[56px]) */}
-          <div className="flex items-center gap-3">
+          {/* name · role */}
+          <div className="flex-1 min-w-0 mx-2.5 text-[14px] leading-[1.25]">
+            <span className="font-bold text-white truncate block">
+              {officerName || "Opisyal"}
+            </span>
+            <span className="text-slate-300 text-[13px]">
+              {officerRole}
+            </span>
+          </div>
+
+          {/* bell + avatar */}
+          <div className="flex items-center gap-2 shrink-0">
             <NotificationBell
               userId={userId}
               expertCases={expertCases}
@@ -495,7 +496,49 @@ export const TechnicianDashboardPage: React.FC = () => {
               isOpen={isNotifOpen}
               onOpenChange={setIsNotifOpen}
             />
+            <button
+              ref={mobileProfileTriggerRef}
+              type="button"
+              onClick={() => {
+                activeTriggerRef.current = mobileProfileTriggerRef.current;
+                setIsAccountOpen((prev) => !prev);
+              }}
+              aria-label="Account at profile"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white/45 bg-white/14 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95 cursor-pointer"
+            >
+              <UserCheck className="h-6 w-6 text-white" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
 
+        {/* ── Desktop row (md+): logo | title/subtitle | bell | full pill ── */}
+        <div className="hidden md:flex mx-auto max-w-[1184px] items-center justify-between px-12 py-4">
+          {/* Left: logo + title */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
+              <Building2 className="h-7 w-7 text-[#0F2A5C]" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-[22px] font-bold leading-tight text-white whitespace-nowrap">
+                Officer Portal &middot; DA Region II
+              </h1>
+              <p className="text-[15px] text-slate-300 mt-0.5 whitespace-nowrap">
+                Cagayan Valley &middot; Mais at Pinsala ng Sakuna
+              </p>
+            </div>
+          </div>
+
+          {/* Right: bell + full profile pill */}
+          <div className="flex items-center gap-3 shrink-0">
+            <NotificationBell
+              userId={userId}
+              expertCases={expertCases}
+              disasterCases={disasterReports}
+              onOpenCase={handleBellOpenCase}
+              onViewAll={handleBellViewAll}
+              isOpen={isNotifOpen}
+              onOpenChange={setIsNotifOpen}
+            />
             <button
               ref={profileTriggerRef}
               type="button"
@@ -508,13 +551,10 @@ export const TechnicianDashboardPage: React.FC = () => {
               aria-expanded={isAccountOpen}
               className="flex min-h-[56px] items-center gap-3 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-left text-white transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-98 cursor-pointer"
             >
-              {/* 44px initials avatar (amber #FBBF24 circle, navy text) */}
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FBBF24] text-[16px] font-bold text-[#0F2A5C]">
                 {profileInitials}
               </div>
-
-              {/* name 17px bold + role 14px */}
-              <div className="min-w-0 pr-1">
+              <div className="min-w-0 pr-1 max-w-[180px]">
                 <p className="text-[17px] font-bold leading-tight text-white truncate">
                   {officerName || "Opisyal"}
                 </p>
@@ -522,16 +562,14 @@ export const TechnicianDashboardPage: React.FC = () => {
                   {officerRole}
                 </p>
               </div>
-
               <ChevronDown
-                className={`h-5 w-5 text-slate-300 transition-transform duration-200 ${
-                  isAccountOpen ? "rotate-180" : ""
-                }`}
+                className={`h-5 w-5 text-slate-300 transition-transform duration-200 ${isAccountOpen ? "rotate-180" : ""}`}
                 aria-hidden="true"
               />
             </button>
           </div>
         </div>
+
       </header>
 
       {/* ── MAIN CONTENT (pb-24 so content never hides behind 64px bottom bar) ── */}
@@ -1969,10 +2007,10 @@ export const TechnicianDashboardPage: React.FC = () => {
       )}
 
       {confirmLogout && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+              <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 shrink-0">
                 <LogOut className="h-6 w-6" />
               </div>
               <div>
@@ -1982,13 +2020,12 @@ export const TechnicianDashboardPage: React.FC = () => {
                 </p>
               </div>
             </div>
-
-            <div className="mt-5 flex flex-col gap-2">
+            <div className="flex flex-col gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="inline-flex min-h-13 items-center justify-center gap-2 rounded-2xl bg-red-600 text-base font-black text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+                className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-red-600 text-base font-black text-white transition-colors hover:bg-red-700 disabled:opacity-60 cursor-pointer"
               >
                 <LogOut className="h-5 w-5" />
                 {loggingOut ? "Nilalabas..." : "Oo, mag-logout"}
@@ -1997,7 +2034,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => setConfirmLogout(false)}
                 disabled={loggingOut}
-                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-100 text-base font-bold text-slate-600 transition-colors hover:bg-slate-200"
+                className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-slate-100 text-base font-bold text-slate-600 transition-colors hover:bg-slate-200 cursor-pointer"
               >
                 Huwag na
               </button>
