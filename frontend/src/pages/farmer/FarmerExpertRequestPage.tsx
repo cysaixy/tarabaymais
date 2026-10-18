@@ -9,13 +9,13 @@ import {
   Clock,
   MessageSquare,
   Sparkles,
+  HelpCircle,
 } from "lucide-react";
 import { createObservation } from "../../services/observation.service";
 import { getCasePipeline, type ExpertCase } from "../../services/case.service";
 import { getOfflineQueue, queueOfflineAction } from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
 import { useFarmSelection } from "../../context/farmSelectionContext";
-import { useAuth } from "../../context/authContext";
 import { ApiError } from "../../lib/api";
 import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 import { caseStatusDisplay, CASE_STATUS_TIMELINE } from "../../lib/caseStatus";
@@ -27,7 +27,6 @@ export const FarmerExpertRequestPage: React.FC = () => {
   const farmCtx = useFarmContext();
   const { selectedCycle } = useFarmSelection();
   const cropCycleId = selectedCycle?.id ?? "";
-  const { profile } = useAuth();
 
   // Tab State
   const [activeTab, setActiveTab] = useState<"request" | "status">("request");
@@ -129,11 +128,12 @@ export const FarmerExpertRequestPage: React.FC = () => {
         },
       });
 
-      setQueueCount((prev) => prev + 1);
+      const newQueueCount = queueCount + 1;
+      setQueueCount(newQueueCount);
 
       toast.info("Naitago sa Offline Storage (Queue)", {
         description:
-          "Dahil walang koneksyon, itinabi ito sa telepono. Awtomatikong maipapadala sa technician pagbalik ng signal.",
+          `Dahil walang koneksyon, itinabi ito sa telepono. Awtomatikong maipapadala sa technician pagbalik ng signal. (${newQueueCount} sa queue)`,
       });
 
       setActiveTab("status");
@@ -142,17 +142,11 @@ export const FarmerExpertRequestPage: React.FC = () => {
     }
   };
 
-  const handleQueueClick = () => {
-    toast.info("Offline Sync Queue", {
-      description: `May ${queueCount} nakatagong ulat sa telepono na handang i-sync.`,
-    });
-  };
-
   return (
     <div className="w-full min-h-screen bg-slate-100 md:bg-slate-950 flex flex-col items-center justify-start p-0 md:p-6 lg:p-8 font-sans selection:bg-orange-500/30">
       {/* Responsive Container: Mobile Viewport (412x917 edge-to-edge) vs Tablet/Desktop Card (md/lg) */}
       <div className="w-full md:max-w-md lg:max-w-lg bg-slate-50 text-slate-900 shadow-2xl flex flex-col justify-between overflow-x-hidden md:rounded-[36px] md:border-2 md:border-emerald-800/40 min-h-screen relative pb-6">
-        
+
         {/* ========================================================= */}
         {/* 1. TOP HEADER (Deep Emerald #03543f)                      */}
         {/* ========================================================= */}
@@ -175,16 +169,6 @@ export const FarmerExpertRequestPage: React.FC = () => {
               </p>
             </div>
           </div>
-
-          {/* Offline Queue Badge Button */}
-          <button
-            onClick={handleQueueClick}
-            type="button"
-            className="bg-[#f59e0b] hover:bg-[#d97706] active:scale-95 text-amber-950 font-black text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>{queueCount} Queue</span>
-          </button>
         </header>
 
         {/* ========================================================= */}
@@ -222,42 +206,20 @@ export const FarmerExpertRequestPage: React.FC = () => {
         {/* ========================================================= */}
         <main className="flex-1 p-4 sm:p-5 space-y-4 overflow-y-auto">
           {activeTab === "request" ? (
-            <div className="w-full bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-4">
-              
-              {/* Card Header */}
-              <div>
-                <div className="flex items-center gap-2 text-[#c2410c]">
-                  <UserCheck className="w-5 h-5 stroke-[2.4]" />
-                  <h2 className="text-base sm:text-lg font-black tracking-tight text-[#c2410c]">
-                    Request Ag Technician Assistance
-                  </h2>
-                </div>
-                <p className="text-xs text-slate-500 font-medium mt-1 leading-snug">
-                  Ipadala ang iyong katanungan o problema sa nakatalagang LGU Agriculture Technician sa {farmCtx.municipality || "inyong munisipalidad"}.
-                </p>
-              </div>
+            <div className="w-full bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-5">
 
-              {/* Magsasaka & Sakahan Context Box */}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1.5 text-xs text-slate-700">
-                <p className="font-extrabold text-slate-900 text-xs">Magsasaka & Sakahan:</p>
-                <div className="space-y-1 text-[11px] sm:text-xs">
-                  {profile && (
-                    <p className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-orange-600 shrink-0" />
-                      <span>
-                        <strong className="text-slate-900">{profile.firstName} {profile.lastName}</strong>
-                        {profile.phone && ` (${profile.phone})`}
-                      </span>
-                    </p>
-                  )}
-                  {farmCtx.farmName && (
-                    <p className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-orange-600 shrink-0" />
-                      <span>
-                        {farmCtx.farmName} — {farmCtx.barangay}, {farmCtx.municipality}
-                      </span>
-                    </p>
-                  )}
+              {/* Context Header - Shows selected farm/cycle from FarmCycleSelector */}
+              <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4 flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0">
+                  <HelpCircle className="w-5 h-5 stroke-[2.2]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-extrabold text-sm text-emerald-900 leading-tight">
+                    Humingi ng tulong sa LGU Agri-Technician
+                  </p>
+                  <p className="text-xs text-emerald-700/90 mt-0.5 leading-snug">
+                    Ang iyong katanungan ay maipapadala agad sa Municipal Agriculture Office ng <strong>{farmCtx.municipality || "inyong munisipalidad"}</strong>. Titiyakin na may napiling pananim sa ibaba.
+                  </p>
                 </div>
               </div>
 
@@ -284,12 +246,24 @@ export const FarmerExpertRequestPage: React.FC = () => {
                   Buong Paliwanag sa Problema sa Taniman
                 </label>
                 <textarea
-                  rows={4}
+                  rows={5}
                   value={problemDescription}
                   onChange={(e) => setProblemDescription(e.target.value)}
-                  placeholder="Isalaysay ang nararanasang problema o itanong ang nais malaman..."
+                  placeholder="Isalaysay ang nararanasang problema o itanong ang nais malaman...&#10;&#10;Halimbawa:&#10;• Anong yugto ng pananim? (DAP)&#10;• Anong sintomas ang nakikita?&#10;• Kailan nagsimula ang problema?&#10;• Anong gawin na ang ginawa mo?"
                   className="w-full rounded-2xl border bg-white p-3.5 text-xs font-medium outline-none focus:border-[#c2410c] transition placeholder:text-slate-400 leading-relaxed resize-none"
                 />
+              </div>
+
+              {/* Helpful Tips */}
+              <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 space-y-1.5">
+                <p className="text-[10px] font-black text-amber-900 uppercase tracking-wide flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" /> Mga Tip para sa Mabilis na Tugon
+                </p>
+                <ul className="text-[11px] text-amber-800 space-y-1 pl-4 list-disc">
+                  <li>Ilarawan ang kulay, hugis, at lokasyon ng pinsala sa dahon/tangkay</li>
+                  <li>Banggitin kung ilang ektarya ang apektado at anong variety ng mais</li>
+                  <li>Mag-attach ng litrato gamit ang <strong>Suriin ang Halaman</strong> sa dashboard</li>
+                </ul>
               </div>
 
               {/* Oversized Submit Button */}
@@ -311,6 +285,11 @@ export const FarmerExpertRequestPage: React.FC = () => {
                   </>
                 )}
               </button>
+
+              {/* Offline Hint */}
+              <p className="text-center text-[10px] text-slate-400">
+                Walang signal? Ang kahilingan ay awtomatikong maitatabi sa <strong>Offline Queue</strong> at maipapadala pagbalik ng koneksyon.
+              </p>
 
             </div>
           ) : (
@@ -402,20 +381,17 @@ export const FarmerExpertRequestPage: React.FC = () => {
                                               reached
                                                 ? "bg-emerald-600 text-white"
                                                 : "bg-slate-200 text-slate-400"
-                                            }`}
-                                          >
+                                            }`}>
                                             {idx + 1}
                                           </div>
                                           <span
-                                            className={`text-[9px] font-bold text-center ${reached ? "text-emerald-700" : "text-slate-400"}`}
-                                          >
+                                            className={`text-[9px] font-bold text-center ${reached ? "text-emerald-700" : "text-slate-400"}`}>
                                             {step.label}
                                           </span>
                                         </div>
                                         {idx < CASE_STATUS_TIMELINE.length - 1 && (
                                           <div
-                                            className={`h-0.5 flex-1 -mt-4 ${display.step > idx ? "bg-emerald-600" : "bg-slate-200"}`}
-                                          />
+                                            className={`h-0.5 flex-1 -mt-4 ${display.step > idx ? "bg-emerald-600" : "bg-slate-200"}`} />
                                         )}
                                       </React.Fragment>
                                     );

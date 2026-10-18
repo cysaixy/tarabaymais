@@ -1,6 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Tractor, Sprout, Loader2, ChevronDown, MapPin, Leaf } from "lucide-react";
+import {
+  Tractor,
+  Sprout,
+  Loader2,
+  ChevronDown,
+  MapPin,
+  Leaf,
+} from "lucide-react";
 import { useFarmSelection } from "../context/farmSelectionContext";
 import { EmptyState } from "./EmptyState";
 import type { CropCycle } from "../services/farm.service";
@@ -87,7 +94,9 @@ export const FarmCycleSelector: React.FC<FarmCycleSelectorProps> = ({
   const needsCycle = !farmOnly && !cyclesLoading && cycles.length === 0;
 
   return (
-    <div className={`rounded-3xl border-2 border-emerald-100 bg-white p-4 sm:p-5 space-y-4 shadow-sm ${className}`}>
+    <div
+      className={`rounded-3xl border-2 border-emerald-100 bg-white p-4 sm:p-5 space-y-4 shadow-sm ${className}`}
+    >
       {/* ── Section heading ── */}
       {label && (
         <div className="flex items-center gap-2">
@@ -132,7 +141,7 @@ export const FarmCycleSelector: React.FC<FarmCycleSelectorProps> = ({
         {/* Native select — absolutely positioned over the visual card for tap/click */}
         <div className="relative">
           <select
-            className="w-full min-h-[56px] rounded-2xl border-2 border-emerald-300 bg-white pl-4 pr-10 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 appearance-none cursor-pointer shadow-sm"
+            className="w-full min-h-14 rounded-2xl border-2 border-emerald-300 bg-white pl-4 pr-10 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 appearance-none cursor-pointer shadow-sm"
             value={selectedFarm?.id ?? ""}
             onChange={(e) => selectFarm(e.target.value)}
             aria-label="Piliin ang sakahan"
@@ -178,11 +187,15 @@ export const FarmCycleSelector: React.FC<FarmCycleSelectorProps> = ({
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-base text-slate-900 leading-tight">
-                        🌽 {selectedCycle.variety || selectedCycle.cropType || "Mais"}
+                        🌽{" "}
+                        {selectedCycle.variety ||
+                          selectedCycle.cropType ||
+                          "Mais"}
                       </p>
                       {selectedCycle.plantingDate && (
                         <p className="text-xs text-slate-500 font-medium mt-1">
-                          Itinarak: {formatPlantDate(selectedCycle.plantingDate)}
+                          Itinarak:{" "}
+                          {formatPlantDate(selectedCycle.plantingDate)}
                         </p>
                       )}
                     </div>
@@ -198,7 +211,7 @@ export const FarmCycleSelector: React.FC<FarmCycleSelectorProps> = ({
               {/* Native select */}
               <div className="relative">
                 <select
-                  className="w-full min-h-[56px] rounded-2xl border-2 border-slate-300 bg-white pl-4 pr-10 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 appearance-none cursor-pointer shadow-sm"
+                  className="w-full min-h-14 rounded-2xl border-2 border-slate-300 bg-white pl-4 pr-10 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 appearance-none cursor-pointer shadow-sm"
                   value={selectedCycle?.id ?? ""}
                   onChange={(e) => selectCycle(e.target.value)}
                   aria-label="Piliin ang pananim"
@@ -207,7 +220,9 @@ export const FarmCycleSelector: React.FC<FarmCycleSelectorProps> = ({
                     <option key={c.id} value={c.id}>
                       {c.variety || c.cropType || "Mais"} •{" "}
                       {STATUS_LABEL[c.status]}
-                      {c.plantingDate ? ` • ${formatPlantDate(c.plantingDate)}` : ""}
+                      {c.plantingDate
+                        ? ` • ${formatPlantDate(c.plantingDate)}`
+                        : ""}
                     </option>
                   ))}
                 </select>
