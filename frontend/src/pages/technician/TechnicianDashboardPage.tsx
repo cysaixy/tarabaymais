@@ -406,7 +406,7 @@ export const TechnicianDashboardPage: React.FC = () => {
             type="button"
             onClick={() => onChange(p.key)}
             className={[
-              "min-h-[48px] rounded-xl px-4 text-base font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400",
+              "min-h-12 rounded-xl px-4 text-base font-semibold transition focus-visible:outline focus-visible:outline-blue-400",
               value === p.key
                 ? "bg-[#1D4ED8] text-white"
                 : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50",
@@ -425,11 +425,11 @@ export const TechnicianDashboardPage: React.FC = () => {
     <div className="min-h-screen bg-slate-100 pb-24 md:pb-8">
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <header className="bg-[#0F2A5C] text-white">
-        <div className="mx-auto max-w-[1184px] px-4 md:px-12">
+        <div className="mx-auto max-w-296 px-4 md:px-12">
           <div className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between md:py-5">
             {/* Left: logo + title */}
             <div className="flex items-center gap-3">
-              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
+              <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
                 <Building2 className="h-7 w-7 text-[#0F2A5C]" aria-hidden="true" />
               </div>
               <div>
@@ -465,7 +465,7 @@ export const TechnicianDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex h-[52px] items-center gap-2 rounded-xl border border-blue-300/50 px-4 text-base font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95"
+                className="flex h-13 items-center gap-2 rounded-xl border border-blue-300/50 px-4 text-base font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-white active:scale-95"
               >
                 <LogOut className="h-5 w-5" aria-hidden="true" />
                 <span>Mag-logout</span>
@@ -483,7 +483,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       </header>
 
       {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
-      <main className="mx-auto max-w-[1184px] px-4 py-6 md:px-12 space-y-6">
+      <main className="mx-auto max-w-296 px-4 py-6 md:px-12 space-y-6">
 
         {/* ── ACTION CARDS ──────────────────────────────────────────────────── */}
         <section aria-labelledby="action-heading">
@@ -522,7 +522,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveTab("KONSULTASYON")}
-                    className="mt-3 flex h-[52px] items-center gap-2 rounded-xl bg-[#BE123C] px-5 text-base font-bold text-white transition hover:bg-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 active:scale-95"
+                    className="mt-3 flex h-13 items-center gap-2 rounded-xl bg-[#BE123C] px-5 text-base font-bold text-white transition hover:bg-rose-800 focus-visible:outline focus-visible:outline-rose-400 active:scale-95"
                   >
                     Suriin ang Kaso &rarr;
                   </button>
@@ -546,7 +546,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveTab("PINSALA")}
-                    className="mt-3 flex h-[52px] items-center gap-2 rounded-xl bg-[#C2410C] px-5 text-base font-bold text-white transition hover:bg-orange-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400 active:scale-95"
+                    className="mt-3 flex h-13 items-center gap-2 rounded-xl bg-[#C2410C] px-5 text-base font-bold text-white transition hover:bg-orange-800 focus-visible:outline focus-visible:outline-orange-400 active:scale-95"
                   >
                     Suriin ang Claim &rarr;
                   </button>
@@ -633,7 +633,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 setActiveTab(tab.key)
               }
               className={[
-                "relative flex min-h-[52px] items-center gap-2 px-5 pb-3 pt-2 text-[17px] font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400",
+                "relative flex min-h-13 items-center gap-2 px-5 pb-3 pt-2 text-[17px] font-bold transition focus-visible:outline focus-visible:outline-blue-400",
                 activeTab === tab.key
                   ? "text-[#1D4ED8]"
                   : "disabled" in tab && tab.disabled
@@ -738,7 +738,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   id="export-type"
                   value={exportType}
                   onChange={(e) => setExportType(e.target.value as ExportType)}
-                  className="w-full min-h-[48px] rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
+                  className="w-full min-h-12 rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
                 >
                   <option value="disaster-claims">Disaster Claims</option>
                   <option value="barangay-summary">Buod ng Barangay</option>
@@ -754,7 +754,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     await handleExport();
                   }}
                   disabled={exporting}
-                  className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
+                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
                 >
                   {exporting && exportFormat === "xlsx" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -770,7 +770,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     await handleExport();
                   }}
                   disabled={exporting}
-                  className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
+                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
                 >
                   {exporting && exportFormat === "csv" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -798,7 +798,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => fetchPipeline()}
                 disabled={pipelineLoading}
-                className="flex min-h-[48px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+                className="flex min-h-12 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
               >
                 <RefreshCw
                   className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
@@ -865,7 +865,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedDisaster(report)}
-                        className="mt-auto flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95"
+                        className="mt-auto flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95"
                       >
                         <Eye className="h-5 w-5" aria-hidden="true" />
                         Suriin / Sagutin
@@ -892,7 +892,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => fetchPipeline()}
                 disabled={pipelineLoading}
-                className="flex min-h-[48px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+                className="flex min-h-12 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
               >
                 <RefreshCw
                   className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
@@ -969,7 +969,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                           setAdvisoryInput(ec.recommendation ?? "");
                           setSelectedCase(ec);
                         }}
-                        className="mt-auto flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95"
+                        className="mt-auto flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95"
                       >
                         <Send className="h-5 w-5" aria-hidden="true" />
                         Suriin / Sagutin
@@ -1022,7 +1022,7 @@ export const TechnicianDashboardPage: React.FC = () => {
             type="button"
             onClick={() => setActiveTab(tab.key)}
             className={[
-              "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400",
+              "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-xs font-semibold transition focus-visible:outline focus-visible:outline-blue-400",
               activeTab === tab.key
                 ? "text-[#1D4ED8]"
                 : "text-slate-500 hover:text-slate-800",
@@ -1059,7 +1059,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => setSelectedDisaster(null)}
                 aria-label="Isara"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-blue-400"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1123,7 +1123,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setConfirmReject(null)}
-                    className="flex h-[52px] items-center justify-center rounded-xl border border-slate-300 text-base font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                    className="flex h-13 items-center justify-center rounded-xl border border-slate-300 text-base font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400"
                   >
                     Hindi, bumalik
                   </button>
@@ -1133,7 +1133,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                       handleStatusUpdate(selectedDisaster.id, "REJECTED")
                     }
                     disabled={submittingAction}
-                    className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-red-600 text-base font-bold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60"
+                    className="flex h-13 items-center justify-center gap-2 rounded-xl bg-red-600 text-base font-bold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-red-400 active:scale-95 disabled:opacity-60"
                   >
                     {submittingAction ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -1152,7 +1152,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     handleStatusUpdate(selectedDisaster.id, "UNDER_REVIEW")
                   }
                   disabled={submittingAction}
-                  className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+                  className="flex h-13 items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
                 >
                   {submittingAction ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -1167,7 +1167,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     handleStatusUpdate(selectedDisaster.id, "RESOLVED")
                   }
                   disabled={submittingAction}
-                  className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-emerald-600 text-base font-bold text-white transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
+                  className="flex h-13 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-base font-bold text-white transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
                 >
                   {submittingAction ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -1180,7 +1180,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   type="button"
                   onClick={() => setConfirmReject(selectedDisaster.id)}
                   disabled={submittingAction}
-                  className="col-span-2 sm:col-span-1 flex h-[52px] items-center justify-center gap-2 rounded-xl border-2 border-red-400 text-base font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60"
+                  className="col-span-2 sm:col-span-1 flex h-13 items-center justify-center gap-2 rounded-xl border-2 border-red-400 text-base font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline focus-visible:outline-red-400 active:scale-95 disabled:opacity-60"
                 >
                   <XCircle className="h-5 w-5" />
                   I-reject
@@ -1211,7 +1211,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   setAdvisoryInput("");
                 }}
                 aria-label="Isara"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-blue-400"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1275,7 +1275,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => handleResolveCase(selectedCase.id)}
                 disabled={submittingAction}
-                className="flex h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+                className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
               >
                 {submittingAction ? (
                   <>
