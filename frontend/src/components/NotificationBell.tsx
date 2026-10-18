@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Bell, BellOff, X } from "lucide-react";
 import { tagalogRelativeTime } from "../lib/relativeTime";
 import type { ExpertCase, DisasterReport } from "../services/case.service";
@@ -63,7 +57,7 @@ export function clearReadNotifications(userId: string): void {
 
 function deriveNotifications(
   expertCases: ExpertCase[],
-  disasterCases: DisasterReport[]
+  disasterCases: DisasterReport[],
 ): DerivedNotification[] {
   const items: DerivedNotification[] = [];
 
@@ -102,8 +96,7 @@ function deriveNotifications(
 
   // Newest first, cap at 8 in the dropdown
   items.sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
   return items;
 }
@@ -133,7 +126,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(() =>
-    loadReadIds(userId)
+    loadReadIds(userId),
   );
 
   const bellId = useId();
@@ -141,7 +134,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   const allNotifs = React.useMemo(
     () => deriveNotifications(expertCases, disasterCases),
-    [expertCases, disasterCases]
+    [expertCases, disasterCases],
   );
 
   const visibleNotifs = allNotifs.slice(0, MAX_VISIBLE);
@@ -165,7 +158,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   useEffect(() => {
     if (open) {
       const first = panelRef.current?.querySelector<HTMLElement>(
-        "button, [href], input, [tabindex]:not([tabindex='-1'])"
+        "button, [href], input, [tabindex]:not([tabindex='-1'])",
       );
       first?.focus();
     }
@@ -278,7 +271,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           {/* Notification list */}
           {visibleNotifs.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-              <BellOff className="h-12 w-12 text-slate-300" aria-hidden="true" />
+              <BellOff
+                className="h-12 w-12 text-slate-300"
+                aria-hidden="true"
+              />
               <p className="text-base font-semibold text-slate-500">
                 Wala pang bagong abiso
               </p>

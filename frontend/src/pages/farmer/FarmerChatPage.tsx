@@ -85,22 +85,26 @@ export const FarmerChatPage: React.FC = () => {
     id: "msg-initial",
     role: "assistant",
     text: `Magandang araw! Ako ang iyong AI Farming Assistant para sa Mais dito sa Cagayan. Paano kita matutulungan sa iyong taniman ngayon?`,
-    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    timestamp: new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
   });
 
   // Messages are bound to the thread key they belong to in a SINGLE state
   // object. This makes it impossible for a thread's messages to be saved under
   // another thread's key during a switch (the earlier mix-up): `thread.key`
   // and `thread.messages` always move together.
-  const [thread, setThread] = useState<{ key: string; messages: ChatMessage[] }>(
-    () => {
-      const saved = loadChatThread(cropCycleId);
-      return {
-        key: cropCycleId,
-        messages: saved.length > 0 ? saved : [welcomeMessage()],
-      };
-    },
-  );
+  const [thread, setThread] = useState<{
+    key: string;
+    messages: ChatMessage[];
+  }>(() => {
+    const saved = loadChatThread(cropCycleId);
+    return {
+      key: cropCycleId,
+      messages: saved.length > 0 ? saved : [welcomeMessage()],
+    };
+  });
   const messages = thread.messages;
 
   // Load queue count on mount
@@ -133,7 +137,9 @@ export const FarmerChatPage: React.FC = () => {
   const handleNewConversation = () => {
     clearChatThread(cropCycleId);
     setThread({ key: cropCycleId, messages: [welcomeMessage()] });
-    toast.info("Bagong usapan", { description: "Nabura ang nakaraang usapan." });
+    toast.info("Bagong usapan", {
+      description: "Nabura ang nakaraang usapan.",
+    });
   };
 
   // Auto-scroll to bottom on new messages
@@ -155,7 +161,10 @@ export const FarmerChatPage: React.FC = () => {
           : prev,
       );
 
-    const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const timeStr = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
     // Append user message immediately
     const userMsg: ChatMessage = {
@@ -174,7 +183,10 @@ export const FarmerChatPage: React.FC = () => {
         id: `assistant-${Date.now()}`,
         role: "assistant",
         text: response.answer,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
         sources: response.sources,
         farmContextUsed: response.farmContextUsed,
       };
@@ -194,7 +206,10 @@ export const FarmerChatPage: React.FC = () => {
         id: `assistant-error-${Date.now()}`,
         role: "assistant",
         text: errorText,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       };
       appendToSendThread(botMsg);
       toast.error(offline ? "Walang koneksyon" : "Hindi nakuha ang sagot", {
@@ -212,7 +227,9 @@ export const FarmerChatPage: React.FC = () => {
         description: `May ${q.length} nakatagong ulat/obserbasyon sa telepono na handang i-sync kapag nagkaroon ng signal.`,
       });
     } else {
-      toast.info("Offline Queue", { description: "Walang pending na rekord sa offline queue." });
+      toast.info("Offline Queue", {
+        description: "Walang pending na rekord sa offline queue.",
+      });
     }
   };
 
@@ -220,7 +237,6 @@ export const FarmerChatPage: React.FC = () => {
     <div className="w-full min-h-screen bg-slate-100 md:bg-slate-950 flex flex-col items-center justify-start p-0 md:p-6 lg:p-8 font-sans selection:bg-emerald-500/30">
       {/* Responsive Container: Mobile Viewport (412x917 edge-to-edge) vs Tablet/Desktop Card (md/lg/xl) */}
       <div className="w-full md:max-w-2xl lg:max-w-3xl bg-slate-50 text-slate-900 shadow-2xl flex flex-col justify-between overflow-x-hidden md:rounded-[36px] md:border-2 md:border-emerald-800/40 min-h-screen relative pb-20 md:pb-6">
-        
         {/* ========================================================= */}
         {/* 1. TOP HEADER (Deep Emerald #03543f)                      */}
         {/* ========================================================= */}
@@ -340,7 +356,6 @@ export const FarmerChatPage: React.FC = () => {
         {/* 3. CHAT CONVERSATION AREA                                 */}
         {/* ========================================================= */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-          
           {/* Messages Stream */}
           {messages.map((msg) => (
             <div
@@ -496,7 +511,6 @@ export const FarmerChatPage: React.FC = () => {
             <span>History</span>
           </button>
         </nav>
-
       </div>
     </div>
   );

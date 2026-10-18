@@ -1,9 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -102,7 +97,9 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   // ── Analytics summary ─────────────────────────────────────────────────────
   const [totalFarms, setTotalFarms] = useState<number | null>(null);
-  const [totalActiveHectares, setTotalActiveHectares] = useState<number | null>(null);
+  const [totalActiveHectares, setTotalActiveHectares] = useState<number | null>(
+    null,
+  );
 
   // ── Barangay distribution ─────────────────────────────────────────────────
   const [barangays, setBarangays] = useState<BarangayDistribution[]>([]);
@@ -115,7 +112,8 @@ export const TechnicianDashboardPage: React.FC = () => {
   const [exporting, setExporting] = useState(false);
 
   // ── Modal / sheet state ───────────────────────────────────────────────────
-  const [selectedDisaster, setSelectedDisaster] = useState<DisasterReport | null>(null);
+  const [selectedDisaster, setSelectedDisaster] =
+    useState<DisasterReport | null>(null);
   const [selectedCase, setSelectedCase] = useState<ExpertCase | null>(null);
   const [advisoryInput, setAdvisoryInput] = useState("");
   const [submittingAction, setSubmittingAction] = useState(false);
@@ -149,7 +147,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       const summary = await getAnalyticsSummary();
       setTotalFarms(summary.totalFarms);
       setTotalActiveHectares(
-        Math.round(Number(summary.totalActiveHectares) * 100) / 100
+        Math.round(Number(summary.totalActiveHectares) * 100) / 100,
       );
     } catch {
       // KPIs show dash — non-fatal
@@ -195,17 +193,17 @@ export const TechnicianDashboardPage: React.FC = () => {
   const pendingConsultations = useMemo(
     () =>
       expertCases.filter((c) =>
-        ["SUBMITTED", "UNDER_REVIEW", "INSPECTED"].includes(c.status)
+        ["SUBMITTED", "UNDER_REVIEW", "INSPECTED"].includes(c.status),
       ).length,
-    [expertCases]
+    [expertCases],
   );
 
   const pendingDisasterClaims = useMemo(
     () =>
       disasterReports.filter((r) =>
-        ["SUBMITTED", "UNDER_REVIEW"].includes(r.status)
+        ["SUBMITTED", "UNDER_REVIEW"].includes(r.status),
       ).length,
-    [disasterReports]
+    [disasterReports],
   );
 
   const totalPending = pendingConsultations + pendingDisasterClaims;
@@ -234,10 +232,7 @@ export const TechnicianDashboardPage: React.FC = () => {
     }
   };
 
-  const handleStatusUpdate = async (
-    caseId: string,
-    newStatus: CaseStatus
-  ) => {
+  const handleStatusUpdate = async (caseId: string, newStatus: CaseStatus) => {
     setSubmittingAction(true);
     try {
       await updateCaseStatus(caseId, {
@@ -306,7 +301,7 @@ export const TechnicianDashboardPage: React.FC = () => {
         }
       }
     },
-    [expertCases, disasterReports]
+    [expertCases, disasterReports],
   );
 
   const handleBellViewAll = useCallback(() => {
@@ -317,14 +312,16 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   const officerName = profile
     ? `${profile.firstName} ${profile.lastName}`.trim()
-    : user?.displayName ?? "";
+    : (user?.displayName ?? "");
 
   const officerRole =
-    profile?.role === "OFFICER" ? "Municipal Officer" : "Agricultural Technician";
+    profile?.role === "OFFICER"
+      ? "Municipal Officer"
+      : "Agricultural Technician";
 
   const barangayTotalHa = useMemo(
     () => barangays.reduce((s, b) => s + b.totalHectares, 0),
-    [barangays]
+    [barangays],
   );
 
   // ─── Filter pills component ───────────────────────────────────────────────
@@ -370,7 +367,10 @@ export const TechnicianDashboardPage: React.FC = () => {
           {/* Left: icon (hidden on mobile) + Title & Officer Line */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="hidden md:flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
-              <Building2 className="h-7 w-7 text-[#0F2A5C]" aria-hidden="true" />
+              <Building2
+                className="h-7 w-7 text-[#0F2A5C]"
+                aria-hidden="true"
+              />
             </div>
             <div className="min-w-0">
               <h1 className="text-lg md:text-[22px] font-bold leading-tight truncate text-white">
@@ -418,16 +418,12 @@ export const TechnicianDashboardPage: React.FC = () => {
 
       {/* ── MAIN CONTENT (pb-24 so content never hides behind 64px bottom bar) ── */}
       <main className="mx-auto max-w-[1184px] px-4 py-6 md:px-12 space-y-6 pb-24">
-
         {/* ── KAILANGAN NG AKSYON NGAYON (Desktop: above tabs; Mobile: Buod only) ── */}
         <section
           aria-labelledby="action-heading"
           className={`${activeTab === "BUOD" ? "block" : "hidden"} md:block space-y-4`}
         >
-          <h2
-            id="action-heading"
-            className="text-2xl font-bold text-slate-900"
-          >
+          <h2 id="action-heading" className="text-2xl font-bold text-slate-900">
             Kailangan ng Aksyon Ngayon
           </h2>
 
@@ -594,7 +590,10 @@ export const TechnicianDashboardPage: React.FC = () => {
             {/* Mga Barangay */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
               <div className="mb-4 flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-slate-500" aria-hidden="true" />
+                <BarChart3
+                  className="h-5 w-5 text-slate-500"
+                  aria-hidden="true"
+                />
                 <h3 className="text-xl font-bold text-slate-900">
                   Mga Barangay
                 </h3>
@@ -647,7 +646,10 @@ export const TechnicianDashboardPage: React.FC = () => {
             {/* I-download ang Ulat */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
               <div className="mb-1 flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5 text-slate-500" aria-hidden="true" />
+                <FileSpreadsheet
+                  className="h-5 w-5 text-slate-500"
+                  aria-hidden="true"
+                />
                 <h3 className="text-xl font-bold text-slate-900">
                   I-download ang Ulat
                 </h3>
@@ -780,7 +782,10 @@ export const TechnicianDashboardPage: React.FC = () => {
                         </p>
                         {report.farm && (
                           <p className="mt-0.5 flex items-center gap-1 text-base text-slate-500">
-                            <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            <MapPin
+                              className="h-4 w-4 shrink-0"
+                              aria-hidden="true"
+                            />
                             {report.farm.name} &middot; {report.farm.barangay}
                           </p>
                         )}
@@ -865,7 +870,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                         </span>
                         {ec.observation?.severity &&
                           ["HIGH", "CRITICAL"].includes(
-                            ec.observation.severity
+                            ec.observation.severity,
                           ) && (
                             <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-sm font-bold text-red-700">
                               {ec.observation.severity === "CRITICAL"
@@ -876,17 +881,25 @@ export const TechnicianDashboardPage: React.FC = () => {
                       </div>
 
                       <div>
-                        {ec.observation?.title?.includes("[Hinihinging Tulong sa LGU Technician]") && (
+                        {ec.observation?.title?.includes(
+                          "[Hinihinging Tulong sa LGU Technician]",
+                        ) && (
                           <span className="mb-1 inline-block rounded-md bg-blue-50 px-2.5 py-0.5 text-sm font-bold text-blue-700 border border-blue-200">
                             Humingi ng tulong sa LGU Technician
                           </span>
                         )}
                         <p className="text-lg font-bold text-slate-900">
-                          {ec.observation?.title?.replace(/^\[Hinihinging Tulong sa LGU Technician\]\s*/, "") ?? "Obserbasyon sa Sakahan"}
+                          {ec.observation?.title?.replace(
+                            /^\[Hinihinging Tulong sa LGU Technician\]\s*/,
+                            "",
+                          ) ?? "Obserbasyon sa Sakahan"}
                         </p>
                         {farm && (
                           <p className="mt-0.5 flex items-center gap-1 text-base text-slate-500">
-                            <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            <MapPin
+                              className="h-4 w-4 shrink-0"
+                              aria-hidden="true"
+                            />
                             {farm.name} &middot; {farm.barangay}
                           </p>
                         )}
@@ -923,13 +936,17 @@ export const TechnicianDashboardPage: React.FC = () => {
             {/* I-download ang Ulat */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
               <div className="mb-1 flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5 text-slate-500" aria-hidden="true" />
+                <FileSpreadsheet
+                  className="h-5 w-5 text-slate-500"
+                  aria-hidden="true"
+                />
                 <h3 className="text-xl font-bold text-slate-900">
                   I-download ang Ulat
                 </h3>
               </div>
               <p className="mb-4 text-base text-slate-500">
-                Pumili ng uri ng ulat para sa disaster claims o buod ng mga sakahan
+                Pumili ng uri ng ulat para sa disaster claims o buod ng mga
+                sakahan
               </p>
 
               <div className="mb-3">
@@ -989,7 +1006,10 @@ export const TechnicianDashboardPage: React.FC = () => {
             {/* Buod ng Barangay Distribution */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
               <div className="mb-4 flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-slate-500" aria-hidden="true" />
+                <BarChart3
+                  className="h-5 w-5 text-slate-500"
+                  aria-hidden="true"
+                />
                 <h3 className="text-xl font-bold text-slate-900">
                   Distribusyon ng Sakahan
                 </h3>
@@ -1002,9 +1022,17 @@ export const TechnicianDashboardPage: React.FC = () => {
               ) : (
                 <ul className="space-y-3">
                   {barangays.slice(0, 6).map((b) => (
-                    <li key={b.barangay} className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <span className="text-base font-bold text-slate-800">{b.barangay}</span>
-                      <span className="text-sm font-semibold text-slate-600">{b.farmCount} sakahan &middot; {formatHa(b.totalHectares)} ha</span>
+                    <li
+                      key={b.barangay}
+                      className="flex items-center justify-between border-b border-slate-100 pb-2"
+                    >
+                      <span className="text-base font-bold text-slate-800">
+                        {b.barangay}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-600">
+                        {b.farmCount} sakahan &middot;{" "}
+                        {formatHa(b.totalHectares)} ha
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -1075,7 +1103,10 @@ export const TechnicianDashboardPage: React.FC = () => {
           <div className="w-full h-full md:h-auto md:max-h-[90vh] md:max-w-xl rounded-none md:rounded-3xl bg-white p-5 md:p-7 shadow-2xl overflow-y-auto space-y-5">
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <h3 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-slate-900">
-                <AlertTriangle className="h-6 w-6 text-orange-500" aria-hidden="true" />
+                <AlertTriangle
+                  className="h-6 w-6 text-orange-500"
+                  aria-hidden="true"
+                />
                 Pagsusuri sa Disaster Claim
               </h3>
               <button
@@ -1090,26 +1121,34 @@ export const TechnicianDashboardPage: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
-                <p className="text-sm font-medium text-slate-600">Uri ng Sakuna</p>
+                <p className="text-sm font-medium text-slate-600">
+                  Uri ng Sakuna
+                </p>
                 <p className="mt-0.5 text-[18px] font-bold text-slate-900">
                   {selectedDisaster.disasterType}
                 </p>
               </div>
               <div>
-                <p className="text-sm font-medium text-slate-600">Porsyento ng Pinsala</p>
+                <p className="text-sm font-medium text-slate-600">
+                  Porsyento ng Pinsala
+                </p>
                 <p className="mt-0.5 text-[18px] font-black text-rose-600">
                   {Number(selectedDisaster.damagePercentage).toFixed(0)}%
                 </p>
               </div>
               <div>
-                <p className="text-sm font-medium text-slate-600">Tinatayang Lugi</p>
+                <p className="text-sm font-medium text-slate-600">
+                  Tinatayang Lugi
+                </p>
                 <p className="mt-0.5 text-[18px] font-black text-emerald-700">
                   &#8369;
                   {Number(selectedDisaster.estimatedLoss ?? 0).toLocaleString()}
                 </p>
               </div>
               <div>
-                <p className="text-sm font-medium text-slate-600">Kasalukuyang Status</p>
+                <p className="text-sm font-medium text-slate-600">
+                  Kasalukuyang Status
+                </p>
                 <p className="mt-0.5 text-[18px] font-bold text-amber-600">
                   {caseStatusDisplay(selectedDisaster.status).label}
                 </p>
@@ -1215,400 +1254,438 @@ export const TechnicianDashboardPage: React.FC = () => {
       )}
 
       {/* ── E. CASE DETAIL MODAL ("Detalye ng Kaso") ───────────────────────── */}
-      {selectedCase && (() => {
-        const parsed = parseLegacyCaseDescription(
-          selectedCase.observation?.description
-        );
-
-        // Data source priority (a. Structured fields win over b. Parsed legacy values)
-        const structuredFarmer = selectedCase.observation?.farmer;
-        const structuredFarmerName = structuredFarmer
-          ? `${structuredFarmer.firstName || ""} ${structuredFarmer.lastName || ""}`.trim()
-          : undefined;
-        const farmerName =
-          structuredFarmerName || parsed.farmerName || "Hindi available";
-        const farmerPhone = structuredFarmer?.phone || parsed.phone || null;
-
-        const farmStruct = selectedCase.observation?.cropCycle?.farm;
-        const farmName =
-          farmStruct?.name || parsed.farmName || "Hindi available";
-        const barangay =
-          farmStruct?.barangay || parsed.barangay || "Hindi available";
-        const municipality =
-          farmStruct?.municipality || parsed.municipality || "Hindi available";
-        const areaHectares =
-          farmStruct?.areaHectares !== undefined && farmStruct?.areaHectares !== null
-            ? `${farmStruct.areaHectares} ha`
-            : "Hindi available";
-
-        const cropVariety = selectedCase.observation?.cropCycle?.variety;
-        const plantingDate = selectedCase.observation?.cropCycle?.plantingDate
-          ? new Date(
-              selectedCase.observation.cropCycle.plantingDate
-            ).toLocaleDateString("fil-PH", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-            })
-          : null;
-
-        const aiDiagnosis = selectedCase.observation?.aiDiagnosis;
-        const statusInfo = caseStatusDisplay(selectedCase.status);
-        const severityVal = (
-          selectedCase.observation?.severity || "MEDIUM"
-        ).toUpperCase();
-        const isSevere = severityVal === "HIGH" || severityVal === "CRITICAL";
-
-        const hasTechnicianHelpTag =
-          parsed.requestedTechnicianHelp ||
-          Boolean(
-            selectedCase.observation?.title?.includes(
-              "[Hinihinging Tulong sa LGU Technician]"
-            )
+      {selectedCase &&
+        (() => {
+          const parsed = parseLegacyCaseDescription(
+            selectedCase.observation?.description,
           );
 
-        const displayTitle = selectedCase.observation?.title
-          ? selectedCase.observation.title.replace(
-              /^\[Hinihinging Tulong sa LGU Technician\]\s*/,
-              ""
-            )
-          : "Ulat mula sa Magsasaka";
+          // Data source priority (a. Structured fields win over b. Parsed legacy values)
+          const structuredFarmer = selectedCase.observation?.farmer;
+          const structuredFarmerName = structuredFarmer
+            ? `${structuredFarmer.firstName || ""} ${structuredFarmer.lastName || ""}`.trim()
+            : undefined;
+          const farmerName =
+            structuredFarmerName || parsed.farmerName || "Hindi available";
+          const farmerPhone = structuredFarmer?.phone || parsed.phone || null;
 
-        const submittedDateStr = selectedCase.createdAt
-          ? new Date(selectedCase.createdAt).toLocaleDateString("fil-PH", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })
-          : "Hindi available";
+          const farmStruct = selectedCase.observation?.cropCycle?.farm;
+          const farmName =
+            farmStruct?.name || parsed.farmName || "Hindi available";
+          const barangay =
+            farmStruct?.barangay || parsed.barangay || "Hindi available";
+          const municipality =
+            farmStruct?.municipality ||
+            parsed.municipality ||
+            "Hindi available";
+          const areaHectares =
+            farmStruct?.areaHectares !== undefined &&
+            farmStruct?.areaHectares !== null
+              ? `${farmStruct.areaHectares} ha`
+              : "Hindi available";
 
-        return (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm md:p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Detalye ng Kaso"
-          >
-            {/* Desktop: max-w-[760px], p-7, rounded-3xl. Mobile: full-screen sheet */}
-            <div className="w-full h-full md:h-auto md:max-h-[90vh] md:max-w-[760px] rounded-none md:rounded-3xl bg-white p-5 md:p-7 shadow-2xl overflow-y-auto space-y-5">
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                <div>
-                  <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900">
-                    Detalye ng Kaso
-                  </h3>
-                  <p className="text-sm font-semibold text-slate-500 mt-1">
-                    Kaso #{selectedCase.id.slice(0, 8)} &middot; Konsultasyon sa Taniman
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCase(null);
-                    setAdvisoryInput("");
-                  }}
-                  aria-label="Isara"
-                  className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
+          const cropVariety = selectedCase.observation?.cropCycle?.variety;
+          const plantingDate = selectedCase.observation?.cropCycle?.plantingDate
+            ? new Date(
+                selectedCase.observation.cropCycle.plantingDate,
+              ).toLocaleDateString("fil-PH", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            : null;
 
-              {/* 1. TOP ROW: Severity tag, status badge, LGU help tag, date (all 14-15px bold pills) */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  {/* Severity Tag */}
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm md:text-[15px] font-bold tracking-wide border ${
-                      isSevere
-                        ? "bg-rose-50 text-rose-700 border-rose-300"
-                        : "bg-amber-50 text-amber-700 border-amber-300"
-                    }`}
-                  >
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    SEVERITY: {severityVal}
-                  </span>
+          const aiDiagnosis = selectedCase.observation?.aiDiagnosis;
+          const statusInfo = caseStatusDisplay(selectedCase.status);
+          const severityVal = (
+            selectedCase.observation?.severity || "MEDIUM"
+          ).toUpperCase();
+          const isSevere = severityVal === "HIGH" || severityVal === "CRITICAL";
 
-                  {/* Status Badge */}
-                  <span
-                    className={`rounded-full px-3.5 py-1.5 text-sm md:text-[15px] font-bold border ${statusInfo.badge}`}
-                  >
-                    {statusInfo.label}
-                  </span>
+          const hasTechnicianHelpTag =
+            parsed.requestedTechnicianHelp ||
+            Boolean(
+              selectedCase.observation?.title?.includes(
+                "[Hinihinging Tulong sa LGU Technician]",
+              ),
+            );
 
-                  {/* LGU Technician Help Tag */}
-                  {hasTechnicianHelpTag && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm md:text-[15px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                      Humingi ng tulong sa LGU Technician
-                    </span>
-                  )}
-                </div>
+          const displayTitle = selectedCase.observation?.title
+            ? selectedCase.observation.title.replace(
+                /^\[Hinihinging Tulong sa LGU Technician\]\s*/,
+                "",
+              )
+            : "Ulat mula sa Magsasaka";
 
-                {/* Date Submitted */}
-                <div className="text-sm md:text-[15px] font-semibold text-slate-600 flex items-center gap-1.5">
-                  <Calendar className="h-4 w-4 text-slate-400" />
-                  <span>
-                    Isinumite: <strong className="text-slate-800">{submittedDateStr}</strong>
-                  </span>
-                </div>
-              </div>
+          const submittedDateStr = selectedCase.createdAt
+            ? new Date(selectedCase.createdAt).toLocaleDateString("fil-PH", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })
+            : "Hindi available";
 
-              {/* 2 & 3. 2-COLUMN GRID ON md+ (Magsasaka and Sakahan cards) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 2. "MAGSASAKA" CARD */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4 flex flex-col justify-between">
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm md:p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Detalye ng Kaso"
+            >
+              {/* Desktop: max-w-[760px], p-7, rounded-3xl. Mobile: full-screen sheet */}
+              <div className="w-full h-full md:h-auto md:max-h-[90vh] md:max-w-[760px] rounded-none md:rounded-3xl bg-white p-5 md:p-7 shadow-2xl overflow-y-auto space-y-5">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                        <User className="h-4 w-4 text-emerald-600" />
-                        Magsasaka
+                    <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900">
+                      Detalye ng Kaso
+                    </h3>
+                    <p className="text-sm font-semibold text-slate-500 mt-1">
+                      Kaso #{selectedCase.id.slice(0, 8)} &middot; Konsultasyon
+                      sa Taniman
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCase(null);
+                      setAdvisoryInput("");
+                    }}
+                    aria-label="Isara"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+
+                {/* 1. TOP ROW: Severity tag, status badge, LGU help tag, date (all 14-15px bold pills) */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Severity Tag */}
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm md:text-[15px] font-bold tracking-wide border ${
+                        isSevere
+                          ? "bg-rose-50 text-rose-700 border-rose-300"
+                          : "bg-amber-50 text-amber-700 border-amber-300"
+                      }`}
+                    >
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      SEVERITY: {severityVal}
+                    </span>
+
+                    {/* Status Badge */}
+                    <span
+                      className={`rounded-full px-3.5 py-1.5 text-sm md:text-[15px] font-bold border ${statusInfo.badge}`}
+                    >
+                      {statusInfo.label}
+                    </span>
+
+                    {/* LGU Technician Help Tag */}
+                    {hasTechnicianHelpTag && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm md:text-[15px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                        Humingi ng tulong sa LGU Technician
                       </span>
-                      {!structuredFarmer && (
-                        <span
-                          className="text-sm font-medium text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md"
-                          title="observation.farmer is missing from backend response"
-                        >
-                          {farmerName !== "Hindi available" ? "Nakuha sa Tala" : "Hindi available sa backend"}
+                    )}
+                  </div>
+
+                  {/* Date Submitted */}
+                  <div className="text-sm md:text-[15px] font-semibold text-slate-600 flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4 text-slate-400" />
+                    <span>
+                      Isinumite:{" "}
+                      <strong className="text-slate-800">
+                        {submittedDateStr}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2 & 3. 2-COLUMN GRID ON md+ (Magsasaka and Sakahan cards) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* 2. "MAGSASAKA" CARD */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                          <User className="h-4 w-4 text-emerald-600" />
+                          Magsasaka
                         </span>
-                      )}
+                        {!structuredFarmer && (
+                          <span
+                            className="text-sm font-medium text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md"
+                            title="observation.farmer is missing from backend response"
+                          >
+                            {farmerName !== "Hindi available"
+                              ? "Nakuha sa Tala"
+                              : "Hindi available sa backend"}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-sm font-medium text-slate-600">
+                            Pangalan
+                          </p>
+                          <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
+                            {farmerName}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-sm font-medium text-slate-600">
+                            Telepono
+                          </p>
+                          <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
+                            {farmerPhone || "Hindi available"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* FULL-WIDTH 52px GREEN (#047857) CALL BUTTON */}
+                    {farmerPhone ? (
+                      <a
+                        href={`tel:${farmerPhone}`}
+                        className="mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#047857] hover:bg-emerald-800 active:scale-95 text-white text-base font-bold shadow-sm transition"
+                      >
+                        <Phone className="h-5 w-5" />
+                        <span>Tawagan</span>
+                      </a>
+                    ) : (
+                      <div className="mt-3 flex h-[52px] w-full items-center justify-center rounded-xl bg-slate-100 text-slate-400 text-sm font-medium">
+                        Walang nakatalang numero
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. "SAKAHAN" CARD */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                        <Sprout className="h-4 w-4 text-emerald-600" />
+                        Sakahan
+                      </span>
                     </div>
 
                     <div className="space-y-3">
                       <div>
-                        <p className="text-sm font-medium text-slate-600">Pangalan</p>
+                        <p className="text-sm font-medium text-slate-600">
+                          Pangalan ng Sakahan
+                        </p>
                         <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
-                          {farmerName}
+                          {farmName}
                         </p>
                       </div>
 
-                      <div>
-                        <p className="text-sm font-medium text-slate-600">Telepono</p>
-                        <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
-                          {farmerPhone || "Hindi available"}
-                        </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-slate-600">
+                            Barangay at Munisipyo
+                          </p>
+                          <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
+                            {barangay}, {municipality}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-slate-600">
+                            Sukat
+                          </p>
+                          <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
+                            {areaHectares}
+                          </p>
+                        </div>
                       </div>
+
+                      {(cropVariety || plantingDate) && (
+                        <div className="pt-3 border-t border-slate-200 flex flex-wrap gap-4 text-sm">
+                          {cropVariety && (
+                            <div>
+                              <span className="text-slate-600 font-medium">
+                                Bariedad:{" "}
+                              </span>
+                              <strong className="text-slate-900 font-bold">
+                                {cropVariety}
+                              </strong>
+                            </div>
+                          )}
+                          {plantingDate && (
+                            <div>
+                              <span className="text-slate-600 font-medium">
+                                Araw ng Pagtatanim:{" "}
+                              </span>
+                              <strong className="text-slate-900 font-bold">
+                                {plantingDate}
+                              </strong>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  {/* FULL-WIDTH 52px GREEN (#047857) CALL BUTTON */}
-                  {farmerPhone ? (
-                    <a
-                      href={`tel:${farmerPhone}`}
-                      className="mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#047857] hover:bg-emerald-800 active:scale-95 text-white text-base font-bold shadow-sm transition"
-                    >
-                      <Phone className="h-5 w-5" />
-                      <span>Tawagan</span>
-                    </a>
-                  ) : (
-                    <div className="mt-3 flex h-[52px] w-full items-center justify-center rounded-xl bg-slate-100 text-slate-400 text-sm font-medium">
-                      Walang nakatalang numero
-                    </div>
-                  )}
                 </div>
 
-                {/* 3. "SAKAHAN" CARD */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                      <Sprout className="h-4 w-4 text-emerald-600" />
-                      Sakahan
-                    </span>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-600">Pangalan ng Sakahan</p>
-                      <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
-                        {farmName}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-slate-600">Barangay at Munisipyo</p>
-                        <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
-                          {barangay}, {municipality}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-600">Sukat</p>
-                        <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
-                          {areaHectares}
-                        </p>
-                      </div>
-                    </div>
-
-                    {(cropVariety || plantingDate) && (
-                      <div className="pt-3 border-t border-slate-200 flex flex-wrap gap-4 text-sm">
-                        {cropVariety && (
-                          <div>
-                            <span className="text-slate-600 font-medium">Bariedad: </span>
-                            <strong className="text-slate-900 font-bold">{cropVariety}</strong>
-                          </div>
-                        )}
-                        {plantingDate && (
-                          <div>
-                            <span className="text-slate-600 font-medium">Araw ng Pagtatanim: </span>
-                            <strong className="text-slate-900 font-bold">{plantingDate}</strong>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* 4. "ULAT NG MAGSASAKA" CARD */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-                <span className="text-sm font-bold uppercase tracking-wider text-slate-600">
-                  Ulat ng Magsasaka
-                </span>
-                <p className="text-[18px] md:text-[19px] font-bold text-slate-900">
-                  {displayTitle}
-                </p>
-                <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-                  <p
-                    className="text-[17px] text-slate-800 whitespace-pre-line"
-                    style={{ lineHeight: 1.5 }}
-                  >
-                    {parsed.message || "Walang nakalakip na karagdagang mensahe."}
-                  </p>
-                </div>
-              </div>
-
-              {/* CONDITIONAL: "RESULTA NG AI SCAN" CARD */}
-              {aiDiagnosis && (
-                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 shadow-sm space-y-3">
-                  <div className="flex items-center gap-1.5 text-indigo-950 font-bold text-sm uppercase tracking-wider">
-                    <Sparkles className="h-4 w-4 text-indigo-600" />
-                    Resulta ng AI Scan
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <p className="text-sm text-indigo-700 font-medium">Kondisyon / Sakit</p>
-                      <p className="text-[18px] font-bold text-indigo-950">
-                        {aiDiagnosis.condition || "Hindi natukoy"}
-                      </p>
-                    </div>
-                    {aiDiagnosis.confidence !== undefined && (
-                      <div>
-                        <p className="text-sm text-indigo-700 font-medium">Antas ng Kumpiyansa</p>
-                        <p className="text-[18px] font-bold text-indigo-950">
-                          {typeof aiDiagnosis.confidence === "number"
-                            ? `${Math.round(aiDiagnosis.confidence * 100)}%`
-                            : String(aiDiagnosis.confidence)}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  {aiDiagnosis.recommendedAction && (
-                    <div className="pt-2 border-t border-indigo-200/70">
-                      <p className="text-sm text-indigo-700 font-medium">Mungkahing Aksyon ng AI</p>
-                      <p className="text-base text-indigo-900 mt-1 leading-relaxed">
-                        {aiDiagnosis.recommendedAction}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* 5. PHOTO (observation.imageUrl) IF PRESENT, TAP TO ENLARGE */}
-              {selectedCase.observation?.imageUrl && (
+                {/* 4. "ULAT NG MAGSASAKA" CARD */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold uppercase tracking-wider text-slate-600">
-                      Larawan mula sa Sakahan
-                    </span>
-                    <button
-                      type="button"
+                  <span className="text-sm font-bold uppercase tracking-wider text-slate-600">
+                    Ulat ng Magsasaka
+                  </span>
+                  <p className="text-[18px] md:text-[19px] font-bold text-slate-900">
+                    {displayTitle}
+                  </p>
+                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
+                    <p
+                      className="text-[17px] text-slate-800 whitespace-pre-line"
+                      style={{ lineHeight: 1.5 }}
+                    >
+                      {parsed.message ||
+                        "Walang nakalakip na karagdagang mensahe."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* CONDITIONAL: "RESULTA NG AI SCAN" CARD */}
+                {aiDiagnosis && (
+                  <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 shadow-sm space-y-3">
+                    <div className="flex items-center gap-1.5 text-indigo-950 font-bold text-sm uppercase tracking-wider">
+                      <Sparkles className="h-4 w-4 text-indigo-600" />
+                      Resulta ng AI Scan
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <p className="text-sm text-indigo-700 font-medium">
+                          Kondisyon / Sakit
+                        </p>
+                        <p className="text-[18px] font-bold text-indigo-950">
+                          {aiDiagnosis.condition || "Hindi natukoy"}
+                        </p>
+                      </div>
+                      {aiDiagnosis.confidence !== undefined && (
+                        <div>
+                          <p className="text-sm text-indigo-700 font-medium">
+                            Antas ng Kumpiyansa
+                          </p>
+                          <p className="text-[18px] font-bold text-indigo-950">
+                            {typeof aiDiagnosis.confidence === "number"
+                              ? `${Math.round(aiDiagnosis.confidence * 100)}%`
+                              : String(aiDiagnosis.confidence)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    {aiDiagnosis.recommendedAction && (
+                      <div className="pt-2 border-t border-indigo-200/70">
+                        <p className="text-sm text-indigo-700 font-medium">
+                          Mungkahing Aksyon ng AI
+                        </p>
+                        <p className="text-base text-indigo-900 mt-1 leading-relaxed">
+                          {aiDiagnosis.recommendedAction}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 5. PHOTO (observation.imageUrl) IF PRESENT, TAP TO ENLARGE */}
+                {selectedCase.observation?.imageUrl && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold uppercase tracking-wider text-slate-600">
+                        Larawan mula sa Sakahan
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEnlargedPhotoUrl(
+                            selectedCase.observation?.imageUrl ?? null,
+                          )
+                        }
+                        className="text-sm font-bold text-[#1D4ED8] hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Maximize2 className="h-4 w-4" />
+                        Palakihin
+                      </button>
+                    </div>
+                    <div
                       onClick={() =>
                         setEnlargedPhotoUrl(
-                          selectedCase.observation?.imageUrl ?? null
+                          selectedCase.observation?.imageUrl ?? null,
                         )
                       }
-                      className="text-sm font-bold text-[#1D4ED8] hover:underline flex items-center gap-1 cursor-pointer"
+                      className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-slate-100"
+                      title="I-tap upang palakihin"
                     >
-                      <Maximize2 className="h-4 w-4" />
-                      Palakihin
-                    </button>
-                  </div>
-                  <div
-                    onClick={() =>
-                      setEnlargedPhotoUrl(
-                        selectedCase.observation?.imageUrl ?? null
-                      )
-                    }
-                    className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-slate-100"
-                    title="I-tap upang palakihin"
-                  >
-                    <img
-                      src={selectedCase.observation.imageUrl}
-                      alt="Larawan ng obserbasyon"
-                      className="w-full object-cover max-h-64 transition duration-200 group-hover:scale-[1.02]"
-                    />
-                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                      <span className="bg-white/95 text-slate-900 text-sm font-bold px-4 py-2 rounded-full shadow-md flex items-center gap-2">
-                        <Maximize2 className="h-4 w-4" />
-                        I-tap upang palakihin
-                      </span>
+                      <img
+                        src={selectedCase.observation.imageUrl}
+                        alt="Larawan ng obserbasyon"
+                        className="w-full object-cover max-h-64 transition duration-200 group-hover:scale-[1.02]"
+                      />
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                        <span className="bg-white/95 text-slate-900 text-sm font-bold px-4 py-2 rounded-full shadow-md flex items-center gap-2">
+                          <Maximize2 className="h-4 w-4" />
+                          I-tap upang palakihin
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* 6. "REKOMENDASYON" TEXTAREA (min-h-[96px], 17px text) + 56px FULL-WIDTH BUTTON */}
-              {selectedCase.status !== "RESOLVED" ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                  <label
-                    htmlFor="advisory-input"
-                    className="block text-sm font-bold uppercase tracking-wider text-slate-700"
-                  >
-                    Rekomendasyon
-                  </label>
-                  <textarea
-                    id="advisory-input"
-                    rows={4}
-                    value={advisoryInput}
-                    onChange={(e) => setAdvisoryInput(e.target.value)}
-                    placeholder="Hal. Mag-apply ng biopesticide o Neem extract sa hapon..."
-                    className="w-full min-h-[96px] resize-none rounded-2xl border border-slate-300 bg-white p-4 text-[17px] text-slate-900 outline-none focus:ring-2 focus:ring-blue-300 leading-relaxed"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleResolveCase(selectedCase.id)}
-                    disabled={submittingAction}
-                    className="flex h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base md:text-[17px] font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer shadow-md"
-                  >
-                    {submittingAction ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Ipinapadala...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-5 w-5" />
-                        <span>Ipadala ang Payo</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-5 space-y-2">
-                  <p className="flex items-center gap-2 text-base md:text-lg font-bold text-emerald-900">
-                    <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" aria-hidden="true" />
-                    Nalutas na ang kasong ito
-                  </p>
-                  {selectedCase.recommendation && (
-                    <p className="mt-2 text-base md:text-[17px] text-emerald-950 leading-relaxed whitespace-pre-line bg-white/90 p-4 rounded-xl border border-emerald-200">
-                      {selectedCase.recommendation}
+                {/* 6. "REKOMENDASYON" TEXTAREA (min-h-[96px], 17px text) + 56px FULL-WIDTH BUTTON */}
+                {selectedCase.status !== "RESOLVED" ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                    <label
+                      htmlFor="advisory-input"
+                      className="block text-sm font-bold uppercase tracking-wider text-slate-700"
+                    >
+                      Rekomendasyon
+                    </label>
+                    <textarea
+                      id="advisory-input"
+                      rows={4}
+                      value={advisoryInput}
+                      onChange={(e) => setAdvisoryInput(e.target.value)}
+                      placeholder="Hal. Mag-apply ng biopesticide o Neem extract sa hapon..."
+                      className="w-full min-h-[96px] resize-none rounded-2xl border border-slate-300 bg-white p-4 text-[17px] text-slate-900 outline-none focus:ring-2 focus:ring-blue-300 leading-relaxed"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleResolveCase(selectedCase.id)}
+                      disabled={submittingAction}
+                      className="flex h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base md:text-[17px] font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer shadow-md"
+                    >
+                      {submittingAction ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span>Ipinapadala...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-5 w-5" />
+                          <span>Ipadala ang Payo</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-5 space-y-2">
+                    <p className="flex items-center gap-2 text-base md:text-lg font-bold text-emerald-900">
+                      <CheckCircle2
+                        className="h-6 w-6 text-emerald-600 shrink-0"
+                        aria-hidden="true"
+                      />
+                      Nalutas na ang kasong ito
                     </p>
-                  )}
-                </div>
-              )}
+                    {selectedCase.recommendation && (
+                      <p className="mt-2 text-base md:text-[17px] text-emerald-950 leading-relaxed whitespace-pre-line bg-white/90 p-4 rounded-xl border border-emerald-200">
+                        {selectedCase.recommendation}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {/* ── PHOTO LIGHTBOX MODAL ─────────────────────────────────────────── */}
       {enlargedPhotoUrl && (

@@ -56,11 +56,9 @@ interface BackendErrorBody {
 function normalizeError(error: AxiosError<BackendErrorBody>): ApiError {
   // No response => network layer failure (offline, CORS, DNS, timeout).
   if (!error.response) {
-    return new ApiError(
-      "Walang koneksyon sa network. Pakisubukan muli.",
-      0,
-      { isNetworkError: true },
-    );
+    return new ApiError("Walang koneksyon sa network. Pakisubukan muli.", 0, {
+      isNetworkError: true,
+    });
   }
 
   const { status, data } = error.response;
@@ -98,7 +96,9 @@ interface RetriableConfig {
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<BackendErrorBody>) => {
-    const original = error.config as (typeof error.config & RetriableConfig) | undefined;
+    const original = error.config as
+      | (typeof error.config & RetriableConfig)
+      | undefined;
 
     // On a 401, force a fresh ID token and retry the request a single time.
     if (

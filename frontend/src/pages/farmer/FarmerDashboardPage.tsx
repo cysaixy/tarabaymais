@@ -59,6 +59,7 @@ import {
 import { useAuth } from "../../context/authContext";
 import { useFarmSelection } from "../../context/farmSelectionContext";
 import { FarmCycleSelector } from "../../components/FarmCycleSelector";
+import { MaisyGreeting } from "../../components/MaisyGreeting";
 import { ApiError } from "../../lib/api";
 
 /** True only for genuine connectivity failures (safe to queue offline). */
@@ -840,6 +841,10 @@ export const FarmerDashboardPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
             {/* ── LEFT COLUMN ─────────────────────────────────────────────── */}
             <div className="lg:col-span-5 space-y-4 sm:space-y-5">
+              <MaisyGreeting
+                userName={profile?.firstName || "Magsasaka"}
+              />
+
               {/* Weather Card — Dynamic Open-Meteo API with municipality-level geocoding */}
               {!farmContextLoading && farmContext ? (
                 <DynamicWeatherCard

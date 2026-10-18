@@ -33,7 +33,9 @@ export const getAnalyticsSummary = async (): Promise<AnalyticsSummary> => {
     pendingExpertCases: Number(s.pendingExpertCases ?? 0),
     disasterMetrics: {
       totalReports: Number(s.disasterMetrics?.totalReports ?? 0),
-      totalEstimatedLossPHP: Number(s.disasterMetrics?.totalEstimatedLossPHP ?? 0),
+      totalEstimatedLossPHP: Number(
+        s.disasterMetrics?.totalEstimatedLossPHP ?? 0,
+      ),
       averageDamagePercentage: Number(
         s.disasterMetrics?.averageDamagePercentage ?? 0,
       ),

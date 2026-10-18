@@ -13,7 +13,10 @@ import {
 } from "lucide-react";
 import { createObservation } from "../../services/observation.service";
 import { getCasePipeline, type ExpertCase } from "../../services/case.service";
-import { getOfflineQueue, queueOfflineAction } from "../../services/sync.service";
+import {
+  getOfflineQueue,
+  queueOfflineAction,
+} from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
 import { useFarmSelection } from "../../context/farmSelectionContext";
 import { ApiError } from "../../lib/api";
@@ -55,9 +58,15 @@ export const FarmerExpertRequestPage: React.FC = () => {
     if (activeTab === "status") {
       setCasesLoading(true);
       getCasePipeline()
-        .then((res) => { setExpertCases(res.expertCases || []); })
-        .catch(() => { setExpertCases([]); })
-        .finally(() => { setCasesLoading(false); });
+        .then((res) => {
+          setExpertCases(res.expertCases || []);
+        })
+        .catch(() => {
+          setExpertCases([]);
+        })
+        .finally(() => {
+          setCasesLoading(false);
+        });
     }
   }, [activeTab]);
 
@@ -81,7 +90,9 @@ export const FarmerExpertRequestPage: React.FC = () => {
 
     setSubmitting(true);
 
-    const submissionTitle = subject.trim().startsWith("[Hinihinging Tulong sa LGU Technician]")
+    const submissionTitle = subject
+      .trim()
+      .startsWith("[Hinihinging Tulong sa LGU Technician]")
       ? subject.trim()
       : `[Hinihinging Tulong sa LGU Technician] ${subject.trim()}`;
     const cleanDescription = problemDescription.trim();
@@ -96,8 +107,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
       });
 
       toast.success("Naipadala sa Ag Technician!", {
-        description:
-          `Nakatanggap ng abiso ang Municipal Agriculture Office sa ${farmCtx.municipality || "inyong munisipalidad"} para sa inyong katanungan.`,
+        description: `Nakatanggap ng abiso ang Municipal Agriculture Office sa ${farmCtx.municipality || "inyong munisipalidad"} para sa inyong katanungan.`,
       });
 
       setActiveTab("status");
@@ -132,8 +142,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
       setQueueCount(newQueueCount);
 
       toast.info("Naitago sa Offline Storage (Queue)", {
-        description:
-          `Dahil walang koneksyon, itinabi ito sa telepono. Awtomatikong maipapadala sa technician pagbalik ng signal. (${newQueueCount} sa queue)`,
+        description: `Dahil walang koneksyon, itinabi ito sa telepono. Awtomatikong maipapadala sa technician pagbalik ng signal. (${newQueueCount} sa queue)`,
       });
 
       setActiveTab("status");
@@ -146,7 +155,6 @@ export const FarmerExpertRequestPage: React.FC = () => {
     <div className="w-full min-h-screen bg-slate-100 md:bg-slate-950 flex flex-col items-center justify-start p-0 md:p-6 lg:p-8 font-sans selection:bg-orange-500/30">
       {/* Responsive Container: Mobile Viewport (412x917 edge-to-edge) vs Tablet/Desktop Card (md/lg) */}
       <div className="w-full md:max-w-md lg:max-w-lg bg-slate-50 text-slate-900 shadow-2xl flex flex-col justify-between overflow-x-hidden md:rounded-[36px] md:border-2 md:border-emerald-800/40 min-h-screen relative pb-6">
-
         {/* ========================================================= */}
         {/* 1. TOP HEADER (Deep Emerald #03543f)                      */}
         {/* ========================================================= */}
@@ -207,7 +215,6 @@ export const FarmerExpertRequestPage: React.FC = () => {
         <main className="flex-1 p-4 sm:p-5 space-y-4 overflow-y-auto">
           {activeTab === "request" ? (
             <div className="w-full bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-5">
-
               {/* Context Header - Shows selected farm/cycle from FarmCycleSelector */}
               <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4 flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0">
@@ -218,7 +225,12 @@ export const FarmerExpertRequestPage: React.FC = () => {
                     Humingi ng tulong sa LGU Agri-Technician
                   </p>
                   <p className="text-xs text-emerald-700/90 mt-0.5 leading-snug">
-                    Ang iyong katanungan ay maipapadala agad sa Municipal Agriculture Office ng <strong>{farmCtx.municipality || "inyong munisipalidad"}</strong>. Titiyakin na may napiling pananim sa ibaba.
+                    Ang iyong katanungan ay maipapadala agad sa Municipal
+                    Agriculture Office ng{" "}
+                    <strong>
+                      {farmCtx.municipality || "inyong munisipalidad"}
+                    </strong>
+                    . Titiyakin na may napiling pananim sa ibaba.
                   </p>
                 </div>
               </div>
@@ -257,12 +269,22 @@ export const FarmerExpertRequestPage: React.FC = () => {
               {/* Helpful Tips */}
               <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 space-y-1.5">
                 <p className="text-[10px] font-black text-amber-900 uppercase tracking-wide flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5" /> Mga Tip para sa Mabilis na Tugon
+                  <Sparkles className="w-3.5 h-3.5" /> Mga Tip para sa Mabilis
+                  na Tugon
                 </p>
                 <ul className="text-[11px] text-amber-800 space-y-1 pl-4 list-disc">
-                  <li>Ilarawan ang kulay, hugis, at lokasyon ng pinsala sa dahon/tangkay</li>
-                  <li>Banggitin kung ilang ektarya ang apektado at anong variety ng mais</li>
-                  <li>Mag-attach ng litrato gamit ang <strong>Suriin ang Halaman</strong> sa dashboard</li>
+                  <li>
+                    Ilarawan ang kulay, hugis, at lokasyon ng pinsala sa
+                    dahon/tangkay
+                  </li>
+                  <li>
+                    Banggitin kung ilang ektarya ang apektado at anong variety
+                    ng mais
+                  </li>
+                  <li>
+                    Mag-attach ng litrato gamit ang{" "}
+                    <strong>Suriin ang Halaman</strong> sa dashboard
+                  </li>
                 </ul>
               </div>
 
@@ -288,9 +310,10 @@ export const FarmerExpertRequestPage: React.FC = () => {
 
               {/* Offline Hint */}
               <p className="text-center text-[10px] text-slate-400">
-                Walang signal? Ang kahilingan ay awtomatikong maitatabi sa <strong>Offline Queue</strong> at maipapadala pagbalik ng koneksyon.
+                Walang signal? Ang kahilingan ay awtomatikong maitatabi sa{" "}
+                <strong>Offline Queue</strong> at maipapadala pagbalik ng
+                koneksyon.
               </p>
-
             </div>
           ) : (
             /* ========================================================= */
@@ -313,7 +336,9 @@ export const FarmerExpertRequestPage: React.FC = () => {
                 {casesLoading ? (
                   <div className="py-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
                     <RefreshCw className="w-4 h-4 animate-spin text-[#c2410c]" />
-                    <span>Kinukuha ang status mula sa LGU Agriculture Office...</span>
+                    <span>
+                      Kinukuha ang status mula sa LGU Agriculture Office...
+                    </span>
                   </div>
                 ) : expertCases.length === 0 ? (
                   <div className="py-8 text-center space-y-2">
@@ -350,7 +375,8 @@ export const FarmerExpertRequestPage: React.FC = () => {
                           >
                             <div className="min-w-0">
                               <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">
-                                {ec.observation?.title || "Katanungan sa Taniman"}
+                                {ec.observation?.title ||
+                                  "Katanungan sa Taniman"}
                               </h4>
                               <p className="text-[10px] text-slate-400 mt-0.5">
                                 Kaso ID: #{ec.id.slice(0, 8)}
@@ -381,17 +407,21 @@ export const FarmerExpertRequestPage: React.FC = () => {
                                               reached
                                                 ? "bg-emerald-600 text-white"
                                                 : "bg-slate-200 text-slate-400"
-                                            }`}>
+                                            }`}
+                                          >
                                             {idx + 1}
                                           </div>
                                           <span
-                                            className={`text-[9px] font-bold text-center ${reached ? "text-emerald-700" : "text-slate-400"}`}>
+                                            className={`text-[9px] font-bold text-center ${reached ? "text-emerald-700" : "text-slate-400"}`}
+                                          >
                                             {step.label}
                                           </span>
                                         </div>
-                                        {idx < CASE_STATUS_TIMELINE.length - 1 && (
+                                        {idx <
+                                          CASE_STATUS_TIMELINE.length - 1 && (
                                           <div
-                                            className={`h-0.5 flex-1 -mt-4 ${display.step > idx ? "bg-emerald-600" : "bg-slate-200"}`} />
+                                            className={`h-0.5 flex-1 -mt-4 ${display.step > idx ? "bg-emerald-600" : "bg-slate-200"}`}
+                                          />
                                         )}
                                       </React.Fragment>
                                     );
@@ -401,9 +431,15 @@ export const FarmerExpertRequestPage: React.FC = () => {
 
                               {ec.observation?.description && (
                                 <div>
-                                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">Detalye</p>
+                                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">
+                                    Detalye
+                                  </p>
                                   <p className="text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/80 leading-snug whitespace-pre-line">
-                                    {parseLegacyCaseDescription(ec.observation.description).message}
+                                    {
+                                      parseLegacyCaseDescription(
+                                        ec.observation.description,
+                                      ).message
+                                    }
                                   </p>
                                 </div>
                               )}
@@ -413,9 +449,12 @@ export const FarmerExpertRequestPage: React.FC = () => {
                                   <UserCheck className="w-3.5 h-3.5 text-[#c2410c] shrink-0" />
                                   Technician:{" "}
                                   <strong className="text-slate-900">
-                                    {ec.assignedTechnician.firstName} {ec.assignedTechnician.lastName}
+                                    {ec.assignedTechnician.firstName}{" "}
+                                    {ec.assignedTechnician.lastName}
                                   </strong>
-                                  {ec.assignedTechnician.phone ? ` • ${ec.assignedTechnician.phone}` : ""}
+                                  {ec.assignedTechnician.phone
+                                    ? ` • ${ec.assignedTechnician.phone}`
+                                    : ""}
                                 </p>
                               )}
 
@@ -424,7 +463,9 @@ export const FarmerExpertRequestPage: React.FC = () => {
                                 <div className="rounded-xl border border-emerald-300 bg-emerald-50/80 p-3 space-y-1">
                                   <div className="flex items-center gap-1.5 text-xs font-black text-emerald-950">
                                     <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                                    <span>Opisyal na Payo ng LGU Agri-Technician:</span>
+                                    <span>
+                                      Opisyal na Payo ng LGU Agri-Technician:
+                                    </span>
                                   </div>
                                   <p className="text-xs text-emerald-900 font-medium leading-relaxed whitespace-pre-line">
                                     {ec.recommendation}
@@ -433,7 +474,13 @@ export const FarmerExpertRequestPage: React.FC = () => {
                               ) : (
                                 <div className="flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50 p-2 rounded-xl border border-amber-200">
                                   <MessageSquare className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                  <span>Naghihintay ng tugon mula sa nakatalagang technician sa {farmCtx.municipality || "inyong munisipalidad"}.</span>
+                                  <span>
+                                    Naghihintay ng tugon mula sa nakatalagang
+                                    technician sa{" "}
+                                    {farmCtx.municipality ||
+                                      "inyong munisipalidad"}
+                                    .
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -447,7 +494,6 @@ export const FarmerExpertRequestPage: React.FC = () => {
             </div>
           )}
         </main>
-
       </div>
     </div>
   );

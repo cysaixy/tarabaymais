@@ -35,8 +35,11 @@ export const FarmerObservationPage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { selectedFarm, selectedCycle, loading: selectionLoading } =
-    useFarmSelection();
+  const {
+    selectedFarm,
+    selectedCycle,
+    loading: selectionLoading,
+  } = useFarmSelection();
   const cropCycleId = selectedCycle?.id ?? "";
 
   const [queueCount, setQueueCount] = useState(0);
@@ -191,7 +194,6 @@ export const FarmerObservationPage: React.FC = () => {
     <div className="w-full min-h-screen bg-slate-100 md:bg-slate-950 flex flex-col items-center justify-start p-0 md:p-6 lg:p-8 font-sans selection:bg-purple-500/30">
       {/* Responsive Container: Mobile Viewport (412x917 edge-to-edge) vs Tablet/Desktop Card (md/lg) */}
       <div className="w-full md:max-w-md lg:max-w-lg bg-slate-50 text-slate-900 shadow-2xl flex flex-col justify-between overflow-x-hidden md:rounded-[36px] md:border-2 md:border-emerald-800/40 min-h-screen relative pb-6">
-        
         {/* ========================================================= */}
         {/* 1. TOP HEADER (Deep Emerald #03543f)                      */}
         {/* ========================================================= */}
@@ -233,226 +235,224 @@ export const FarmerObservationPage: React.FC = () => {
           {selectionLoading ? (
             <LoadingState label="Kinukuha ang inyong taniman..." />
           ) : (
-          <div className="w-full bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-5">
+            <div className="w-full bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-5">
+              {/* Shared farm + crop cycle selector (drives cropCycleId) */}
+              <FarmCycleSelector label="Para saang pananim?" />
 
-            {/* Shared farm + crop cycle selector (drives cropCycleId) */}
-            <FarmCycleSelector label="Para saang pananim?" />
-
-            {/* Card Header */}
-            <div>
-              <div className="flex items-center gap-2 text-[#7e22ce]">
-                <Camera className="w-5 h-5 stroke-[2.4]" />
-                <h2 className="text-base sm:text-lg font-black tracking-tight text-[#7e22ce]">
-                  Record Crop Observation
-                </h2>
-              </div>
-              <p className="text-xs text-slate-500 font-medium mt-1 leading-snug">
-                Mag-upload o kumuha ng litrato at itala ang mga nakikitang sintomas.
-              </p>
-            </div>
-
-            {/* Hidden File Input */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              capture="environment"
-              onChange={handlePhotoSelect}
-              className="hidden"
-            />
-
-            {/* Section 1: Photo Input */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-800">
-                Litrato ng Sintomas o Tanim (Photo Input)
-              </label>
-
-              <div className="w-full border-2 border-dashed border-purple-300 rounded-3xl p-3 bg-purple-50/20 flex flex-col items-center justify-center relative overflow-hidden transition-colors hover:border-purple-400">
-                {imagePreview ? (
-                  <div className="relative w-full rounded-2xl overflow-hidden shadow-inner bg-slate-900 flex items-center justify-center">
-                    <img
-                      src={imagePreview}
-                      alt="Crop symptom preview"
-                      className="w-full max-h-56 object-cover rounded-2xl"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="absolute top-2.5 right-2.5 bg-[#e11d48] hover:bg-[#be123c] text-white font-extrabold text-[11px] px-3.5 py-1 rounded-full shadow-md active:scale-95 transition cursor-pointer"
-                    >
-                      Palitan
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-8 flex flex-col items-center justify-center gap-2.5 text-center group cursor-pointer"
-                  >
-                    <div className="w-13 h-13 rounded-2xl bg-purple-100 border border-purple-200 text-purple-700 flex items-center justify-center group-hover:scale-105 transition shadow-sm">
-                      <UploadCloud className="w-7 h-7 stroke-[2.2]" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">
-                        Pindutin upang kumuha ng litrato o mag-upload
-                      </p>
-                      <p className="text-[11px] text-slate-400 font-medium">
-                        Kamera o Gallery (One-Tap Camera)
-                      </p>
-                    </div>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Section 2: Symptom Checklist */}
-            <div className="space-y-2.5">
-              <label className="block text-xs font-bold text-slate-800">
-                Mga Nakikitang Sintomas (Symptom Checklist)
-              </label>
-
-              <div className="space-y-2">
-                {SYMPTOM_OPTIONS.map((symptom, idx) => {
-                  const isChecked = selectedSymptoms.includes(symptom);
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleToggleSymptom(symptom)}
-                      className={`w-full rounded-2xl border px-4 py-3 text-left flex items-center justify-between text-xs font-semibold transition active:scale-[0.99] cursor-pointer ${
-                        isChecked
-                          ? "border-purple-500 bg-purple-50/70 text-purple-950 font-bold shadow-sm"
-                          : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-                      }`}
-                    >
-                      <span>{symptom}</span>
-                      <div
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
-                          isChecked
-                            ? "border-purple-600 bg-purple-600 text-white"
-                            : "border-slate-300 bg-white"
-                        }`}
-                      >
-                        {isChecked && (
-                          <div className="w-2 h-2 rounded-full bg-white" />
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Section 3: Affected Percentage Slider */}
-            <div className="space-y-2 pt-1">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-slate-800">
-                  Tantiya na Naapektuhang Bahagi
-                </span>
-                <span className="font-black text-[#7e22ce] text-sm">
-                  {affectedPercent}% ng Sakahan
-                </span>
-              </div>
-
-              <input
-                type="range"
-                min="1"
-                max="100"
-                value={affectedPercent}
-                onChange={(e) => setAffectedPercent(Number(e.target.value))}
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#7e22ce]"
-              />
-
-              {/* Dynamic Severity Hint */}
-              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
-                <span>Antas ng Pinsala:</span>
-                <span
-                  className={`font-black rounded-full px-2 py-0.5 ${
-                    severity === "LOW"
-                      ? "bg-emerald-100 text-emerald-800"
-                      : severity === "MEDIUM"
-                      ? "bg-amber-100 text-amber-800"
-                      : severity === "HIGH"
-                      ? "bg-orange-100 text-orange-800"
-                      : "bg-rose-100 text-rose-800"
-                  }`}
-                >
-                  {severity === "LOW"
-                    ? "Mababa (Normal)"
-                    : severity === "MEDIUM"
-                    ? "Katamtaman"
-                    : severity === "HIGH"
-                    ? "Mataas (Auto-Escalate sa LGU)"
-                    : "Kritikal (Urgent Inspection)"}
-                </span>
-              </div>
-            </div>
-
-            {/* Section 4: Description Textarea */}
-            <div className="space-y-1.5 pt-1">
-              <label className="block text-xs font-bold text-slate-800">
-                Paliwanag o Karagdagang Obserbasyon
-              </label>
-              <textarea
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Ilarawan ang nakikita sa dahon, tangkay, o lupa..."
-                className="w-full rounded-2xl border border-slate-300 bg-white p-3.5 text-xs font-medium text-slate-800 outline-none transition leading-relaxed resize-none"
-              />
-            </div>
-
-            {/* Section 5: AI Scanner Banner */}
-            <div className="rounded-2xl border border-purple-200 bg-purple-50/60 p-4 flex items-center justify-between gap-3 shadow-xs">
-              <div className="space-y-0.5">
-                <h3 className="text-xs sm:text-sm font-extrabold text-[#7e22ce] leading-tight">
-                  Gusto mo bang suriin ito ng AI Scanner?
-                </h3>
-                <p className="text-[10px] sm:text-[11px] text-slate-600 font-medium">
-                  Aalamin ng Computer Vision ang uri ng peste o sakit.
+              {/* Card Header */}
+              <div>
+                <div className="flex items-center gap-2 text-[#7e22ce]">
+                  <Camera className="w-5 h-5 stroke-[2.4]" />
+                  <h2 className="text-base sm:text-lg font-black tracking-tight text-[#7e22ce]">
+                    Record Crop Observation
+                  </h2>
+                </div>
+                <p className="text-xs text-slate-500 font-medium mt-1 leading-snug">
+                  Mag-upload o kumuha ng litrato at itala ang mga nakikitang
+                  sintomas.
                 </p>
               </div>
 
+              {/* Hidden File Input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoSelect}
+                className="hidden"
+              />
+
+              {/* Section 1: Photo Input */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-800">
+                  Litrato ng Sintomas o Tanim (Photo Input)
+                </label>
+
+                <div className="w-full border-2 border-dashed border-purple-300 rounded-3xl p-3 bg-purple-50/20 flex flex-col items-center justify-center relative overflow-hidden transition-colors hover:border-purple-400">
+                  {imagePreview ? (
+                    <div className="relative w-full rounded-2xl overflow-hidden shadow-inner bg-slate-900 flex items-center justify-center">
+                      <img
+                        src={imagePreview}
+                        alt="Crop symptom preview"
+                        className="w-full max-h-56 object-cover rounded-2xl"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute top-2.5 right-2.5 bg-[#e11d48] hover:bg-[#be123c] text-white font-extrabold text-[11px] px-3.5 py-1 rounded-full shadow-md active:scale-95 transition cursor-pointer"
+                      >
+                        Palitan
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-8 flex flex-col items-center justify-center gap-2.5 text-center group cursor-pointer"
+                    >
+                      <div className="w-13 h-13 rounded-2xl bg-purple-100 border border-purple-200 text-purple-700 flex items-center justify-center group-hover:scale-105 transition shadow-sm">
+                        <UploadCloud className="w-7 h-7 stroke-[2.2]" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">
+                          Pindutin upang kumuha ng litrato o mag-upload
+                        </p>
+                        <p className="text-[11px] text-slate-400 font-medium">
+                          Kamera o Gallery (One-Tap Camera)
+                        </p>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 2: Symptom Checklist */}
+              <div className="space-y-2.5">
+                <label className="block text-xs font-bold text-slate-800">
+                  Mga Nakikitang Sintomas (Symptom Checklist)
+                </label>
+
+                <div className="space-y-2">
+                  {SYMPTOM_OPTIONS.map((symptom, idx) => {
+                    const isChecked = selectedSymptoms.includes(symptom);
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleToggleSymptom(symptom)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-left flex items-center justify-between text-xs font-semibold transition active:scale-[0.99] cursor-pointer ${
+                          isChecked
+                            ? "border-purple-500 bg-purple-50/70 text-purple-950 font-bold shadow-sm"
+                            : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                        }`}
+                      >
+                        <span>{symptom}</span>
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
+                            isChecked
+                              ? "border-purple-600 bg-purple-600 text-white"
+                              : "border-slate-300 bg-white"
+                          }`}
+                        >
+                          {isChecked && (
+                            <div className="w-2 h-2 rounded-full bg-white" />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Section 3: Affected Percentage Slider */}
+              <div className="space-y-2 pt-1">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-slate-800">
+                    Tantiya na Naapektuhang Bahagi
+                  </span>
+                  <span className="font-black text-[#7e22ce] text-sm">
+                    {affectedPercent}% ng Sakahan
+                  </span>
+                </div>
+
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={affectedPercent}
+                  onChange={(e) => setAffectedPercent(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#7e22ce]"
+                />
+
+                {/* Dynamic Severity Hint */}
+                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                  <span>Antas ng Pinsala:</span>
+                  <span
+                    className={`font-black rounded-full px-2 py-0.5 ${
+                      severity === "LOW"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : severity === "MEDIUM"
+                          ? "bg-amber-100 text-amber-800"
+                          : severity === "HIGH"
+                            ? "bg-orange-100 text-orange-800"
+                            : "bg-rose-100 text-rose-800"
+                    }`}
+                  >
+                    {severity === "LOW"
+                      ? "Mababa (Normal)"
+                      : severity === "MEDIUM"
+                        ? "Katamtaman"
+                        : severity === "HIGH"
+                          ? "Mataas (Auto-Escalate sa LGU)"
+                          : "Kritikal (Urgent Inspection)"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Section 4: Description Textarea */}
+              <div className="space-y-1.5 pt-1">
+                <label className="block text-xs font-bold text-slate-800">
+                  Paliwanag o Karagdagang Obserbasyon
+                </label>
+                <textarea
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Ilarawan ang nakikita sa dahon, tangkay, o lupa..."
+                  className="w-full rounded-2xl border border-slate-300 bg-white p-3.5 text-xs font-medium text-slate-800 outline-none transition leading-relaxed resize-none"
+                />
+              </div>
+
+              {/* Section 5: AI Scanner Banner */}
+              <div className="rounded-2xl border border-purple-200 bg-purple-50/60 p-4 flex items-center justify-between gap-3 shadow-xs">
+                <div className="space-y-0.5">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-[#7e22ce] leading-tight">
+                    Gusto mo bang suriin ito ng AI Scanner?
+                  </h3>
+                  <p className="text-[10px] sm:text-[11px] text-slate-600 font-medium">
+                    Aalamin ng Computer Vision ang uri ng peste o sakit.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.info("AI Scanner", {
+                      description:
+                        "Maaari mong gamitin ang AI scanner sa Dashboard para sa instant computer vision diagnosis.",
+                    });
+                    navigate("/farmer");
+                  }}
+                  className="bg-[#7e22ce] hover:bg-[#6b21a8] active:scale-95 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1 shrink-0 shadow-sm transition cursor-pointer"
+                >
+                  <span>I-Scan</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Section 6: Primary Submit Button */}
               <button
                 type="button"
-                onClick={() => {
-                  toast.info("AI Scanner", {
-                    description:
-                      "Maaari mong gamitin ang AI scanner sa Dashboard para sa instant computer vision diagnosis.",
-                  });
-                  navigate("/farmer");
-                }}
-                className="bg-[#7e22ce] hover:bg-[#6b21a8] active:scale-95 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1 shrink-0 shadow-sm transition cursor-pointer"
+                onClick={handleSubmit}
+                disabled={submitting || !cropCycleId}
+                className="w-full h-14 rounded-2xl bg-[#7e22ce] hover:bg-[#6b21a8] active:scale-[0.98] text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer disabled:opacity-50"
               >
-                <span>I-Scan</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                {submitting ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    <span>Isinusumite ang Obserbasyon...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>I-save ang Obserbasyon</span>
+                    <CheckCircle2 className="w-5 h-5 stroke-[2.4]" />
+                  </>
+                )}
               </button>
             </div>
-
-            {/* Section 6: Primary Submit Button */}
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting || !cropCycleId}
-              className="w-full h-14 rounded-2xl bg-[#7e22ce] hover:bg-[#6b21a8] active:scale-[0.98] text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer disabled:opacity-50"
-            >
-              {submitting ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Isinusumite ang Obserbasyon...</span>
-                </>
-              ) : (
-                <>
-                  <span>I-save ang Obserbasyon</span>
-                  <CheckCircle2 className="w-5 h-5 stroke-[2.4]" />
-                </>
-              )}
-            </button>
-
-          </div>
           )}
         </main>
-
       </div>
     </div>
   );

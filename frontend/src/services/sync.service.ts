@@ -60,7 +60,9 @@ const stripBlobImageUrl = (
 };
 
 /** Queues an action item when offline */
-export const queueOfflineAction = (item: Omit<SyncActionItem, "clientRefId" | "clientTimestamp">) => {
+export const queueOfflineAction = (
+  item: Omit<SyncActionItem, "clientRefId" | "clientTimestamp">,
+) => {
   const current = getOfflineQueue();
   const newItem: SyncActionItem = {
     ...item,
@@ -83,7 +85,7 @@ export const clearOfflineQueue = () => {
  * Endpoint: POST /api/v1/sync
  */
 export const sendBatchSync = async (
-  actions: SyncActionItem[]
+  actions: SyncActionItem[],
 ): Promise<BatchSyncResponse> => {
   const { data } = await api.post("/sync", { actions });
   return data.data;

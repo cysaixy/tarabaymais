@@ -27,7 +27,9 @@ export interface RagChatResponse {
  * Uploads a leaf photo for Gemini Multimodal Plant Health Scan.
  * Endpoint: POST /api/v1/ai/scan (multipart/form-data with `image` field)
  */
-export const scanPlantHealth = async (imageFile: File): Promise<ScanDiagnosisResult> => {
+export const scanPlantHealth = async (
+  imageFile: File,
+): Promise<ScanDiagnosisResult> => {
   const fd = new FormData();
   fd.append("image", imageFile);
 
@@ -44,7 +46,7 @@ export const scanPlantHealth = async (imageFile: File): Promise<ScanDiagnosisRes
  */
 export const sendRagChat = async (
   prompt: string,
-  cropCycleId?: string
+  cropCycleId?: string,
 ): Promise<RagChatResponse> => {
   const { data } = await api.post("/ai/chat", {
     prompt,

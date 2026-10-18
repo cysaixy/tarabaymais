@@ -19,7 +19,10 @@ import {
   Image as ImageIcon,
   RotateCcw,
 } from "lucide-react";
-import { scanPlantHealth, type ScanDiagnosisResult } from "../../services/ai.service";
+import {
+  scanPlantHealth,
+  type ScanDiagnosisResult,
+} from "../../services/ai.service";
 import {
   listObservations,
   createObservation,
@@ -65,7 +68,9 @@ export const FarmerScannerPage: React.FC = () => {
         .then((records) => {
           if (active && records && records.length > 0) {
             const sorted = [...records].sort(
-              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime(),
             );
             setLatestScan(sorted[0] || null);
           }
@@ -195,7 +200,6 @@ export const FarmerScannerPage: React.FC = () => {
     <div className="w-full min-h-screen bg-slate-100 md:bg-slate-950 flex flex-col items-center justify-start p-0 md:p-6 lg:p-8 font-sans selection:bg-emerald-500/30">
       {/* Responsive Container: Mobile Viewport (412x917 edge-to-edge) vs Tablet/Desktop Card (md/lg) */}
       <div className="w-full md:max-w-md lg:max-w-lg bg-slate-950 text-slate-900 shadow-2xl flex flex-col justify-between overflow-hidden md:rounded-[36px] md:border-2 md:border-emerald-800/40 h-screen relative select-none">
-        
         {/* ========================================================= */}
         {/* 1. TOP HEADER (Deep Emerald #03543f)                      */}
         {/* ========================================================= */}
@@ -279,16 +283,15 @@ export const FarmerScannerPage: React.FC = () => {
           {/* Viewfinder Center Bounding Box & Target Brackets */}
           <div className="relative z-10 flex flex-col items-center justify-center my-auto">
             <div className="relative w-64 h-48 sm:w-72 sm:h-52 flex items-center justify-center">
-              
               {/* Top-Left Bracket */}
               <div className="absolute -top-1 -left-1 w-9 h-9 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl shadow-sm" />
-              
+
               {/* Top-Right Bracket */}
               <div className="absolute -top-1 -right-1 w-9 h-9 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl shadow-sm" />
-              
+
               {/* Bottom-Left Bracket */}
               <div className="absolute -bottom-1 -left-1 w-9 h-9 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl shadow-sm" />
-              
+
               {/* Bottom-Right Bracket */}
               <div className="absolute -bottom-1 -right-1 w-9 h-9 border-b-4 border-r-4 border-emerald-400 rounded-br-xl shadow-sm" />
 
@@ -299,7 +302,9 @@ export const FarmerScannerPage: React.FC = () => {
 
               {/* Instruction Pill */}
               <div className="bg-slate-900/85 backdrop-blur-md text-emerald-200 border border-emerald-500/40 px-4 py-1.5 rounded-full text-xs font-bold shadow-lg text-center">
-                {scanning ? "Sinisiyasat ng Gemini AI ang dahon..." : "Itapat ang dahon ng mais sa kahon"}
+                {scanning
+                  ? "Sinisiyasat ng Gemini AI ang dahon..."
+                  : "Itapat ang dahon ng mais sa kahon"}
               </div>
             </div>
           </div>
@@ -358,16 +363,19 @@ export const FarmerScannerPage: React.FC = () => {
           >
             {/* Pill Bar */}
             <div className="w-12 h-1.5 bg-slate-300 rounded-full mb-1" />
-            
-              <div className="flex items-center justify-between w-full text-xs font-bold text-slate-800">
+
+            <div className="flex items-center justify-between w-full text-xs font-bold text-slate-800">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="truncate max-w-57.5">
-                  Mais – {farmCtx.farmName || "Inyong Sakahan"} ({farmCtx.variety || "Hybrid Corn"})
+                  Mais – {farmCtx.farmName || "Inyong Sakahan"} (
+                  {farmCtx.variety || "Hybrid Corn"})
                 </span>
               </div>
               <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                <span>{sheetOpen ? "I-baba ang Sheet" : "Tingnan ang Datos"}</span>
+                <span>
+                  {sheetOpen ? "I-baba ang Sheet" : "Tingnan ang Datos"}
+                </span>
                 {sheetOpen ? (
                   <ChevronDown className="w-4 h-4" />
                 ) : (
@@ -379,7 +387,6 @@ export const FarmerScannerPage: React.FC = () => {
 
           {/* Scrollable Content inside White Container */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 pb-6">
-            
             {/* DIAGNOSIS CARD (IF DIAGNOSED) */}
             {diagnosis && (
               <div className="w-full bg-white rounded-3xl p-5 shadow-md border-2 border-emerald-500/40 space-y-3.5 animate-in fade-in-50 duration-300">
@@ -390,17 +397,19 @@ export const FarmerScannerPage: React.FC = () => {
                       <span>Gemini Vision AI Diagnosis</span>
                     </div>
                     <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-                      {diagnosis.diseaseDetected || "Malusog na Mais (Healthy Corn)"}
+                      {diagnosis.diseaseDetected ||
+                        "Malusog na Mais (Healthy Corn)"}
                     </h3>
                   </div>
 
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-[11px] font-black shrink-0 ${
-                      diagnosis.severity === "HIGH" || diagnosis.severity === "CRITICAL"
+                      diagnosis.severity === "HIGH" ||
+                      diagnosis.severity === "CRITICAL"
                         ? "bg-rose-100 text-rose-800 border border-rose-300"
                         : diagnosis.severity === "MEDIUM"
-                        ? "bg-amber-100 text-amber-800 border border-amber-300"
-                        : "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                          ? "bg-amber-100 text-amber-800 border border-amber-300"
+                          : "bg-emerald-100 text-emerald-800 border border-emerald-300"
                     }`}
                   >
                     {diagnosis.severity || "LOW"} SEVERITY
@@ -470,13 +479,19 @@ export const FarmerScannerPage: React.FC = () => {
                     {farmCtx.variety || "Hybrid Corn"}
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                    Yugto: Paglago ng Tanim ({farmCtx.plantingDate ? `DAP ${Math.max(0, Math.floor((Date.now() - new Date(farmCtx.plantingDate).getTime()) / 86400000))}` : "—"})
+                    Yugto: Paglago ng Tanim (
+                    {farmCtx.plantingDate
+                      ? `DAP ${Math.max(0, Math.floor((Date.now() - new Date(farmCtx.plantingDate).getTime()) / 86400000))}`
+                      : "—"}
+                    )
                   </p>
                 </div>
               </div>
 
               <div className="rounded-xl bg-[#047857] text-white font-black text-xs px-3 py-1 shadow-sm shrink-0">
-                {farmCtx.areaHectares ? `${farmCtx.areaHectares} ha` : "Sakahan"}
+                {farmCtx.areaHectares
+                  ? `${farmCtx.areaHectares} ha`
+                  : "Sakahan"}
               </div>
             </div>
 
@@ -494,13 +509,18 @@ export const FarmerScannerPage: React.FC = () => {
                   >
                     <div className="flex items-center gap-2 font-bold text-amber-950">
                       <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span className="truncate max-w-47.5">{latestScan.title}</span>
+                      <span className="truncate max-w-47.5">
+                        {latestScan.title}
+                      </span>
                     </div>
                     <span className="text-[10px] text-slate-500 font-medium">
-                      {new Date(latestScan.createdAt).toLocaleDateString("fil-PH", {
-                        month: "short",
-                        day: "numeric",
-                      })}
+                      {new Date(latestScan.createdAt).toLocaleDateString(
+                        "fil-PH",
+                        {
+                          month: "short",
+                          day: "numeric",
+                        },
+                      )}
                     </span>
                   </div>
                 ) : (
@@ -509,9 +529,7 @@ export const FarmerScannerPage: React.FC = () => {
                   </div>
                 )}
               </div>
-
             </div>
-
           </div>
         </div>
 
@@ -566,7 +584,6 @@ export const FarmerScannerPage: React.FC = () => {
             <span>History</span>
           </button>
         </nav>
-
       </div>
     </div>
   );

@@ -19,7 +19,12 @@ export interface ObservationRecord {
   description: string;
   imageUrl?: string | null;
   severity: SeverityLevel;
-  aiDiagnosis?: Record<string, unknown> | null;
+  aiDiagnosis?: {
+    condition?: string;
+    confidence?: number;
+    recommendedAction?: string;
+    [key: string]: unknown;
+  } | null;
   createdAt: string;
 }
 
@@ -37,7 +42,7 @@ export interface ObservationResponse {
  * Endpoint: POST /api/v1/observations/:cropCycleId (multipart/form-data)
  */
 export const createObservation = async (
-  params: CreateObservationParams
+  params: CreateObservationParams,
 ): Promise<ObservationResponse> => {
   const fd = new FormData();
   fd.append("title", params.title);
@@ -62,10 +67,9 @@ export const createObservation = async (
  * Endpoint: GET /api/v1/observations/:cropCycleId or GET /api/v1/observations
  */
 export const listObservations = async (
-  cropCycleId?: string
+  cropCycleId?: string,
 ): Promise<ObservationRecord[]> => {
   const url = cropCycleId ? `/observations/${cropCycleId}` : "/observations";
   const { data } = await api.get(url);
   return data.data.observations;
 };
-
