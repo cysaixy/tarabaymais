@@ -66,16 +66,177 @@ const computeDAP = (plantingDate: string): number | null => {
 };
 
 /**
+ * Corn growth stages — each entry drives the visual lifecycle card.
+ * harvestDap: total DAP at which the stage is considered complete.
+ */
+const GROWTH_STAGES = [
+  { tagalogLabel: "Binhi",    emoji: "🌱", minDap: 0,  maxDap: 14,  stageIndex: 0 },
+  { tagalogLabel: "Paglaki",  emoji: "🌿", minDap: 15, maxDap: 45,  stageIndex: 1 },
+  { tagalogLabel: "Tasseling",emoji: "🌾", minDap: 46, maxDap: 60,  stageIndex: 2 },
+  { tagalogLabel: "Butil",    emoji: "🌽", minDap: 61, maxDap: 90,  stageIndex: 3 },
+  { tagalogLabel: "Pag-ani",  emoji: "🏆", minDap: 91, maxDap: 110, stageIndex: 4 },
+] as const;
+
+/** Total DAP target for full harvest. */
+const HARVEST_TARGET_DAP = 110;
+
+/**
  * Maps a DAP value to a Tagalog growth-stage label and 0-4 progress index.
  */
 const resolveGrowthStage = (
   dap: number
-): { label: string; stageIndex: number } => {
-  if (dap < 15) return { label: "Seedling Stage (DAP 0-14)", stageIndex: 0 };
-  if (dap < 46) return { label: "Vegetative Stage (V-Stage)", stageIndex: 1 };
-  if (dap < 61) return { label: "Tasseling / Silking Stage", stageIndex: 2 };
-  if (dap < 91) return { label: "Grain Filling Stage", stageIndex: 3 };
-  return { label: "Maturity / Harvest Stage", stageIndex: 4 };
+): { label: string; tagalogLabel: string; emoji: string; stageIndex: number } => {
+  if (dap < 15) return { label: "Seedling Stage (DAP 0-14)",    tagalogLabel: "Binhi",    emoji: "🌱", stageIndex: 0 };
+  if (dap < 46) return { label: "Vegetative Stage (V-Stage)",   tagalogLabel: "Paglaki",  emoji: "🌿", stageIndex: 1 };
+  if (dap < 61) return { label: "Tasseling / Silking Stage",    tagalogLabel: "Tasseling",emoji: "🌾", stageIndex: 2 };
+  if (dap < 91) return { label: "Grain Filling Stage",          tagalogLabel: "Butil",    emoji: "🌽", stageIndex: 3 };
+  return           { label: "Maturity / Harvest Stage",         tagalogLabel: "Pag-ani",  emoji: "🏆", stageIndex: 4 };
+};
+
+// ─── Weather Widget ────────────────────────────────────────────────────────
+
+/**
+ * Shape of data returned by the future weather API endpoint.
+ * TODO: Replace STATIC_WEATHER with a fetch/useQuery call to:
+ *   GET /api/v1/weather?municipality=Iguig&province=Cagayan
+ * when the backend integration is ready.
+ */
+export interface WeatherData {
+  temperatureCelsius: number;
+  feelsLikeCelsius: number;
+  conditionLabel: string;      // e.g. "Maliwanag, Maulan sa hapon"
+  conditionEmoji: string;      // e.g. "⛅"
+  humidityPercent: number;
+  windKph: number;
+  daAdvisory: string;          // Contextual farming tip from DA
+  municipality: string;
+  province: string;
+}
+
+/** Static fallback — swap this out once the backend endpoint is live. */
+const STATIC_WEATHER: WeatherData = {
+  temperatureCelsius: 34,
+  feelsLikeCelsius: 38,
+  conditionLabel: "Maliwanag, Maulan sa hapon",
+  conditionEmoji: "⛅",
+  humidityPercent: 78,
+  windKph: 12,
+  daAdvisory:
+    "Maaraw ngayon — mag-irig ng mais bago mag-alas dos ng hapon upang maiwasan ang pagkatuyo ng lupa.",
+  municipality: "Iguig",
+  province: "Cagayan",
+};
+
+/** Formats the current datetime in Filipino-friendly locale string. */
+const getFormattedDateTime = (): string => {
+  const now = new Date();
+  return now.toLocaleString("fil-PH", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+/**
+ * WeatherCard — displays today's weather + DA advisory.
+ * Accepts a `data` prop so it can be driven by an API response in the future.
+ * Falls back to STATIC_WEATHER when no prop is supplied.
+ */
+const WeatherCard: React.FC<{ data?: WeatherData }> = ({
+  data = STATIC_WEATHER,
+}) => {
+  const [dateTime, setDateTime] = React.useState(getFormattedDateTime);
+
+  // Update clock every minute so the timestamp stays accurate.
+  React.useEffect(() => {
+    const id = setInterval(
+      () => setDateTime(getFormattedDateTime()),
+      60_000
+    );
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="w-full relative overflow-hidden rounded-3xl shadow-lg">
+      {/* Sky gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0369a1] via-[#0284c7] to-[#0891b2]" />
+
+      {/* Decorative cloud blobs */}
+      <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/10" />
+      <div className="absolute bottom-4 -left-8 w-24 h-24 rounded-full bg-white/8" />
+
+      {/* Card content */}
+      <div className="relative z-10 p-5 sm:p-6 space-y-4">
+
+        {/* ── Top row: label + location ── */}
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="text-[10px] sm:text-[11px] font-black tracking-widest uppercase text-sky-200">
+              Panahon Ngayon
+            </p>
+            <p className="text-[11px] sm:text-xs text-sky-100/80 mt-0.5 flex items-center gap-1">
+              📍 {data.municipality}, {data.province}
+            </p>
+          </div>
+          <span className="text-4xl leading-none drop-shadow-md select-none">
+            {data.conditionEmoji}
+          </span>
+        </div>
+
+        {/* ── Temperature ── */}
+        <div>
+          <div className="flex items-end gap-1 leading-none">
+            <span className="text-6xl font-black text-white tracking-tighter">
+              {data.temperatureCelsius}°
+            </span>
+            <span className="text-xl font-bold text-sky-100 mb-2">C</span>
+          </div>
+          <p className="text-sm text-sky-100 font-semibold mt-1">
+            {data.conditionLabel}
+          </p>
+          <p className="text-[11px] text-sky-200/80 mt-0.5">
+            Nararamdaman: {data.feelsLikeCelsius}°C
+          </p>
+        </div>
+
+        {/* ── Stats row ── */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-3 py-2.5 flex items-center gap-2">
+            <span className="text-base">💧</span>
+            <div>
+              <p className="text-[9px] text-sky-200/80 font-semibold uppercase tracking-wide">Halumigmig</p>
+              <p className="text-xs font-black text-white">{data.humidityPercent}%</p>
+            </div>
+          </div>
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-3 py-2.5 flex items-center gap-2">
+            <span className="text-base">💨</span>
+            <div>
+              <p className="text-[9px] text-sky-200/80 font-semibold uppercase tracking-wide">Hangin</p>
+              <p className="text-xs font-black text-white">{data.windKph} km/h</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── DA Advisory strip ── */}
+        <div className="bg-amber-400/20 border border-amber-300/30 rounded-2xl px-3.5 py-3">
+          <p className="text-[10px] font-black text-amber-200 uppercase tracking-wide mb-1">
+            ⚠️ Payo ng DA
+          </p>
+          <p className="text-[11px] sm:text-xs text-white/90 leading-relaxed">
+            {data.daAdvisory}
+          </p>
+        </div>
+
+        {/* ── Timestamp ── */}
+        <p className="text-[10px] text-sky-300/70 text-right">
+          {dateTime}
+        </p>
+      </div>
+    </div>
+  );
 };
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -469,9 +630,9 @@ export const FarmerDashboardPage: React.FC = () => {
               Tahanan ng Magsasaka
             </h1>
             <p className="text-xs sm:text-sm text-emerald-200/90 font-medium mt-0.5">
-              {farmContext
-                ? `${farmContext.municipality}, Cagayan • Corn Field`
-                : "Cagayan • Corn Field"}
+              {farmerName
+                ? `Mabuhay, ${farmerName.split(" ")[0]}! 🌽`
+                : "DA Region II • Cagayan Valley"}
             </p>
           </div>
 
@@ -514,133 +675,143 @@ export const FarmerDashboardPage: React.FC = () => {
             {/* ── LEFT COLUMN ─────────────────────────────────────────────── */}
             <div className="lg:col-span-5 space-y-4 sm:space-y-5">
 
-              {/* Farm Profile Card */}
-              <div className="w-full bg-linear-to-br from-[#023326] via-[#034433] to-[#04281f] text-white rounded-3xl p-5 sm:p-6 shadow-lg border border-emerald-500/20 relative overflow-hidden">
-                {farmContextLoading ? (
-                  <div className="flex items-center gap-3 py-4">
-                    <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
-                    <span className="text-sm text-emerald-200">Kinukuha ang impormasyon ng sakahan...</span>
-                  </div>
-                ) : farmContext ? (
-                  <>
-                    <div className="flex justify-between items-start">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/60 border border-emerald-400/40 px-3 py-1 text-[11px] font-semibold text-emerald-200">
-                        🌱 {farmContext.areaHectares.toFixed(1)} Hectares
-                      </span>
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-700/60 border border-emerald-400/30 flex items-center justify-center text-2xl shadow-inner">
-                        🌽
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                        {farmContext.farmName}
-                      </h2>
-                      {farmerName && (
-                        <p className="text-xs sm:text-sm text-emerald-100 font-medium mt-1">
-                          {farmerName} • {farmContext.barangay}, {farmContext.municipality}, Cagayan
-                        </p>
-                      )}
-                      <div className="mt-2 text-xs sm:text-sm text-emerald-200/90 font-medium">
-                        Bariedad: <span className="font-bold text-white">{farmContext.variety}</span>
-                        {farmContext.areaHectares > 0 && (
-                          <span> ({farmContext.areaHectares} ha)</span>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="py-4 space-y-2">
-                    <p className="text-sm font-bold text-emerald-200">Walang aktibong pananim.</p>
-                    <p className="text-xs text-emerald-300/80">
-                      Mag-onboard muna o magdagdag ng bagong crop cycle sa inyong sakahan.
-                    </p>
-                  </div>
-                )}
-              </div>
+              {/* Weather Card — static data, backend-integration-ready */}
+              {/* TODO: Pass live data from GET /api/v1/weather once backend is available */}
+              <WeatherCard />
 
               {/* Shared farm + crop cycle switcher — changes apply app-wide */}
               {!farmContextLoading && (
                 <FarmCycleSelector label="Piliin ang sakahan / pananim" />
               )}
 
-              {/* Crop Lifecycle Engine Card */}
-              {!farmContextLoading && farmContext && dap !== null && growthStage && (
-                <div className="w-full bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="rounded-full bg-emerald-100/80 px-3 py-1 text-[10px] sm:text-[11px] font-extrabold text-emerald-800 tracking-wide">
-                      CROP LIFECYCLE ENGINE
-                    </span>
-                    <span className="rounded-full border border-emerald-400 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800">
-                      {dap} Araw
-                    </span>
-                  </div>
+              {/* Crop Growth Card — visual, glanceable lifecycle tracker */}
+              {!farmContextLoading && farmContext && dap !== null && growthStage && (() => {
+                const progressPct = Math.min((dap / HARVEST_TARGET_DAP) * 100, 100);
+                const daysLeft = Math.max(HARVEST_TARGET_DAP - dap, 0);
+                const isReady = dap >= HARVEST_TARGET_DAP;
 
-                  <div>
-                    <h3 className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">
-                      DAP {dap} — {growthStage.label}{" "}
-                      <span className="font-normal text-xs text-slate-500">
-                        mula noong tinarak ({farmContext.plantingDate})
-                      </span>
-                    </h3>
-                  </div>
+                return (
+                  <div className="w-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
 
-                  {/* 5-Stage Progress Bar */}
-                  <div className="pt-1">
-                    <div className="grid grid-cols-5 gap-1.5">
-                      {[0, 1, 2, 3, 4].map((i) => (
-                        <div
-                          key={i}
-                          className={`h-2.5 rounded-full ${
-                            i <= growthStage.stageIndex
-                              ? "bg-emerald-600"
-                              : "bg-slate-200"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-5 gap-1 pt-2 text-center">
-                      {[
-                        { label: "Seedling", range: "DAP 0-14" },
-                        { label: "Vegetative", range: "DAP 15-45" },
-                        { label: "Tasseling", range: "DAP 46-60" },
-                        { label: "Grain Fill", range: "DAP 61-90" },
-                        { label: "Harvest", range: "DAP 91+" },
-                      ].map((s, i) => (
-                        <div key={i}>
-                          <p
-                            className={`text-[10px] font-bold ${
-                              i === growthStage.stageIndex
-                                ? "text-emerald-700"
-                                : "text-slate-500"
-                            }`}
-                          >
-                            {s.label}
+                    {/* ── Top accent strip + big emoji ── */}
+                    <div className="bg-gradient-to-r from-emerald-700 to-emerald-500 px-5 pt-5 pb-6 relative">
+                      {/* Decorative circle */}
+                      <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
+
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-[10px] font-black tracking-widest uppercase text-emerald-200">
+                            Yugto ng Pananim
                           </p>
-                          <p
-                            className={`text-[9px] ${
-                              i === growthStage.stageIndex
-                                ? "text-emerald-600 font-semibold"
-                                : "text-slate-400"
-                            }`}
-                          >
-                            {s.range}
+                          <h3 className="text-2xl sm:text-3xl font-black text-white mt-0.5 tracking-tight">
+                            {growthStage.tagalogLabel}
+                          </h3>
+                          <p className="text-xs text-emerald-100/80 mt-1 font-medium">
+                            {growthStage.label}
                           </p>
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                        <span className="text-5xl leading-none drop-shadow-lg select-none">
+                          {growthStage.emoji}
+                        </span>
+                      </div>
 
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-2">
-                    <div className="flex items-center gap-1.5 text-xs font-black text-emerald-950">
-                      <Calendar className="w-4 h-4 text-emerald-600" />
-                      <span>Kasalukuyang yugto: {growthStage.label}</span>
+                      {/* DAP badge */}
+                      <span className="inline-flex items-center gap-1 mt-3 bg-white/20 border border-white/30 rounded-full px-3 py-1 text-[11px] font-black text-white">
+                        <Calendar className="w-3 h-3" />
+                        DAP {dap}
+                      </span>
                     </div>
-                    <p className="text-xs text-emerald-900/80">
-                      Suriin ang rekomendasyon ng DA para sa yugtong ito sa pamamagitan ng Kaagapay AI Chat.
-                    </p>
+
+                    {/* ── Progress toward harvest ── */}
+                    <div className="px-5 py-4 space-y-3">
+
+                      {/* Progress bar */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                            {isReady ? "Handa na sa Pag-ani!" : "Progreso sa Pag-ani"}
+                          </p>
+                          <p className="text-[11px] font-black text-emerald-700">
+                            {Math.round(progressPct)}%
+                          </p>
+                        </div>
+                        <div className="h-3.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${
+                              isReady
+                                ? "bg-amber-500"
+                                : progressPct > 70
+                                ? "bg-emerald-500"
+                                : "bg-emerald-400"
+                            }`}
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Days remaining + stage pills */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1">
+                          {isReady ? (
+                            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-3.5 py-2.5 text-center">
+                              <p className="text-lg font-black text-amber-600">🏆 Pag-ani Na!</p>
+                              <p className="text-[10px] text-amber-700 font-semibold mt-0.5">
+                                Abisuhan ang inyong technician
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-3.5 py-2.5">
+                              <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wide">
+                                Natitirang Araw
+                              </p>
+                              <p className="text-3xl font-black text-emerald-800 leading-none mt-0.5">
+                                {daysLeft}
+                                <span className="text-sm font-bold text-emerald-600 ml-1">araw</span>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Stage progression mini-dots */}
+                        <div className="flex flex-col items-center gap-1.5">
+                          {GROWTH_STAGES.map((s) => (
+                            <div key={s.stageIndex} className="flex items-center gap-2">
+                              <div
+                                className={`w-2 h-2 rounded-full transition-all ${
+                                  s.stageIndex < growthStage.stageIndex
+                                    ? "bg-emerald-500"
+                                    : s.stageIndex === growthStage.stageIndex
+                                    ? "bg-emerald-600 ring-2 ring-emerald-300 w-3 h-3"
+                                    : "bg-slate-200"
+                                }`}
+                              />
+                              <p
+                                className={`text-[10px] font-bold ${
+                                  s.stageIndex === growthStage.stageIndex
+                                    ? "text-emerald-700"
+                                    : "text-slate-400"
+                                }`}
+                              >
+                                {s.emoji} {s.tagalogLabel}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Planting date footnote */}
+                      <p className="text-[10px] text-slate-400 text-center">
+                        Itinarak noong{" "}
+                        {new Date(farmContext.plantingDate).toLocaleDateString("fil-PH", {
+                          month: "long", day: "numeric", year: "numeric",
+                        })}
+                        {" "}&bull;{" "}
+                        Target ani: DAP {HARVEST_TARGET_DAP}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* ── RIGHT COLUMN ────────────────────────────────────────────── */}
