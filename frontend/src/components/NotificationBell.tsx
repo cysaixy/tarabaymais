@@ -172,18 +172,18 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   // Escape key closes the panel
   useEffect(() => {
-    if (!isPanelOpen) return;
+    if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") closePanel();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [isPanelOpen, closePanel]);
+  }, [open, closePanel]);
 
   // Outside-click: only close if the click landed OUTSIDE both bell and panel.
   // Uses "click" (not "mousedown") so row buttons always fire their onClick first.
   useEffect(() => {
-    if (!isPanelOpen) return;
+    if (!open) return;
     const handler = (e: MouseEvent) => {
       if (
         panelRef.current &&
@@ -218,7 +218,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         onClick={() => (open ? closePanel() : openPanel())}
         aria-label={`Mga abiso, ${unreadCount} bago`}
         aria-haspopup="true"
-        aria-expanded={isPanelOpen}
+        aria-expanded={open}
         aria-controls={panelId}
         className="relative flex h-[52px] w-[52px] items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95 cursor-pointer"
       >
