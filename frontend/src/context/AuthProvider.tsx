@@ -9,6 +9,7 @@ import {
 } from "./authContext";
 import { getMe, logOut } from "../services/auth.service";
 import { clearFarmContext } from "../hooks/useFarmContext";
+import { clearReadNotifications } from "../components/NotificationBell";
 
 /**
  * Reads the role from the Firebase ID token's custom claim. The backend sets
@@ -97,6 +98,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       // Clear the cached active-farm context so the next session (e.g. a
       // different farmer on a shared device) does not inherit stale farm data.
       clearFarmContext();
+      // Clear read-notification IDs for this user so the badge resets cleanly.
+      const uid = auth.currentUser?.uid;
+      if (uid) clearReadNotifications(uid);
       setUser(null);
       setProfile(null);
       setRole(null);
