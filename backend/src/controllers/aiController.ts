@@ -12,7 +12,7 @@ if (!apiKey) {
 }
 
 const ai = new GoogleGenAI({ apiKey });
-const modelName = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+const modelName = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
 
 // ── Diagnosis prompt ──────────────────────────────────────────────────────────
 const DIAGNOSIS_PROMPT = `

@@ -78,7 +78,7 @@ export const FarmCycleSelector: React.FC<FarmCycleSelectorProps> = ({
           <button
             type="button"
             onClick={() => navigate("/farmer/farms/new")}
-            className="inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-emerald-600 px-6 text-base font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 active:bg-emerald-800"
+            className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-emerald-600 px-6 text-base font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
           >
             Magdagdag ng Sakahan
           </button>

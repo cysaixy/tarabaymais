@@ -16,6 +16,10 @@ if (!apiKey) {
 
 const ai = new GoogleGenAI({ apiKey });
 
+// Single source of truth for the chat model, shared with the scan controller
+// via the GEMINI_MODEL env var so there is only one place to update.
+const modelName = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+
 // ── Input schema ──────────────────────────────────────────────────────────────
 
 const ragChatSchema = z.object({
@@ -87,7 +91,7 @@ ${prompt}`;
 
     // 4. Call Gemini
     const aiResponse = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: modelName,
       contents: systemPrompt,
     });
 

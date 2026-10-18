@@ -17,6 +17,7 @@ import { sendRagChat, type RagChatSource } from "../../services/ai.service";
 import { getOfflineQueue } from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
 import { useAuth } from "../../context/authContext";
+import { ApiError } from "../../lib/api";
 
 interface ChatMessage {
   id: string;
@@ -72,15 +73,10 @@ export const FarmerChatPage: React.FC = () => {
     {
       id: "msg-initial",
       role: "assistant",
+      // Static welcome only — no citations/farm-context claimed, since this is
+      // not a real RAG answer. Sources appear only on actual API responses.
       text: `Magandang araw! Ako ang iyong AI Farming Assistant para sa Mais dito sa Cagayan. Paano kita matutulungan sa iyong taniman sa ${farmCtx.municipality || "Cagayan"} ngayon?`,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      sources: [
-        {
-          title: "DA Region II Corn Techno Guide",
-          source: "Regional Crop Protection Center",
-        },
-      ],
-      farmContextUsed: true,
     },
   ]);
 
@@ -125,43 +121,27 @@ export const FarmerChatPage: React.FC = () => {
         farmContextUsed: response.farmContextUsed,
       };
       setMessages((prev) => [...prev, botMsg]);
-    } catch {
-      // Grounded fallback response adhering to DA Region II corn guidelines
-      let answer = "";
-      let sources: RagChatSource[] = [];
-
-      if (trimmed.includes("pataba") || trimmed.includes("DAP") || trimmed.includes("Vegetative")) {
-        answer = `Ayon sa DA Region II Corn Techno-Guide para sa ${farmData.variety}${farmData.dap !== null ? ` sa DAP ${farmData.dap}` : ""}:\\n\\n1. Mag-side dress ng 2 sako ng Urea (46-0-0) bawat ektarya.\\n2. Ilagay ang abono humigit-kumulang 5-7 sentimetro mula sa puno ng mais at tabunan ng manipis na lupa.\\n3. Pinakamainam itong gawin habang mamasa-masa ang lupa o bago ang inaasahang pag-ulan sa hapon.`;
-        sources = [
-          { title: "Gabay sa Pagtatanim ng Mais sa Rehiyon II", source: "DA-RFO 02 Tuguegarao" },
-          { title: "Corn Nutrient Management Guide", source: "PhilRice Advisory" },
-        ];
-      } else if (trimmed.includes("Armyworm") || trimmed.includes("peste")) {
-        answer = `Para sa Fall Armyworm (FAW) sa murang mais:\n\n1. Siyasatin ang gitnang usbong (whorl) kung may butas-butas na parang bintana (window-pane effect) o bakas ng dumi (frass).\n2. Kung apektado ang higit sa 10% ng taniman, mag-aplay ng bio-control agent tulad ng Bacillus thuringiensis (Bt) o kemikal na Chlorantraniliprole.\n3. Mag-spray sa dapithapon o maagang umaga kapag aktibo ang uod at walang matinding init.`;
-        sources = [
-          { title: "FAW Management in Cagayan Valley", source: "Regional Crop Protection Center (RCPC 02)" },
-        ];
-      } else if (trimmed.includes("panahon") || trimmed.includes("PAGASA")) {
-        answer = `Para sa pinakabagong agro-weather forecast sa ${farmData.municipality}, bisitahin ang opisyal na PAGASA website (pagasa.dost.gov.ph) o makipag-ugnayan sa pinakamalapit na DA-RAFIS station.\n\nPayo ng DA: Laging suriin ang panahon bago mag-spray ng pestisidyo o mag-fertilizer. Iwasan ang aktibidad sa bukid tuwing may banta ng bagyo o malakas na ulan.`;
-        sources = [
-          { title: "PAGASA Agro-Meteorological Bulletin", source: "Region II Agri-Weather Service" },
-        ];
-      } else {
-        answer = `Ayon sa opisyal na gabay ng Kagawaran ng Pagsasaka (DA Region II) para sa Cagayan Valley:\n\nMahalaga ang maagap na pagsubaybay sa inyong ${farmData.variety}. Para sa anumang kakaibang sintomas sa dahon o pagtubo, iminumungkahi ring kumuha ng litrato gamit ang ating AI Plant Health Scanner para sa agarang diagnosis.`;
-        sources = [
-          { title: "DA Region II Corn Techno Guide", source: "DA Regional Field Office 02" },
-        ];
-      }
+    } catch (err) {
+      // No fabricated answers. Surface an honest error bubble (no citations)
+      // and let the farmer retry. Distinguish offline from a server error.
+      const offline =
+        (err instanceof ApiError && err.isNetworkError) || !navigator.onLine;
+      const errorText = offline
+        ? "Walang koneksyon sa internet ngayon, kaya hindi ko masagot ang tanong. Pakisubukan muli kapag may signal na."
+        : err instanceof ApiError
+          ? `Paumanhin, hindi ko makuha ang sagot ngayon (${err.message}). Pakisubukan muli.`
+          : "Paumanhin, may problema sa pagkuha ng sagot. Pakisubukan muli.";
 
       const botMsg: ChatMessage = {
-        id: `assistant-${Date.now()}`,
+        id: `assistant-error-${Date.now()}`,
         role: "assistant",
-        text: answer,
+        text: errorText,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        sources,
-        farmContextUsed: true,
       };
       setMessages((prev) => [...prev, botMsg]);
+      toast.error(offline ? "Walang koneksyon" : "Hindi nakuha ang sagot", {
+        description: "Hindi nasagot ng AI Assistant ang tanong.",
+      });
     } finally {
       setLoading(false);
     }
@@ -337,7 +317,7 @@ export const FarmerChatPage: React.FC = () => {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="Magtanong tungkol sa pataba, peste, o panahon..."
-              className="flex-1 rounded-full border border-slate-300 bg-slate-100/90 px-4 py-3 text-xs sm:text-sm font-medium text-slate-800 outline-none transition focus:border-teal-600 focus:bg-white placeholder:text-slate-400"
+              className="flex-1 rounded-full border border-slate-300 bg-slate-100/90 px-4 py-3 text-xs sm:text-sm font-medium text-slate-800 outline-none transition"
             />
 
             <button
@@ -361,7 +341,7 @@ export const FarmerChatPage: React.FC = () => {
             onClick={() => navigate("/farmer")}
             className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
           >
-            <Home className="w-5 h-5 stroke-[2]" />
+            <Home className="w-5 h-5 stroke-2" />
             <span>Tahanan</span>
           </button>
 
@@ -371,7 +351,7 @@ export const FarmerChatPage: React.FC = () => {
             onClick={() => navigate("/farmer/scanner")}
             className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
           >
-            <Scan className="w-5 h-5 stroke-[2]" />
+            <Scan className="w-5 h-5 stroke-2" />
             <span>Scanner</span>
           </button>
 
@@ -392,7 +372,7 @@ export const FarmerChatPage: React.FC = () => {
             className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer relative"
           >
             <div className="relative">
-              <Clock className="w-5 h-5 stroke-[2]" />
+              <Clock className="w-5 h-5 stroke-2" />
               {queueCount > 0 && (
                 <span className="absolute -top-1 -right-2 bg-amber-500 text-amber-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
                   {queueCount}

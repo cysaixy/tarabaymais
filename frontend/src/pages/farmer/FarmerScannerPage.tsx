@@ -249,7 +249,7 @@ export const FarmerScannerPage: React.FC = () => {
               className="absolute inset-0 w-full h-full object-cover opacity-85"
             />
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-slate-950 to-emerald-950/40 opacity-90" />
+            <div className="absolute inset-0 bg-linear-to-b from-slate-900 via-slate-950 to-emerald-950/40 opacity-90" />
           )}
 
           {/* Top Overlay Bar */}
@@ -351,7 +351,7 @@ export const FarmerScannerPage: React.FC = () => {
               <div className="flex items-center justify-between w-full text-xs font-bold text-slate-800">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="truncate max-w-[230px]">
+                <span className="truncate max-w-57.5">
                   Mais – {farmCtx.farmName || "Inyong Sakahan"} ({farmCtx.variety || "Hybrid Corn"})
                 </span>
               </div>
@@ -483,7 +483,7 @@ export const FarmerScannerPage: React.FC = () => {
                   >
                     <div className="flex items-center gap-2 font-bold text-amber-950">
                       <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span className="truncate max-w-[190px]">{latestScan.title}</span>
+                      <span className="truncate max-w-47.5">{latestScan.title}</span>
                     </div>
                     <span className="text-[10px] text-slate-500 font-medium">
                       {new Date(latestScan.createdAt).toLocaleDateString("fil-PH", {
@@ -514,7 +514,7 @@ export const FarmerScannerPage: React.FC = () => {
             onClick={() => navigate("/farmer")}
             className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
           >
-            <Home className="w-5 h-5 stroke-[2]" />
+            <Home className="w-5 h-5 stroke-2" />
             <span>Tahanan</span>
           </button>
 
@@ -534,7 +534,7 @@ export const FarmerScannerPage: React.FC = () => {
             onClick={() => navigate("/farmer/chat")}
             className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
           >
-            <MessageSquare className="w-5 h-5 stroke-[2]" />
+            <MessageSquare className="w-5 h-5 stroke-2" />
             <span>AI Chat</span>
           </button>
 
@@ -545,7 +545,7 @@ export const FarmerScannerPage: React.FC = () => {
             className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer relative"
           >
             <div className="relative">
-              <Clock className="w-5 h-5 stroke-[2]" />
+              <Clock className="w-5 h-5 stroke-2" />
               {queueCount > 0 && (
                 <span className="absolute -top-1 -right-2 bg-amber-500 text-amber-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
                   {queueCount}
