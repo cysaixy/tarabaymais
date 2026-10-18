@@ -19,6 +19,7 @@ import { useAuth } from "../../context/authContext";
 import { ApiError } from "../../lib/api";
 import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 import { caseStatusDisplay, CASE_STATUS_TIMELINE } from "../../lib/caseStatus";
+import { parseLegacyCaseDescription } from "../../lib/parseLegacyCaseDescription";
 
 export const FarmerExpertRequestPage: React.FC = () => {
   const navigate = useNavigate();
@@ -81,16 +82,17 @@ export const FarmerExpertRequestPage: React.FC = () => {
 
     setSubmitting(true);
 
-    const farmerName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : "";
-    const farmerPhone = profile?.phone || "";
-    const fullNotes = `[Hinihinging Tulong sa LGU Technician]\n${problemDescription.trim()}\n\nMagsasaka: ${farmerName}${farmerPhone ? ` (${farmerPhone})` : ""}\nSakahan: ${farmCtx.farmName} (${farmCtx.barangay}, ${farmCtx.municipality})`;
+    const submissionTitle = subject.trim().startsWith("[Hinihinging Tulong sa LGU Technician]")
+      ? subject.trim()
+      : `[Hinihinging Tulong sa LGU Technician] ${subject.trim()}`;
+    const cleanDescription = problemDescription.trim();
 
     try {
       // High severity observation triggers auto-escalation to expertRequest in backend
       await createObservation({
         cropCycleId,
-        title: subject.trim(),
-        description: fullNotes,
+        title: submissionTitle,
+        description: cleanDescription,
         severity: "HIGH",
       });
 
@@ -121,8 +123,8 @@ export const FarmerExpertRequestPage: React.FC = () => {
         displayTitle: `Humingi ng Tulong: ${subject.trim()}`,
         payload: {
           cropCycleId,
-          title: subject.trim(),
-          description: fullNotes,
+          title: submissionTitle,
+          description: cleanDescription,
           severity: "HIGH",
         },
       });
@@ -425,7 +427,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
                                 <div>
                                   <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1">Detalye</p>
                                   <p className="text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/80 leading-snug whitespace-pre-line">
-                                    {ec.observation.description}
+                                    {parseLegacyCaseDescription(ec.observation.description).message}
                                   </p>
                                 </div>
                               )}

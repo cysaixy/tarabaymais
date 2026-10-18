@@ -42,7 +42,27 @@ export interface ExpertCase {
     description: string;
     severity: string;
     imageUrl?: string | null;
-    cropCycle?: { farm?: { name: string; barangay: string; municipality: string } };
+    cropCycle?: {
+      variety?: string;
+      plantingDate?: string;
+      farm?: {
+        name: string;
+        barangay: string;
+        municipality: string;
+        areaHectares?: number | string;
+      };
+    };
+    farmer?: {
+      firstName: string;
+      lastName: string;
+      phone?: string;
+    } | null;
+    aiDiagnosis?: {
+      condition?: string;
+      confidence?: number;
+      recommendedAction?: string;
+      [key: string]: unknown;
+    } | null;
   };
   assignedTechnician?: { firstName: string; lastName: string; phone?: string } | null;
 }
