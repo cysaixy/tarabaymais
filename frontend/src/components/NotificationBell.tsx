@@ -268,9 +268,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                 type="button"
                 onClick={closePanel}
                 aria-label="Isara ang mga abiso"
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                className="flex h-12 w-12 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
               >
-                <X className="h-5 w-5" />
+                <X className="h-6 w-6" />
               </button>
             </div>
           </div>
@@ -293,7 +293,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                       type="button"
                       onClick={() => handleRowClick(notif)}
                       className={[
-                        "flex w-full min-h-[64px] items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400",
+                        "flex w-full min-h-[64px] items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer",
                         isUnread ? "bg-blue-50" : "bg-white",
                       ].join(" ")}
                     >
@@ -315,7 +315,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                             {notif.title}
                           </p>
                           {notif.highPriority && (
-                            <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+                            <span className="shrink-0 rounded-full bg-red-100 px-2.5 py-0.5 text-sm font-bold text-red-700">
                               Mataas na Priyoridad
                             </span>
                           )}
@@ -329,7 +329,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                         <p className="mt-0.5 text-sm text-slate-500 leading-snug">
                           {notif.subline}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-400">
+                        <p className="mt-0.5 text-sm text-slate-500">
                           {tagalogRelativeTime(notif.createdAt)}
                         </p>
                       </div>
