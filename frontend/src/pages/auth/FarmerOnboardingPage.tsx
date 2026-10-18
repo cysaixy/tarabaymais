@@ -12,6 +12,7 @@ import {
   Phone,
   KeyRound,
 } from "lucide-react";
+import { OtpInput } from "../../components/OtpInput";
 import { useAuth } from "../../context/authContext";
 import {
   sendOtp,
@@ -130,10 +131,6 @@ export const FarmerOnboardingPage: React.FC = () => {
     } else {
       setPhone(`${raw.slice(0, 4)} ${raw.slice(4, 7)} ${raw.slice(7)}`);
     }
-  };
-
-  const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
   };
 
   // ── Lifecycle Engine Calculation ──────────────────────────────────────────
@@ -523,10 +520,10 @@ export const FarmerOnboardingPage: React.FC = () => {
                       </div>
                     </div>
                     <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <label className="block text-xs font-bold text-slate-700">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-bold text-slate-700">
                           6-Digit OTP Code
-                        </label>
+                        </span>
                         <button
                           type="button"
                           onClick={handleResendReset}
@@ -535,24 +532,20 @@ export const FarmerOnboardingPage: React.FC = () => {
                           Baguhin ang numero
                         </button>
                       </div>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
+                      <OtpInput
                         value={otp}
-                        onChange={handleOtpChange}
-                        placeholder="______"
-                        required
+                        onChange={setOtp}
+                        disabled={submitting}
                         autoFocus
-                        className="w-full rounded-2xl border-2 px-4 py-3 text-center text-3xl font-black tracking-[0.4em] outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 placeholder:text-slate-300"
+                        accent="emerald"
+                        ariaLabel="6-digit OTP code"
                       />
                     </div>
                   </div>
 
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || otp.length !== 6}
                     className="w-full mt-4 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-base shadow-lg shadow-emerald-700/20 hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                   >
                     <span>{submitting ? "Pinapatunayan..." : "Patunayan at Magpatuloy"}</span>

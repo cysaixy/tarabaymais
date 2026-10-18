@@ -28,6 +28,7 @@ import {
   auth,
 } from "../../firebase";
 import { isMunicipalRole } from "../../context/authContext";
+import { OtpInput } from "../../components/OtpInput";
 
 type Step = "phone" | "otp";
 
@@ -72,10 +73,6 @@ export const FarmerLoginPage: React.FC = () => {
     } else {
       setPhone(`${raw.slice(0, 4)} ${raw.slice(4, 7)} ${raw.slice(7)}`);
     }
-  };
-
-  const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
   };
 
   // ── Step 1: send OTP ──────────────────────────────────────────────────────
@@ -331,10 +328,10 @@ export const FarmerLoginPage: React.FC = () => {
                 className="mt-3.5 sm:mt-5 space-y-3 sm:space-y-4"
               >
                 <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
                       6-Digit OTP Code
-                    </label>
+                    </span>
                     <button
                       type="button"
                       onClick={handleResend}
@@ -343,23 +340,19 @@ export const FarmerLoginPage: React.FC = () => {
                       Baguhin ang numero
                     </button>
                   </div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
+                  <OtpInput
                     value={otp}
-                    onChange={handleOtpChange}
-                    placeholder="______"
-                    required
+                    onChange={setOtp}
+                    disabled={loading}
                     autoFocus
-                    className="w-full rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2.5 sm:py-3 text-center text-2xl sm:text-3xl font-black tracking-[0.4em] text-slate-900 outline-none transition focus:ring-4 focus:ring-emerald-500/10"
+                    accent="emerald"
+                    ariaLabel="6-digit OTP code"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || otp.length !== 6}
                   className="w-full mt-1.5 h-13 sm:h-14 rounded-xl sm:rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-extrabold text-base shadow-md shadow-emerald-700/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   <span>{loading ? "Pumapasok..." : "Mag-login sa Sakahan"}</span>

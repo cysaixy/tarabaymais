@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "../firebase";
 import {
@@ -29,6 +29,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [profile, setProfile] = useState<DbUserProfile | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  // Tracks whether the very first Firebase session check has resolved.
+  // After that point we never blank the whole app again — guards handle
+  // per-route access while re-resolution happens silently in the background.
+  const initialCheckDone = useRef(false);
 
   /**
    * Resolves the backend profile for the signed-in Firebase user and syncs
@@ -61,19 +65,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     // this callback with the current user. We then re-verify by fetching the
     // backend profile and restoring the role before rendering guarded views.
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoading(true);
+      // Only show the full-screen loading gate on the very first check.
+      // Subsequent firings (e.g. right after login navigates to the dashboard)
+      // resolve silently so the app never goes blank mid-session.
+      const isFirstCheck = !initialCheckDone.current;
+      if (isFirstCheck) setLoading(true);
 
       if (!currentUser) {
         setUser(null);
         setProfile(null);
         setRole(null);
-        setLoading(false);
+        if (isFirstCheck) {
+          initialCheckDone.current = true;
+          setLoading(false);
+        }
         return;
       }
 
       setUser(currentUser);
       await resolveSession(currentUser);
-      setLoading(false);
+
+      if (isFirstCheck) {
+        initialCheckDone.current = true;
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();
@@ -89,7 +104,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [resolveSession]);
 
   const logout = useCallback(async () => {
-    setLoading(true);
     try {
       await logOut();
     } catch {
@@ -101,10 +115,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       // Clear read-notification IDs for this user so the badge resets cleanly.
       const uid = auth.currentUser?.uid;
       if (uid) clearReadNotifications(uid);
+      // Reset the initial-check flag so the next login cycle works correctly.
+      initialCheckDone.current = false;
       setUser(null);
       setProfile(null);
       setRole(null);
-      setLoading(false);
     }
   }, []);
 

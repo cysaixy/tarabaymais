@@ -2,6 +2,7 @@ import React from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { FarmSelectionProvider } from "../context/FarmSelectionProvider";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 
 import FarmerLoginPage from "../pages/auth/FarmerLoginPage";
 import FarmerOnboardingPage from "../pages/auth/FarmerOnboardingPage";
@@ -96,7 +97,15 @@ export const AppRouter: React.FC = () => {
       <Route
         element={<ProtectedRoute allowedRoles={["TECHNICIAN", "OFFICER"]} />}
       >
-        {municipalRoutes}
+        <Route
+          element={
+            <ErrorBoundary area="Officer Portal">
+              <Outlet />
+            </ErrorBoundary>
+          }
+        >
+          {municipalRoutes}
+        </Route>
       </Route>
 
       {/* Unknown paths fall back to the farmer login screen. */}
