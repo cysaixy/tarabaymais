@@ -345,7 +345,11 @@ export const TechnicianDashboardPage: React.FC = () => {
             type="button"
             onClick={() => onChange(p.key)}
             className={[
+<<<<<<< HEAD
               "min-h-[48px] rounded-xl px-4 text-base font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer",
+=======
+              "min-h-12 rounded-xl px-4 text-base font-semibold transition focus-visible:outline focus-visible:outline-blue-400",
+>>>>>>> refs/remotes/origin/main
               value === p.key
                 ? "bg-[#1D4ED8] text-white shadow-sm"
                 : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50",
@@ -361,6 +365,7 @@ export const TechnicianDashboardPage: React.FC = () => {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
+<<<<<<< HEAD
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       {/* ── A. HEADER (Mobile ONE compact row ~72px, Desktop full) ──────────── */}
       <header className="sticky top-0 z-30 border-b border-blue-900/20 bg-[#0F2A5C] text-white shadow-md">
@@ -380,6 +385,56 @@ export const TechnicianDashboardPage: React.FC = () => {
               <p className="block md:hidden text-sm text-slate-300 truncate mt-0.5">
                 {officerName || "Opisyal"} &middot; {officerRole}
               </p>
+=======
+    <div className="min-h-screen bg-slate-100 pb-24 md:pb-8">
+      {/* ── HEADER ──────────────────────────────────────────────────────────── */}
+      <header className="bg-[#0F2A5C] text-white">
+        <div className="mx-auto max-w-296 px-4 md:px-12">
+          <div className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between md:py-5">
+            {/* Left: logo + title */}
+            <div className="flex items-center gap-3">
+              <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
+                <Building2 className="h-7 w-7 text-[#0F2A5C]" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-[22px] font-bold leading-tight">
+                  Officer Portal &middot; DA Region II
+                </p>
+                <p className="text-[15px] text-slate-300">
+                  Cagayan Valley &middot; Mais at Pinsala ng Sakuna
+                </p>
+              </div>
+            </div>
+
+            {/* Right: name + bell + logout */}
+            <div className="flex items-center gap-3 self-start md:self-auto">
+              {/* Officer info */}
+              <div className="hidden md:block text-right">
+                <p className="text-base font-bold leading-tight">
+                  {officerName || "\u2014"}
+                </p>
+                <p className="text-sm text-slate-300">{officerRole}</p>
+              </div>
+
+              {/* Bell */}
+              <NotificationBell
+                userId={userId}
+                expertCases={expertCases}
+                disasterCases={disasterReports}
+                onOpenCase={handleBellOpenCase}
+                onViewAll={handleBellViewAll}
+              />
+
+              {/* Logout */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex h-13 items-center gap-2 rounded-xl border border-blue-300/50 px-4 text-base font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-white active:scale-95"
+              >
+                <LogOut className="h-5 w-5" aria-hidden="true" />
+                <span>Mag-logout</span>
+              </button>
+>>>>>>> refs/remotes/origin/main
             </div>
           </div>
 
@@ -414,8 +469,13 @@ export const TechnicianDashboardPage: React.FC = () => {
         </div>
       </header>
 
+<<<<<<< HEAD
       {/* ── MAIN CONTENT (pb-24 so content never hides behind 64px bottom bar) ── */}
       <main className="mx-auto max-w-[1184px] px-4 py-6 md:px-12 space-y-6 pb-24">
+=======
+      {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
+      <main className="mx-auto max-w-296 px-4 py-6 md:px-12 space-y-6">
+>>>>>>> refs/remotes/origin/main
 
         {/* ── KAILANGAN NG AKSYON NGAYON (Desktop: above tabs; Mobile: Buod only) ── */}
         <section
@@ -457,7 +517,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveTab("KONSULTASYON")}
+<<<<<<< HEAD
                     className="mt-3 flex h-[52px] items-center gap-2 rounded-xl bg-[#BE123C] px-5 text-base font-bold text-white transition hover:bg-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 active:scale-95 cursor-pointer"
+=======
+                    className="mt-3 flex h-13 items-center gap-2 rounded-xl bg-[#BE123C] px-5 text-base font-bold text-white transition hover:bg-rose-800 focus-visible:outline focus-visible:outline-rose-400 active:scale-95"
+>>>>>>> refs/remotes/origin/main
                   >
                     Suriin ang Kaso &rarr;
                   </button>
@@ -481,7 +545,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveTab("PINSALA")}
+<<<<<<< HEAD
                     className="mt-3 flex h-[52px] items-center gap-2 rounded-xl bg-[#C2410C] px-5 text-base font-bold text-white transition hover:bg-orange-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400 active:scale-95 cursor-pointer"
+=======
+                    className="mt-3 flex h-13 items-center gap-2 rounded-xl bg-[#C2410C] px-5 text-base font-bold text-white transition hover:bg-orange-800 focus-visible:outline focus-visible:outline-orange-400 active:scale-95"
+>>>>>>> refs/remotes/origin/main
                   >
                     Suriin ang Claim &rarr;
                   </button>
@@ -563,7 +631,11 @@ export const TechnicianDashboardPage: React.FC = () => {
               type="button"
               onClick={() => setActiveTab(tab.key)}
               className={[
+<<<<<<< HEAD
                 "relative flex min-h-[52px] items-center gap-2 px-5 pb-3 pt-2 text-[17px] font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer",
+=======
+                "relative flex min-h-13 items-center gap-2 px-5 pb-3 pt-2 text-[17px] font-bold transition focus-visible:outline focus-visible:outline-blue-400",
+>>>>>>> refs/remotes/origin/main
                 activeTab === tab.key
                   ? "text-[#1D4ED8]"
                   : "text-slate-600 hover:text-slate-900",
@@ -666,7 +738,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   id="export-type"
                   value={exportType}
                   onChange={(e) => setExportType(e.target.value as ExportType)}
-                  className="w-full min-h-[48px] rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
+                  className="w-full min-h-12 rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
                 >
                   <option value="disaster-claims">Disaster Claims</option>
                   <option value="barangay-summary">Buod ng Barangay</option>
@@ -682,7 +754,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                     await handleExport();
                   }}
                   disabled={exporting}
+<<<<<<< HEAD
                   className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+=======
+                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
+>>>>>>> refs/remotes/origin/main
                 >
                   {exporting && exportFormat === "xlsx" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -698,7 +774,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                     await handleExport();
                   }}
                   disabled={exporting}
+<<<<<<< HEAD
                   className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+=======
+                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
+>>>>>>> refs/remotes/origin/main
                 >
                   {exporting && exportFormat === "csv" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -726,7 +806,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => fetchPipeline()}
                 disabled={pipelineLoading}
+<<<<<<< HEAD
                 className="flex min-h-[48px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+=======
+                className="flex min-h-12 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+>>>>>>> refs/remotes/origin/main
               >
                 <RefreshCw
                   className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
@@ -793,7 +877,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedDisaster(report)}
+<<<<<<< HEAD
                         className="mt-auto flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 cursor-pointer"
+=======
+                        className="mt-auto flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95"
+>>>>>>> refs/remotes/origin/main
                       >
                         <Eye className="h-5 w-5" aria-hidden="true" />
                         Suriin / Sagutin
@@ -820,7 +908,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => fetchPipeline()}
                 disabled={pipelineLoading}
+<<<<<<< HEAD
                 className="flex min-h-[48px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+=======
+                className="flex min-h-12 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+>>>>>>> refs/remotes/origin/main
               >
                 <RefreshCw
                   className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
@@ -902,7 +994,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                           setAdvisoryInput(ec.recommendation ?? "");
                           setSelectedCase(ec);
                         }}
+<<<<<<< HEAD
                         className="mt-auto flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 cursor-pointer"
+=======
+                        className="mt-auto flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95"
+>>>>>>> refs/remotes/origin/main
                       >
                         <Send className="h-5 w-5" aria-hidden="true" />
                         Suriin / Sagutin
@@ -1017,6 +1113,7 @@ export const TechnicianDashboardPage: React.FC = () => {
         aria-label="Mobile Navigation"
         className="fixed bottom-0 left-0 right-0 z-40 h-[64px] bg-white border-t-2 border-slate-300 md:hidden"
       >
+<<<<<<< HEAD
         <div className="grid grid-cols-4 h-full">
           {(
             [
@@ -1060,6 +1157,46 @@ export const TechnicianDashboardPage: React.FC = () => {
             );
           })}
         </div>
+=======
+        {(
+          [
+            { key: "BUOD" as TabKey, label: "Buod" },
+            {
+              key: "PINSALA" as TabKey,
+              label: "Pinsala",
+              badge: pendingDisasterClaims,
+            },
+            {
+              key: "KONSULTASYON" as TabKey,
+              label: "Konsulta",
+              badge: pendingConsultations,
+            },
+            { key: "MAPA" as TabKey, label: "Ulat" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={[
+              "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-xs font-semibold transition focus-visible:outline focus-visible:outline-blue-400",
+              activeTab === tab.key
+                ? "text-[#1D4ED8]"
+                : "text-slate-500 hover:text-slate-800",
+            ].join(" ")}
+          >
+            <span className="text-sm">{tab.label}</span>
+            {"badge" in tab && tab.badge > 0 && (
+              <span className="absolute right-3 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#BE123C] text-[10px] font-bold text-white">
+                {tab.badge}
+              </span>
+            )}
+            {activeTab === tab.key && (
+              <span className="absolute top-0 left-3 right-3 h-0.5 rounded-b-full bg-[#1D4ED8]" />
+            )}
+          </button>
+        ))}
+>>>>>>> refs/remotes/origin/main
       </nav>
 
       {/* ── DISASTER REVIEW MODAL ─────────────────────────────────────────── */}
@@ -1080,7 +1217,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => setSelectedDisaster(null)}
                 aria-label="Isara"
+<<<<<<< HEAD
                 className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
+=======
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-blue-400"
+>>>>>>> refs/remotes/origin/main
               >
                 <X className="h-6 w-6" />
               </button>
@@ -1144,7 +1285,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setConfirmReject(null)}
+<<<<<<< HEAD
                     className="flex h-[52px] items-center justify-center rounded-xl border border-slate-300 text-base font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
+=======
+                    className="flex h-13 items-center justify-center rounded-xl border border-slate-300 text-base font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400"
+>>>>>>> refs/remotes/origin/main
                   >
                     Hindi, bumalik
                   </button>
@@ -1154,7 +1299,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                       handleStatusUpdate(selectedDisaster.id, "REJECTED")
                     }
                     disabled={submittingAction}
+<<<<<<< HEAD
                     className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-red-600 text-base font-bold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+=======
+                    className="flex h-13 items-center justify-center gap-2 rounded-xl bg-red-600 text-base font-bold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-red-400 active:scale-95 disabled:opacity-60"
+>>>>>>> refs/remotes/origin/main
                   >
                     {submittingAction ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -1173,7 +1322,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                     handleStatusUpdate(selectedDisaster.id, "UNDER_REVIEW")
                   }
                   disabled={submittingAction}
+<<<<<<< HEAD
                   className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+=======
+                  className="flex h-13 items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+>>>>>>> refs/remotes/origin/main
                 >
                   {submittingAction ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -1188,7 +1341,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                     handleStatusUpdate(selectedDisaster.id, "RESOLVED")
                   }
                   disabled={submittingAction}
+<<<<<<< HEAD
                   className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-emerald-600 text-base font-bold text-white transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+=======
+                  className="flex h-13 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-base font-bold text-white transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
+>>>>>>> refs/remotes/origin/main
                 >
                   {submittingAction ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -1201,7 +1358,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                   type="button"
                   onClick={() => setConfirmReject(selectedDisaster.id)}
                   disabled={submittingAction}
+<<<<<<< HEAD
                   className="col-span-2 sm:col-span-1 flex h-[52px] items-center justify-center gap-2 rounded-xl border-2 border-red-400 text-base font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+=======
+                  className="col-span-2 sm:col-span-1 flex h-13 items-center justify-center gap-2 rounded-xl border-2 border-red-400 text-base font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline focus-visible:outline-red-400 active:scale-95 disabled:opacity-60"
+>>>>>>> refs/remotes/origin/main
                 >
                   <XCircle className="h-5 w-5" />
                   I-reject
@@ -1617,6 +1778,7 @@ export const TechnicianDashboardPage: React.FC = () => {
           aria-label="Pinalaking Larawan"
           onClick={() => setEnlargedPhotoUrl(null)}
         >
+<<<<<<< HEAD
           <div
             className="relative max-w-3xl w-full max-h-[90vh] flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
@@ -1634,6 +1796,111 @@ export const TechnicianDashboardPage: React.FC = () => {
               alt="Pinalaking larawan mula sa sakahan"
               className="max-h-[85vh] w-auto max-w-full rounded-2xl object-contain shadow-2xl"
             />
+=======
+          <div className="w-full max-w-lg rounded-t-2xl bg-white p-6 shadow-2xl md:rounded-2xl max-h-[90vh] overflow-y-auto">
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-900">
+                Rekomendasyon para sa Magsasaka
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCase(null);
+                  setAdvisoryInput("");
+                }}
+                aria-label="Isara"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-blue-400"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Case info */}
+            <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+              <p className="text-lg font-bold text-slate-900">
+                {selectedCase.observation?.title ?? "Obserbasyon"}
+              </p>
+              {selectedCase.observation?.description && (
+                <p className="text-base text-slate-600 leading-relaxed">
+                  {selectedCase.observation.description}
+                </p>
+              )}
+              {selectedCase.observation?.severity && (
+                <p className="text-base font-semibold text-rose-600">
+                  Severity: {selectedCase.observation.severity}
+                </p>
+              )}
+              {selectedCase.observation?.cropCycle?.farm && (
+                <p className="flex items-center gap-1 text-base text-slate-500">
+                  <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {selectedCase.observation.cropCycle.farm.name} &middot;{" "}
+                  {selectedCase.observation.cropCycle.farm.barangay}
+                </p>
+              )}
+            </div>
+
+            {/* Photo */}
+            {selectedCase.observation?.imageUrl && (
+              <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200">
+                <img
+                  src={selectedCase.observation.imageUrl}
+                  alt="Larawan ng obserbasyon"
+                  className="w-full object-cover max-h-48"
+                />
+              </div>
+            )}
+
+            {/* Recommendation input */}
+            <div className="mb-4">
+              <label
+                htmlFor="advisory-input"
+                className="mb-1.5 block text-base font-bold text-slate-700"
+              >
+                Rekomendasyon
+              </label>
+              <textarea
+                id="advisory-input"
+                rows={4}
+                value={advisoryInput}
+                onChange={(e) => setAdvisoryInput(e.target.value)}
+                placeholder="Hal. Mag-apply ng biopesticide o Neem extract sa hapon..."
+                className="w-full resize-none rounded-2xl border border-slate-300 bg-white p-3 text-base text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </div>
+
+            {selectedCase.status !== "RESOLVED" ? (
+              <button
+                type="button"
+                onClick={() => handleResolveCase(selectedCase.id)}
+                disabled={submittingAction}
+                className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+              >
+                {submittingAction ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Ipinapadala...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-5 w-5" />
+                    Ipadala ang Payo
+                  </>
+                )}
+              </button>
+            ) : (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="flex items-center gap-2 text-base font-bold text-emerald-800">
+                  <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+                  Nalutas na ang kasong ito
+                </p>
+                {selectedCase.recommendation && (
+                  <p className="mt-1 text-base text-emerald-700 leading-relaxed">
+                    {selectedCase.recommendation}
+                  </p>
+                )}
+              </div>
+            )}
+>>>>>>> refs/remotes/origin/main
           </div>
         </div>
       )}

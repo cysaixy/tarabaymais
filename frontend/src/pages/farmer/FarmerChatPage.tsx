@@ -13,6 +13,8 @@ import {
   MessageSquare,
   MessageSquarePlus,
   Clock,
+  Sprout,
+  Globe,
 } from "lucide-react";
 import { sendRagChat } from "../../services/ai.service";
 import { getOfflineQueue } from "../../services/sync.service";
@@ -42,9 +44,13 @@ export const FarmerChatPage: React.FC = () => {
 
   const farmCtx = useFarmContext();
   const { selectedCycle } = useFarmSelection();
-  // Reactive cropCycleId drives both the AI farm context and the saved thread.
-  const cropCycleId = selectedCycle?.id || "";
   const { profile } = useAuth();
+
+  // Chat-only "General" mode: ask without any farm context. This does NOT
+  // touch the shared FarmSelection (other pages keep their default). When on,
+  // the effective cycle is empty → no cropCycleId sent, uses the general thread.
+  const [generalMode, setGeneralMode] = useState(false);
+  const cropCycleId = generalMode ? "" : selectedCycle?.id || "";
 
   const [queueCount, setQueueCount] = useState(0);
   const [prompt, setPrompt] = useState("");
@@ -82,10 +88,20 @@ export const FarmerChatPage: React.FC = () => {
     timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
   });
 
-  const [messages, setMessages] = useState<ChatMessage[]>([welcomeMessage()]);
-  // Tracks which cycle's thread is currently loaded, so we only reload the
-  // conversation when the selection actually changes.
-  const loadedCycleRef = useRef<string | null>(null);
+  // Messages are bound to the thread key they belong to in a SINGLE state
+  // object. This makes it impossible for a thread's messages to be saved under
+  // another thread's key during a switch (the earlier mix-up): `thread.key`
+  // and `thread.messages` always move together.
+  const [thread, setThread] = useState<{ key: string; messages: ChatMessage[] }>(
+    () => {
+      const saved = loadChatThread(cropCycleId);
+      return {
+        key: cropCycleId,
+        messages: saved.length > 0 ? saved : [welcomeMessage()],
+      };
+    },
+  );
+  const messages = thread.messages;
 
   // Load queue count on mount
   useEffect(() => {
@@ -95,24 +111,28 @@ export const FarmerChatPage: React.FC = () => {
     }
   }, []);
 
-  // Load the saved thread whenever the selected crop cycle changes. Keeps a
-  // separate conversation per cycle (and a shared "general" one when none).
+  // Swap the loaded thread whenever the effective cycle (or general mode)
+  // changes. Loads that key's saved conversation; never carries messages over.
   useEffect(() => {
-    if (loadedCycleRef.current === cropCycleId) return;
-    loadedCycleRef.current = cropCycleId;
+    if (thread.key === cropCycleId) return;
     const saved = loadChatThread(cropCycleId);
-    setMessages(saved.length > 0 ? saved : [welcomeMessage()]);
+    setThread({
+      key: cropCycleId,
+      messages: saved.length > 0 ? saved : [welcomeMessage()],
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cropCycleId]);
 
-  // Persist the thread on every change (skip the lone welcome placeholder).
+  // Persist against the thread's OWN key, so writes always land in the right
+  // bucket even mid-switch.
   useEffect(() => {
-    const hasRealMessages = messages.some((m) => m.id !== "msg-initial");
-    if (hasRealMessages) saveChatThread(cropCycleId, messages);
-  }, [messages, cropCycleId]);
+    const hasRealMessages = thread.messages.some((m) => m.id !== "msg-initial");
+    if (hasRealMessages) saveChatThread(thread.key, thread.messages);
+  }, [thread]);
 
   const handleNewConversation = () => {
     clearChatThread(cropCycleId);
-    setMessages([welcomeMessage()]);
+    setThread({ key: cropCycleId, messages: [welcomeMessage()] });
     toast.info("Bagong usapan", { description: "Nabura ang nakaraang usapan." });
   };
 
@@ -125,6 +145,16 @@ export const FarmerChatPage: React.FC = () => {
     const trimmed = textToSend.trim();
     if (!trimmed || loading) return;
 
+    // Pin this exchange to the thread it started in. If the user switches
+    // farm/general mid-request, the answer still lands in the original thread.
+    const sendKey = cropCycleId;
+    const appendToSendThread = (...msgs: ChatMessage[]) =>
+      setThread((prev) =>
+        prev.key === sendKey
+          ? { ...prev, messages: [...prev.messages, ...msgs] }
+          : prev,
+      );
+
     const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     // Append user message immediately
@@ -134,12 +164,12 @@ export const FarmerChatPage: React.FC = () => {
       text: trimmed,
       timestamp: timeStr,
     };
-    setMessages((prev) => [...prev, userMsg]);
+    appendToSendThread(userMsg);
     setPrompt("");
     setLoading(true);
 
     try {
-      const response = await sendRagChat(trimmed, farmData.cropCycleId);
+      const response = await sendRagChat(trimmed, sendKey || undefined);
       const botMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
         role: "assistant",
@@ -148,7 +178,7 @@ export const FarmerChatPage: React.FC = () => {
         sources: response.sources,
         farmContextUsed: response.farmContextUsed,
       };
-      setMessages((prev) => [...prev, botMsg]);
+      appendToSendThread(botMsg);
     } catch (err) {
       // No fabricated answers. Surface an honest error bubble (no citations)
       // and let the farmer retry. Distinguish offline from a server error.
@@ -166,7 +196,7 @@ export const FarmerChatPage: React.FC = () => {
         text: errorText,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
-      setMessages((prev) => [...prev, botMsg]);
+      appendToSendThread(botMsg);
       toast.error(offline ? "Walang koneksyon" : "Hindi nakuha ang sagot", {
         description: "Hindi nasagot ng AI Assistant ang tanong.",
       });
@@ -254,12 +284,46 @@ export const FarmerChatPage: React.FC = () => {
         {/* 2b. FARM CONTEXT SELECTOR + NEW CONVERSATION             */}
         {/* ========================================================= */}
         <div className="w-full bg-slate-50 border-b border-slate-200 px-4 sm:px-5 py-3 space-y-2.5">
-          <FarmCycleSelector label="Piliin ang sakahan para sa konteksto ng AI" />
+          {/* Mode toggle: farm-grounded vs general (no farm context) */}
+          <div className="w-full bg-slate-200/70 p-1 rounded-2xl flex items-center">
+            <button
+              type="button"
+              onClick={() => setGeneralMode(false)}
+              className={`flex-1 min-h-10 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                !generalMode
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Sprout className="w-3.5 h-3.5" />
+              <span>Konteksto ng Sakahan</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGeneralMode(true)}
+              className={`flex-1 min-h-10 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                generalMode
+                  ? "bg-teal-700 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Pangkalahatan</span>
+            </button>
+          </div>
+
+          {/* Farm selector only in farm-context mode */}
+          {!generalMode && (
+            <FarmCycleSelector label="Piliin ang sakahan para sa konteksto ng AI" />
+          )}
+
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] font-medium text-slate-500">
-              {cropCycleId
-                ? "Gagamitin ng AI ang napiling pananim bilang konteksto."
-                : "Pumili ng pananim para maiangkla ang sagot sa iyong sakahan."}
+              {generalMode
+                ? "Pangkalahatang tanong — walang partikular na sakahan ang gagamitin."
+                : cropCycleId
+                  ? "Gagamitin ng AI ang napiling pananim bilang konteksto."
+                  : "Pumili ng pananim para maiangkla ang sagot sa iyong sakahan."}
             </p>
             <button
               type="button"

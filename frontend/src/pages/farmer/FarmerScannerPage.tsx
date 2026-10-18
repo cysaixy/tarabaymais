@@ -33,7 +33,11 @@ import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 
 export const FarmerScannerPage: React.FC = () => {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Separate refs: camera input opens the back camera directly; gallery input
+  // opens the photo library without forcing the camera.
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  // Alias kept so handleResetScanner can clear both in one loop.
 
   const farmCtx = useFarmContext();
   const { selectedCycle } = useFarmSelection();
@@ -120,9 +124,8 @@ export const FarmerScannerPage: React.FC = () => {
     setImagePreview(null);
     setDiagnosis(null);
     setSheetOpen(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
   };
 
   /**
@@ -227,12 +230,20 @@ export const FarmerScannerPage: React.FC = () => {
           </button>
         </header>
 
-        {/* Hidden Camera / File Input */}
+        {/* Camera input — opens the back camera directly (no file picker). */}
         <input
           type="file"
-          ref={fileInputRef}
+          ref={cameraInputRef}
           accept="image/*"
           capture="environment"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        {/* Gallery input — opens the photo library without forcing the camera. */}
+        <input
+          type="file"
+          ref={galleryInputRef}
+          accept="image/*"
           onChange={handleFileChange}
           className="hidden"
         />
@@ -298,7 +309,7 @@ export const FarmerScannerPage: React.FC = () => {
             {/* Gallery Pick Button */}
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => galleryInputRef.current?.click()}
               className="w-12 h-12 rounded-2xl bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center active:scale-95 transition cursor-pointer shadow-md"
               title="Pumili mula sa Gallery"
             >
@@ -309,9 +320,9 @@ export const FarmerScannerPage: React.FC = () => {
             <button
               type="button"
               disabled={scanning}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => cameraInputRef.current?.click()}
               className="w-18 h-18 rounded-full border-4 border-white/90 bg-emerald-600 hover:bg-emerald-500 active:scale-90 transition-transform shadow-[0_0_24px_rgba(16,185,129,0.6)] flex items-center justify-center cursor-pointer disabled:opacity-50"
-              title="Kuhanan ng litrato"
+              title="Kuhanan ng litrato gamit ang camera"
             >
               <div className="w-14 h-14 rounded-full border-2 border-white/60 bg-emerald-700/80 flex items-center justify-center">
                 <Scan className="w-7 h-7 text-white stroke-[2.2]" />
