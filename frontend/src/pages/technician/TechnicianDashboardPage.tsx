@@ -17,6 +17,8 @@ import {
   X,
   Sprout,
   Loader2,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import {
@@ -26,7 +28,15 @@ import {
   type DisasterReport,
   type ExpertCase,
 } from "../../services/case.service";
-import { getAnalyticsSummary } from "../../services/analytics.service";
+import {
+  getAnalyticsSummary,
+  getBarangayDistribution,
+  downloadAnalyticsReport,
+  type BarangayDistribution,
+  type ExportType,
+  type ExportFormat,
+} from "../../services/analytics.service";
+import { ApiError } from "../../lib/api";
 import { caseStatusDisplay } from "../../lib/caseStatus";
 
 export const TechnicianDashboardPage: React.FC = () => {
@@ -48,6 +58,15 @@ export const TechnicianDashboardPage: React.FC = () => {
     pendingExpertCases: number | null;
   }>({ totalFarms: null, activeHectares: null, pendingExpertCases: null });
   const [kpiLoading, setKpiLoading] = useState(true);
+
+  // Per-barangay distribution (Overview tab)
+  const [barangays, setBarangays] = useState<BarangayDistribution[]>([]);
+  const [barangaysLoading, setBarangaysLoading] = useState(true);
+
+  // Export control state
+  const [exportType, setExportType] = useState<ExportType>("disaster-claims");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
+  const [exporting, setExporting] = useState(false);
 
   // Modal state
   const [selectedDisaster, setSelectedDisaster] = useState<DisasterReport | null>(null);
@@ -89,9 +108,53 @@ export const TechnicianDashboardPage: React.FC = () => {
     }
   };
 
+  // ── Fetch per-barangay distribution ──────────────────────────────────
+  const fetchBarangays = async () => {
+    setBarangaysLoading(true);
+    try {
+      setBarangays(await getBarangayDistribution());
+    } catch {
+      setBarangays([]);
+    } finally {
+      setBarangaysLoading(false);
+    }
+  };
+
+  // ── Export report (xlsx/csv) ──────────────────────────────────────────
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await downloadAnalyticsReport({
+        type: exportType,
+        format: exportFormat,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().split("T")[0];
+      a.href = url;
+      a.download = `TarabayMais_${exportType}_${stamp}.${exportFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Na-download ang report!", {
+        description: `${exportType} (${exportFormat.toUpperCase()})`,
+      });
+    } catch (err) {
+      const description =
+        err instanceof ApiError
+          ? err.message
+          : "Hindi na-generate ang report. Pakisubukan muli.";
+      toast.error("Hindi na-download ang report", { description });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   useEffect(() => {
     fetchPipeline();
     fetchAnalytics();
+    fetchBarangays();
   }, []);
 
   const officerName = profile
@@ -338,46 +401,124 @@ export const TechnicianDashboardPage: React.FC = () => {
 
         {/* ── OVERVIEW TAB ─────────────────────────────────────────────────── */}
         {activeTab === "OVERVIEW" && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-white" />
-              <h2 className="text-sm font-extrabold text-white tracking-wide">
-                Cagayan Municipal Breakdown (Corn Crop Status)
-              </h2>
+          <div className="space-y-5">
+            {/* Per-barangay distribution */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-white" />
+                <h2 className="text-sm font-extrabold text-white tracking-wide">
+                  Cagayan Barangay Breakdown (Rehistradong Sakahan)
+                </h2>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-lg">
+                {barangaysLoading ? (
+                  <div className="flex items-center justify-center py-12 gap-3 text-slate-400">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <span className="text-sm">Kinukuha ang datos ng barangay...</span>
+                  </div>
+                ) : barangays.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-sm">
+                    Wala pang rehistradong sakahan kada barangay.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-slate-50 text-slate-700 text-xs uppercase tracking-wider border-b border-slate-200">
+                        <tr>
+                          <th className="py-3 px-4">Barangay</th>
+                          <th className="py-3 px-4 text-right">Bilang ng Sakahan</th>
+                          <th className="py-3 px-4 text-right">Kabuuang Ektarya</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {barangays.map((b) => (
+                          <tr key={b.barangay} className="hover:bg-slate-50 transition">
+                            <td className="py-3 px-4 font-bold text-slate-900">{b.barangay}</td>
+                            <td className="py-3 px-4 text-right font-bold text-blue-700">
+                              {b.farmCount.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-4 text-right font-bold text-emerald-700">
+                              {b.totalHectares.toLocaleString(undefined, { maximumFractionDigits: 2 })} ha
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="border-t-2 border-slate-200 bg-slate-50/60">
+                        <tr>
+                          <td className="py-3 px-4 font-black text-slate-900">Kabuuan</td>
+                          <td className="py-3 px-4 text-right font-black text-blue-800">
+                            {barangays.reduce((s, b) => s + b.farmCount, 0).toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4 text-right font-black text-emerald-800">
+                            {barangays
+                              .reduce((s, b) => s + b.totalHectares, 0)
+                              .toLocaleString(undefined, { maximumFractionDigits: 2 })}{" "}
+                            ha
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {kpiLoading ? (
-              <div className="flex items-center justify-center py-16 gap-3 text-white/60">
-                <Loader2 className="w-6 h-6 animate-spin" />
-                <span className="text-sm">Kinukuha ang datos mula sa servidor...</span>
+            {/* Export panel */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-white" />
+                <h2 className="text-sm font-extrabold text-white tracking-wide">
+                  Mag-export ng Ulat (DA / PCIC Reporting)
+                </h2>
               </div>
-            ) : (
+
               <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-lg space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
-                    <p className="text-2xl font-black text-emerald-700">
-                      {kpi.totalFarms !== null ? kpi.totalFarms.toLocaleString() : "—"}
-                    </p>
-                    <p className="text-xs font-bold text-slate-600 mt-1">Kabuuang Rehistradong Sakahan</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Uri ng Ulat
+                    </label>
+                    <select
+                      value={exportType}
+                      onChange={(e) => setExportType(e.target.value as ExportType)}
+                      className="w-full min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 outline-none"
+                    >
+                      <option value="disaster-claims">Disaster Claims (detalyado)</option>
+                      <option value="barangay-summary">Barangay Summary (buod)</option>
+                    </select>
                   </div>
-                  <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200">
-                    <p className="text-2xl font-black text-blue-700">
-                      {kpi.activeHectares !== null ? `${kpi.activeHectares.toLocaleString()} ha` : "—"}
-                    </p>
-                    <p className="text-xs font-bold text-slate-600 mt-1">Aktibong Taniman</p>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
-                    <p className="text-2xl font-black text-amber-700">
-                      {kpi.pendingExpertCases !== null ? kpi.pendingExpertCases.toLocaleString() : "—"}
-                    </p>
-                    <p className="text-xs font-bold text-slate-600 mt-1">Pending Expert Cases</p>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Format
+                    </label>
+                    <select
+                      value={exportFormat}
+                      onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+                      className="w-full min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 outline-none"
+                    >
+                      <option value="xlsx">Excel (.xlsx)</option>
+                      <option value="csv">CSV (.csv)</option>
+                    </select>
                   </div>
                 </div>
-                <p className="text-xs text-slate-500 text-center pt-2">
-                  I-click ang "Damage Reports" o "Assistance Cases" tab para sa detalyadong listahan.
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="w-full min-h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer shadow-sm disabled:opacity-60"
+                >
+                  {exporting ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Ginagawa ang report...</>
+                  ) : (
+                    <><Download className="w-4 h-4" /> I-download ang Report</>
+                  )}
+                </button>
+                <p className="text-xs text-slate-500 text-center">
+                  Ang report ay base sa lahat ng naitalang disaster claims sa sistema.
                 </p>
               </div>
-            )}
+            </div>
           </div>
         )}
 

@@ -40,3 +40,60 @@ export const getAnalyticsSummary = async (): Promise<AnalyticsSummary> => {
     },
   };
 };
+
+/**
+ * Per-barangay farm distribution.
+ * Endpoint: GET /api/v1/analytics/barangays (role: OFFICER | TECHNICIAN)
+ *
+ * The backend returns the raw Prisma groupBy shape
+ * `{ barangay, _count: { id }, _sum: { areaHectares } }`; this flattens it and
+ * coerces the Decimal hectares to a number.
+ */
+export interface BarangayDistribution {
+  barangay: string;
+  farmCount: number;
+  totalHectares: number;
+}
+
+interface RawBarangayRow {
+  barangay: string;
+  _count?: { id?: number };
+  _sum?: { areaHectares?: string | number | null };
+}
+
+export const getBarangayDistribution = async (): Promise<
+  BarangayDistribution[]
+> => {
+  const { data } = await api.get("/analytics/barangays");
+  const rows: RawBarangayRow[] = data.data.barangays ?? [];
+  return rows.map((r) => ({
+    barangay: r.barangay,
+    farmCount: Number(r._count?.id ?? 0),
+    totalHectares: Number(r._sum?.areaHectares ?? 0),
+  }));
+};
+
+/**
+ * Downloads an analytics report (xlsx or csv) as a Blob.
+ * Endpoint: GET /api/v1/analytics/export (role: OFFICER | TECHNICIAN)
+ */
+export type ExportType = "disaster-claims" | "barangay-summary";
+export type ExportFormat = "xlsx" | "csv";
+
+export interface ExportParams {
+  type: ExportType;
+  format: ExportFormat;
+  startDate?: string;
+  endDate?: string;
+  barangay?: string;
+}
+
+export const downloadAnalyticsReport = async (
+  params: ExportParams,
+): Promise<Blob> => {
+  const { data } = await api.get("/analytics/export", {
+    params,
+    responseType: "blob",
+  });
+  return data as Blob;
+};

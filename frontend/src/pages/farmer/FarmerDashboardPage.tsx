@@ -18,6 +18,7 @@ import {
   Calendar,
   Loader2,
   Tractor,
+  LogOut,
 } from "lucide-react";
 import {
   createActivity,
@@ -81,7 +82,23 @@ const resolveGrowthStage = (
 
 export const FarmerDashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+      toast.info("Naka-logout ka na", {
+        description: "Salamat sa paggamit ng Tarabay-Mais.",
+      });
+      navigate("/login", { replace: true });
+    } finally {
+      setLoggingOut(false);
+      setConfirmLogout(false);
+    }
+  };
 
   // ── Farm Context from the shared FarmSelection (single source of truth) ───
   const {
@@ -477,6 +494,15 @@ export const FarmerDashboardPage: React.FC = () => {
             >
               <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
               <span>{queueCount} Queue</span>
+            </button>
+            <button
+              onClick={() => setConfirmLogout(true)}
+              type="button"
+              aria-label="Mag-logout"
+              title="Mag-logout"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-800/60 hover:bg-red-600 active:scale-95 border border-emerald-400/30 hover:border-red-400 text-emerald-100 hover:text-white flex items-center justify-center shadow-sm transition-all cursor-pointer shrink-0"
+            >
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </header>
@@ -1206,6 +1232,44 @@ export const FarmerDashboardPage: React.FC = () => {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── LOGOUT CONFIRMATION ──────────────────────────────────────────── */}
+        {confirmLogout && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+            <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <LogOut className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Mag-logout?</h3>
+                  <p className="text-sm font-medium text-slate-500">
+                    Kakailanganin mong mag-login muli.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="inline-flex min-h-13 items-center justify-center gap-2 rounded-2xl bg-red-600 text-base font-black text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+                >
+                  <LogOut className="h-5 w-5" />
+                  {loggingOut ? "Nilalabas..." : "Oo, mag-logout"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmLogout(false)}
+                  disabled={loggingOut}
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-100 text-base font-bold text-slate-600 transition-colors hover:bg-slate-200"
+                >
+                  Huwag na
+                </button>
+              </div>
             </div>
           </div>
         )}
