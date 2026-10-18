@@ -11,22 +11,24 @@ import {
   Home,
   Scan,
   MessageSquare,
+  MessageSquarePlus,
   Clock,
 } from "lucide-react";
-import { sendRagChat, type RagChatSource } from "../../services/ai.service";
+import { sendRagChat } from "../../services/ai.service";
 import { getOfflineQueue } from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
+import { useFarmSelection } from "../../context/farmSelectionContext";
 import { useAuth } from "../../context/authContext";
 import { ApiError } from "../../lib/api";
+import { FarmCycleSelector } from "../../components/FarmCycleSelector";
+import {
+  loadChatThread,
+  saveChatThread,
+  clearChatThread,
+  type StoredChatMessage,
+} from "../../lib/chatStore";
 
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
-  timestamp: string;
-  sources?: RagChatSource[];
-  farmContextUsed?: boolean;
-}
+type ChatMessage = StoredChatMessage;
 
 const QUICK_PROMPTS = [
   "Ano ang tamang pataba sa Vegetative Stage ng mais?",
@@ -39,6 +41,9 @@ export const FarmerChatPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const farmCtx = useFarmContext();
+  const { selectedCycle } = useFarmSelection();
+  // Reactive cropCycleId drives both the AI farm context and the saved thread.
+  const cropCycleId = selectedCycle?.id || "";
   const { profile } = useAuth();
 
   const [queueCount, setQueueCount] = useState(0);
@@ -66,19 +71,21 @@ export const FarmerChatPage: React.FC = () => {
     barangay: farmCtx.barangay || "",
     variety: farmCtx.variety || "Mais",
     dap,
-    cropCycleId: farmCtx.cropCycleId,
+    cropCycleId,
   };
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "msg-initial",
-      role: "assistant",
-      // Static welcome only — no citations/farm-context claimed, since this is
-      // not a real RAG answer. Sources appear only on actual API responses.
-      text: `Magandang araw! Ako ang iyong AI Farming Assistant para sa Mais dito sa Cagayan. Paano kita matutulungan sa iyong taniman sa ${farmCtx.municipality || "Cagayan"} ngayon?`,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    },
-  ]);
+  // Static welcome shown at the top of an empty thread (no fake citations).
+  const welcomeMessage = (): ChatMessage => ({
+    id: "msg-initial",
+    role: "assistant",
+    text: `Magandang araw! Ako ang iyong AI Farming Assistant para sa Mais dito sa Cagayan. Paano kita matutulungan sa iyong taniman ngayon?`,
+    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  });
+
+  const [messages, setMessages] = useState<ChatMessage[]>([welcomeMessage()]);
+  // Tracks which cycle's thread is currently loaded, so we only reload the
+  // conversation when the selection actually changes.
+  const loadedCycleRef = useRef<string | null>(null);
 
   // Load queue count on mount
   useEffect(() => {
@@ -87,6 +94,27 @@ export const FarmerChatPage: React.FC = () => {
       setQueueCount(q.length);
     }
   }, []);
+
+  // Load the saved thread whenever the selected crop cycle changes. Keeps a
+  // separate conversation per cycle (and a shared "general" one when none).
+  useEffect(() => {
+    if (loadedCycleRef.current === cropCycleId) return;
+    loadedCycleRef.current = cropCycleId;
+    const saved = loadChatThread(cropCycleId);
+    setMessages(saved.length > 0 ? saved : [welcomeMessage()]);
+  }, [cropCycleId]);
+
+  // Persist the thread on every change (skip the lone welcome placeholder).
+  useEffect(() => {
+    const hasRealMessages = messages.some((m) => m.id !== "msg-initial");
+    if (hasRealMessages) saveChatThread(cropCycleId, messages);
+  }, [messages, cropCycleId]);
+
+  const handleNewConversation = () => {
+    clearChatThread(cropCycleId);
+    setMessages([welcomeMessage()]);
+    toast.info("Bagong usapan", { description: "Nabura ang nakaraang usapan." });
+  };
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -219,6 +247,28 @@ export const FarmerChatPage: React.FC = () => {
           <div className="inline-flex items-center gap-1 rounded-full bg-emerald-950/70 border border-teal-500/40 px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold text-teal-300 shadow-sm">
             <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
             <span>Grounded Answers</span>
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* 2b. FARM CONTEXT SELECTOR + NEW CONVERSATION             */}
+        {/* ========================================================= */}
+        <div className="w-full bg-slate-50 border-b border-slate-200 px-4 sm:px-5 py-3 space-y-2.5">
+          <FarmCycleSelector label="Piliin ang sakahan para sa konteksto ng AI" />
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] font-medium text-slate-500">
+              {cropCycleId
+                ? "Gagamitin ng AI ang napiling pananim bilang konteksto."
+                : "Pumili ng pananim para maiangkla ang sagot sa iyong sakahan."}
+            </p>
+            <button
+              type="button"
+              onClick={handleNewConversation}
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 active:scale-95 transition shrink-0 cursor-pointer"
+            >
+              <MessageSquarePlus className="w-4 h-4 text-emerald-700" />
+              <span>Bagong Usapan</span>
+            </button>
           </div>
         </div>
 
