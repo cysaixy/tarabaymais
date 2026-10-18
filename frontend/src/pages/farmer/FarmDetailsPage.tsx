@@ -11,6 +11,10 @@ import {
   X,
   Calendar,
   Plus,
+  CheckCircle2,
+  AlertTriangle,
+  Ban,
+  Settings2,
 } from "lucide-react";
 import {
   getFarmById,
@@ -18,8 +22,11 @@ import {
   deleteFarm,
   createCropCycle,
   listCropCycles,
+  updateCropCycleStatus,
+  deleteCropCycle,
   type Farm,
   type CropCycle,
+  type CropStatus,
 } from "../../services/farm.service";
 import { ApiError } from "../../lib/api";
 import { LoadingState } from "../../components/LoadingState";
@@ -75,6 +82,11 @@ const FarmDetailsPage = () => {
   const [cycleArea, setCycleArea] = useState("");
   const [cycleError, setCycleError] = useState<string | null>(null);
   const [cycleFieldErrors, setCycleFieldErrors] = useState<FieldErrors>({});
+
+  // ── Manage a single crop cycle (status change / delete) ────────────────
+  const [manageCycle, setManageCycle] = useState<CropCycle | null>(null);
+  const [cycleBusy, setCycleBusy] = useState(false);
+  const [confirmDeleteCycle, setConfirmDeleteCycle] = useState(false);
 
   const [name, setName] = useState("");
   const [municipality, setMunicipality] = useState("");
@@ -232,6 +244,61 @@ const FarmDetailsPage = () => {
       }
     } finally {
       setCycleSaving(false);
+    }
+  };
+
+  // Refresh this farm's cycles locally + the shared selection after a change.
+  const refreshCycles = useCallback(async () => {
+    if (!farm) return;
+    const freshCycles = await listCropCycles(farm.id);
+    setFarm((prev) => (prev ? { ...prev, cropCycles: freshCycles } : prev));
+    void refreshSelection();
+  }, [farm, refreshSelection]);
+
+  const closeManage = useCallback(() => {
+    setManageCycle(null);
+    setConfirmDeleteCycle(false);
+    setCycleBusy(false);
+  }, []);
+
+  const handleChangeCycleStatus = async (status: CropStatus) => {
+    if (!manageCycle) return;
+    setCycleBusy(true);
+    try {
+      await updateCropCycleStatus(manageCycle.id, status);
+      await refreshCycles();
+      toast.success("Na-update ang pananim!", {
+        description: `Status: ${STATUS_LABEL[status]}.`,
+      });
+      closeManage();
+    } catch (err) {
+      console.error("Update cycle status failed:", err);
+      const description =
+        err instanceof ApiError
+          ? err.message
+          : "Pakisubukan muli o i-check ang koneksyon.";
+      toast.error("Hindi na-update ang pananim", { description });
+      setCycleBusy(false);
+    }
+  };
+
+  const handleDeleteCycle = async () => {
+    if (!manageCycle) return;
+    setCycleBusy(true);
+    try {
+      await deleteCropCycle(manageCycle.id);
+      await refreshCycles();
+      toast.success("Natanggal ang pananim");
+      closeManage();
+    } catch (err) {
+      console.error("Delete cycle failed:", err);
+      const description =
+        err instanceof ApiError
+          ? err.message
+          : "Pakisubukan muli o i-check ang koneksyon.";
+      toast.error("Hindi natanggal ang pananim", { description });
+      setCycleBusy(false);
+      setConfirmDeleteCycle(false);
     }
   };
 
@@ -477,23 +544,35 @@ const FarmDetailsPage = () => {
                 ) : (
                   <ul className="space-y-2">
                     {cycles.map((c) => (
-                      <li key={c.id} className="rounded-2xl border-2 border-slate-100 bg-white p-4 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-bold text-slate-900 capitalize">{c.variety || c.cropType || "Mais"}</p>
-                          <p className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="h-3.5 w-3.5" />
-                              {new Date(c.plantingDate).toLocaleDateString("fil-PH")}
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setManageCycle(c);
+                            setConfirmDeleteCycle(false);
+                          }}
+                          className="w-full rounded-2xl border-2 border-slate-100 bg-white p-4 flex items-center justify-between gap-3 text-left transition-colors hover:border-emerald-200 hover:bg-emerald-50/40"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-900 capitalize">{c.variety || c.cropType || "Mais"}</p>
+                            <p className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3.5 w-3.5" />
+                                {new Date(c.plantingDate).toLocaleDateString("fil-PH")}
+                              </span>
+                              <span className="flex items-center gap-1 text-emerald-700 font-bold">
+                                <Sprout className="h-3.5 w-3.5" />
+                                {Number(c.areaHectares).toFixed(2)} ha
+                              </span>
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${STATUS_STYLE[c.status]}`}>
+                              {STATUS_LABEL[c.status]}
                             </span>
-                            <span className="flex items-center gap-1 text-emerald-700 font-bold">
-                              <Sprout className="h-3.5 w-3.5" />
-                              {Number(c.areaHectares).toFixed(2)} ha
-                            </span>
-                          </p>
-                        </div>
-                        <span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold ${STATUS_STYLE[c.status]}`}>
-                          {STATUS_LABEL[c.status]}
-                        </span>
+                            <Settings2 className="h-4 w-4 text-slate-400" />
+                          </div>
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -559,6 +638,121 @@ const FarmDetailsPage = () => {
                   Huwag na
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Manage crop cycle (status / delete) */}
+        {manageCycle && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+            <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="text-lg font-black text-slate-900 capitalize truncate">
+                    {manageCycle.variety || manageCycle.cropType || "Mais"}
+                  </h3>
+                  <p className="mt-0.5 flex items-center gap-2 text-sm font-medium text-slate-500">
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${STATUS_STYLE[manageCycle.status]}`}
+                    >
+                      {STATUS_LABEL[manageCycle.status]}
+                    </span>
+                    <span className="font-bold text-emerald-700">
+                      {Number(manageCycle.areaHectares).toFixed(2)} ha
+                    </span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeManage}
+                  disabled={cycleBusy}
+                  aria-label="Isara"
+                  className="w-10 h-10 shrink-0 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 disabled:opacity-60"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {confirmDeleteCycle ? (
+                <div className="space-y-3">
+                  <p className="rounded-2xl bg-red-50 border-2 border-red-100 px-4 py-3 text-sm font-semibold text-red-700">
+                    Sigurado ka bang tatanggalin ang pananim na ito? Hindi na ito
+                    maibabalik.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleDeleteCycle}
+                    disabled={cycleBusy}
+                    className="inline-flex w-full min-h-13 items-center justify-center gap-2 rounded-2xl bg-red-600 text-base font-black text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                    {cycleBusy ? "Tinatanggal..." : "Oo, tanggalin"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteCycle(false)}
+                    disabled={cycleBusy}
+                    className="inline-flex w-full min-h-12 items-center justify-center rounded-2xl bg-slate-100 text-base font-bold text-slate-600 transition-colors hover:bg-slate-200 disabled:opacity-60"
+                  >
+                    Huwag na
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {/* Status actions only make sense for an ACTIVE cycle. */}
+                  {manageCycle.status === "ACTIVE" ? (
+                    <>
+                      <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                        Baguhin ang Status
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleChangeCycleStatus("HARVESTED")}
+                        disabled={cycleBusy}
+                        className="inline-flex w-full min-h-13 items-center justify-center gap-2 rounded-2xl bg-amber-500 text-base font-black text-white transition-colors hover:bg-amber-600 disabled:opacity-60"
+                      >
+                        <CheckCircle2 className="h-5 w-5" />
+                        Naani na (Harvested)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleChangeCycleStatus("FAILED")}
+                        disabled={cycleBusy}
+                        className="inline-flex w-full min-h-13 items-center justify-center gap-2 rounded-2xl bg-red-100 text-base font-bold text-red-700 transition-colors hover:bg-red-200 disabled:opacity-60"
+                      >
+                        <AlertTriangle className="h-5 w-5" />
+                        Nabigo (Failed)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleChangeCycleStatus("CANCELLED")}
+                        disabled={cycleBusy}
+                        className="inline-flex w-full min-h-13 items-center justify-center gap-2 rounded-2xl bg-slate-100 text-base font-bold text-slate-600 transition-colors hover:bg-slate-200 disabled:opacity-60"
+                      >
+                        <Ban className="h-5 w-5" />
+                        Kanselahin (Cancelled)
+                      </button>
+                    </>
+                  ) : (
+                    <div className="rounded-2xl bg-slate-50 border-2 border-slate-100 px-4 py-3 text-sm font-medium text-slate-500">
+                      Sarado na ang pananim na ito. Maaari mo pa rin itong
+                      tanggalin sa talaan.
+                    </div>
+                  )}
+
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteCycle(true)}
+                      disabled={cycleBusy}
+                      className="inline-flex w-full min-h-13 items-center justify-center gap-2 rounded-2xl border-2 border-red-200 bg-red-50 text-base font-bold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-60"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                      Tanggalin ang Pananim
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

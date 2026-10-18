@@ -29,6 +29,9 @@ export interface CreateCropCyclePayload {
   areaHectares: number;
 }
 
+/** Crop cycle lifecycle status (matches Prisma CropStatus enum). */
+export type CropStatus = "ACTIVE" | "HARVESTED" | "FAILED" | "CANCELLED";
+
 export interface CropCycle {
   id: string;
   farmId: string;
@@ -37,7 +40,7 @@ export interface CropCycle {
   plantingDate: string;
   expectedHarvestDate?: string;
   areaHectares: string | number;
-  status: "ACTIVE" | "HARVESTED" | "FAILED" | "CANCELLED";
+  status: CropStatus;
 }
 
 /** Lists all farms belonging to the authenticated farmer */
@@ -99,6 +102,30 @@ export const listCropCycles = async (farmId: string): Promise<CropCycle[]> => {
 export const getCropCycle = async (id: string): Promise<CropCycle> => {
   const { data } = await api.get(`/crop-cycles/${id}`);
   return data.data.cropCycle;
+};
+
+/**
+ * Updates a crop cycle's lifecycle status.
+ * Endpoint: PATCH /crop-cycles/:id/status
+ *
+ * Moving a cycle out of ACTIVE (e.g. HARVESTED) frees up its area, since the
+ * backend's farm area cap only counts ACTIVE cycles.
+ */
+export const updateCropCycleStatus = async (
+  id: string,
+  status: CropStatus,
+): Promise<CropCycle> => {
+  const { data } = await api.patch(`/crop-cycles/${id}/status`, { status });
+  return data.data.cropCycle;
+};
+
+/**
+ * Deletes a crop cycle.
+ * Endpoint: DELETE /crop-cycles/:id → { deletedCropCycle }
+ */
+export const deleteCropCycle = async (id: string): Promise<CropCycle> => {
+  const { data } = await api.delete(`/crop-cycles/${id}`);
+  return data.data.deletedCropCycle;
 };
 
 /** A crop cycle enriched with the farm it belongs to (for display context). */
