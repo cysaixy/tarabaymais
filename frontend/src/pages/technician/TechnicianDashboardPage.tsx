@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Building2,
-  ShieldCheck,
-  TrendingUp,
-  BarChart3,
   MapPin,
   AlertTriangle,
   CheckCircle2,
@@ -13,12 +16,13 @@ import {
   RefreshCw,
   Eye,
   Send,
-  Map as MapIcon,
   X,
-  Sprout,
   Loader2,
   Download,
   FileSpreadsheet,
+  BarChart3,
+  ShieldCheck,
+  XCircle,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import {
@@ -27,6 +31,7 @@ import {
   resolveExpertCase,
   type DisasterReport,
   type ExpertCase,
+  type CaseStatus,
 } from "../../services/case.service";
 import {
   getAnalyticsSummary,
@@ -36,91 +41,266 @@ import {
   type ExportType,
   type ExportFormat,
 } from "../../services/analytics.service";
-import { ApiError } from "../../lib/api";
 import { caseStatusDisplay } from "../../lib/caseStatus";
+import { LoadingState } from "../../components/LoadingState";
+import { EmptyState } from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
+import {
+  NotificationBell,
+  clearReadNotifications,
+  type NotifType,
+} from "../../components/NotificationBell";
+
+// ─── Tab keys ─────────────────────────────────────────────────────────────────
+
+type TabKey = "BUOD" | "PINSALA" | "KONSULTASYON" | "MAPA";
+
+// ─── Status filter groups ─────────────────────────────────────────────────────
+
+type FilterGroup = "LAHAT" | "BAGO" | "SINUSURI" | "TAPOS_NA";
+
+const disasterFilterStatuses: Record<FilterGroup, CaseStatus[]> = {
+  LAHAT: ["SUBMITTED", "UNDER_REVIEW", "INSPECTED", "RESOLVED", "REJECTED"],
+  BAGO: ["SUBMITTED"],
+  SINUSURI: ["UNDER_REVIEW", "INSPECTED"],
+  TAPOS_NA: ["RESOLVED", "REJECTED"],
+};
+
+const expertFilterStatuses: Record<FilterGroup, CaseStatus[]> = {
+  LAHAT: ["SUBMITTED", "UNDER_REVIEW", "INSPECTED", "RESOLVED", "REJECTED"],
+  BAGO: ["SUBMITTED"],
+  SINUSURI: ["UNDER_REVIEW", "INSPECTED"],
+  TAPOS_NA: ["RESOLVED", "REJECTED"],
+};
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+function formatHa(value: number): string {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export const TechnicianDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile, user, logout } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<
-    "OVERVIEW" | "DAMAGE_REPORTS" | "ASSISTANCE_CASES" | "MAP"
-  >("OVERVIEW");
+  // ── Tab state (lifted so bell can switch tab) ─────────────────────────────
+  const [activeTab, setActiveTab] = useState<TabKey>("BUOD");
 
-  const [loading, setLoading] = useState(false);
+  // ── Pipeline data ─────────────────────────────────────────────────────────
   const [disasterReports, setDisasterReports] = useState<DisasterReport[]>([]);
   const [expertCases, setExpertCases] = useState<ExpertCase[]>([]);
+  const [pipelineLoading, setPipelineLoading] = useState(true);
+  const [pipelineError, setPipelineError] = useState(false);
 
-  // KPI state — populated from API
-  const [kpi, setKpi] = useState<{
-    totalFarms: number | null;
-    activeHectares: number | null;
-    pendingExpertCases: number | null;
-  }>({ totalFarms: null, activeHectares: null, pendingExpertCases: null });
-  const [kpiLoading, setKpiLoading] = useState(true);
+  // ── Analytics summary ─────────────────────────────────────────────────────
+  const [totalFarms, setTotalFarms] = useState<number | null>(null);
+  const [totalActiveHectares, setTotalActiveHectares] = useState<number | null>(null);
 
-  // Per-barangay distribution (Overview tab)
+  // ── Barangay distribution ─────────────────────────────────────────────────
   const [barangays, setBarangays] = useState<BarangayDistribution[]>([]);
   const [barangaysLoading, setBarangaysLoading] = useState(true);
+  const [barangaysError, setBarangaysError] = useState(false);
 
-  // Export control state
+  // ── Export ────────────────────────────────────────────────────────────────
   const [exportType, setExportType] = useState<ExportType>("disaster-claims");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [exporting, setExporting] = useState(false);
 
-  // Modal state
+  // ── Modal / sheet state (lifted so bell can open a case) ─────────────────
   const [selectedDisaster, setSelectedDisaster] = useState<DisasterReport | null>(null);
   const [selectedCase, setSelectedCase] = useState<ExpertCase | null>(null);
   const [advisoryInput, setAdvisoryInput] = useState("");
   const [submittingAction, setSubmittingAction] = useState(false);
+  const [confirmReject, setConfirmReject] = useState<string | null>(null);
 
-  // ── Fetch pipeline (cases) ─────────────────────────────────────────────
-  const fetchPipeline = async () => {
-    setLoading(true);
+  // ── Case-list filters ─────────────────────────────────────────────────────
+  const [disasterFilter, setDisasterFilter] = useState<FilterGroup>("LAHAT");
+  const [expertFilter, setExpertFilter] = useState<FilterGroup>("LAHAT");
+
+  // ── Auto-refresh (60s, pause when hidden) ────────────────────────────────
+  const prevUnreadCountRef = useRef<number | null>(null);
+  const userId = profile?.id ?? user?.uid ?? "";
+
+  // ─── Fetch pipeline ───────────────────────────────────────────────────────
+
+  const fetchPipeline = useCallback(async (silent = false) => {
+    if (!silent) setPipelineLoading(true);
+    setPipelineError(false);
     try {
       const data = await getCasePipeline();
       setDisasterReports(data.disasterCases ?? []);
       setExpertCases(data.expertCases ?? []);
     } catch {
-      toast.error("Hindi makuha ang mga kaso.", {
-        description: "Subukan muli o i-check ang koneksyon.",
-      });
+      if (!silent) setPipelineError(true);
     } finally {
-      setLoading(false);
+      if (!silent) setPipelineLoading(false);
     }
-  };
+  }, []);
 
-  // ── Fetch analytics summary (KPIs) via the service layer ─────────────
-  const fetchAnalytics = async () => {
-    setKpiLoading(true);
+  const fetchAnalytics = useCallback(async () => {
     try {
       const summary = await getAnalyticsSummary();
-      setKpi({
-        totalFarms: summary.totalFarms,
-        // Round hectares for a clean KPI display (Decimal → number).
-        activeHectares: Math.round(summary.totalActiveHectares * 100) / 100,
-        pendingExpertCases: summary.pendingExpertCases,
-      });
+      setTotalFarms(summary.totalFarms);
+      setTotalActiveHectares(
+        Math.round(Number(summary.totalActiveHectares) * 100) / 100
+      );
     } catch {
-      // KPI cards will show a dash instead of crashing
-    } finally {
-      setKpiLoading(false);
+      // KPIs show dash — non-fatal
     }
-  };
+  }, []);
 
-  // ── Fetch per-barangay distribution ──────────────────────────────────
-  const fetchBarangays = async () => {
+  const fetchBarangays = useCallback(async () => {
     setBarangaysLoading(true);
+    setBarangaysError(false);
     try {
       setBarangays(await getBarangayDistribution());
     } catch {
-      setBarangays([]);
+      setBarangaysError(true);
     } finally {
       setBarangaysLoading(false);
     }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchPipeline();
+    fetchAnalytics();
+    fetchBarangays();
+  }, [fetchPipeline, fetchAnalytics, fetchBarangays]);
+
+  // Auto-refresh every 60s while tab is visible
+  useEffect(() => {
+    const tick = async () => {
+      if (document.hidden) return;
+      await fetchPipeline(true);
+    };
+    const id = setInterval(tick, 60_000);
+    const onFocus = () => fetchPipeline(true);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+    };
+    /* TODO: foreground FCM handler hook goes here.
+     * When onMessage fires with data.type === "EXPERT_DISPATCH" or
+     * "CASE_RESOLVED", call fetchPipeline(true) to refetch the pipeline. */
+  }, [fetchPipeline]);
+
+  // ─── Computed counts ──────────────────────────────────────────────────────
+
+  const pendingConsultations = useMemo(
+    () =>
+      expertCases.filter((c) =>
+        ["SUBMITTED", "UNDER_REVIEW", "INSPECTED"].includes(c.status)
+      ).length,
+    [expertCases]
+  );
+
+  const pendingDisasterClaims = useMemo(
+    () =>
+      disasterReports.filter((d) =>
+        ["SUBMITTED", "UNDER_REVIEW"].includes(d.status)
+      ).length,
+    [disasterReports]
+  );
+
+  const totalPending = pendingConsultations + pendingDisasterClaims;
+
+  // Derive unread count for toast detection (runs after pipeline updates)
+  const allPendingIds = useMemo(() => {
+    const ids: string[] = [];
+    expertCases
+      .filter((c) => ["SUBMITTED", "UNDER_REVIEW", "INSPECTED"].includes(c.status))
+      .forEach((c) => ids.push(`ec:${c.id}`));
+    disasterReports
+      .filter((d) => ["SUBMITTED", "UNDER_REVIEW"].includes(d.status))
+      .forEach((d) => ids.push(`dr:${d.id}`));
+    return ids;
+  }, [expertCases, disasterReports]);
+
+  useEffect(() => {
+    if (prevUnreadCountRef.current === null) {
+      prevUnreadCountRef.current = allPendingIds.length;
+      return;
+    }
+    if (allPendingIds.length > prevUnreadCountRef.current) {
+      toast.info("May bagong kaso na kailangang suriin", {
+        description: "Tingnan ang bell para sa mga detalye.",
+      });
+    }
+    prevUnreadCountRef.current = allPendingIds.length;
+  }, [allPendingIds]);
+
+  // ─── Filtered case lists ──────────────────────────────────────────────────
+
+  const filteredDisasters = useMemo(
+    () =>
+      disasterReports.filter((d) =>
+        disasterFilterStatuses[disasterFilter].includes(d.status)
+      ),
+    [disasterReports, disasterFilter]
+  );
+
+  const filteredExperts = useMemo(
+    () =>
+      expertCases.filter((ec) =>
+        expertFilterStatuses[expertFilter].includes(ec.status)
+      ),
+    [expertCases, expertFilter]
+  );
+
+  // ─── Actions ──────────────────────────────────────────────────────────────
+
+  const handleStatusUpdate = async (
+    disasterId: string,
+    newStatus: DisasterReport["status"]
+  ) => {
+    setSubmittingAction(true);
+    try {
+      await updateCaseStatus(disasterId, {
+        caseType: "DISASTER_REPORT",
+        status: newStatus,
+      });
+      await fetchPipeline(true);
+      toast.success("Nai-update ang Status!", {
+        description: `Ang claim ay minarkahan bilang ${caseStatusDisplay(newStatus).label}.`,
+      });
+      setSelectedDisaster(null);
+      setConfirmReject(null);
+    } catch {
+      toast.error("Hindi nai-update ang status.", {
+        description: "Subukan muli o i-check ang koneksyon.",
+      });
+    } finally {
+      setSubmittingAction(false);
+    }
   };
 
-  // ── Export report (xlsx/csv) ──────────────────────────────────────────
+  const handleResolveCase = async (caseId: string) => {
+    if (!advisoryInput.trim()) {
+      toast.error("Kulang ang Rekomendasyon", {
+        description: "Mangyaring maglagay ng payo para sa magsasaka.",
+      });
+      return;
+    }
+    setSubmittingAction(true);
+    try {
+      await resolveExpertCase(caseId, { recommendation: advisoryInput.trim() });
+      await fetchPipeline(true);
+      toast.success("Naipadala ang Payo sa Magsasaka!");
+      setSelectedCase(null);
+      setAdvisoryInput("");
+    } catch {
+      toast.error("Hindi naipadala ang rekomendasyon.", {
+        description: "Subukan muli o i-check ang koneksyon.",
+      });
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -128,6 +308,21 @@ export const TechnicianDashboardPage: React.FC = () => {
         type: exportType,
         format: exportFormat,
       });
+
+      // Check if the backend returned a JSON error inside the blob
+      if (blob.type === "application/json") {
+        const text = await blob.text();
+        try {
+          const json = JSON.parse(text) as { error?: string };
+          toast.error("Hindi na-generate ang report", {
+            description: json.error ?? "Hindi kilalang error.",
+          });
+        } catch {
+          toast.error("Hindi na-generate ang report");
+        }
+        return;
+      }
+
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const stamp = new Date().toISOString().split("T")[0];
@@ -140,724 +335,976 @@ export const TechnicianDashboardPage: React.FC = () => {
       toast.success("Na-download ang report!", {
         description: `${exportType} (${exportFormat.toUpperCase()})`,
       });
-    } catch (err) {
-      const description =
-        err instanceof ApiError
-          ? err.message
-          : "Hindi na-generate ang report. Pakisubukan muli.";
-      toast.error("Hindi na-download ang report", { description });
+    } catch {
+      toast.error("Hindi na-download ang report", {
+        description: "Pakisubukan muli.",
+      });
     } finally {
       setExporting(false);
     }
   };
 
-  useEffect(() => {
-    fetchPipeline();
-    fetchAnalytics();
-    fetchBarangays();
-  }, []);
-
-  const officerName = profile
-    ? `${profile.firstName} ${profile.lastName}`.trim()
-    : user?.displayName || "";
-
-  // ── Status update (disaster reports) ─────────────────────────────────
-  const handleStatusUpdate = async (
-    disasterId: string,
-    newStatus: DisasterReport["status"]
-  ) => {
-    setSubmittingAction(true);
-    try {
-      await updateCaseStatus(disasterId, { caseType: "DISASTER_REPORT", status: newStatus });
-      setDisasterReports((prev) =>
-        prev.map((d) => (d.id === disasterId ? { ...d, status: newStatus } : d))
-      );
-      toast.success("Nai-update ang Status ng Ulat!", {
-        description: `Ang claim ay opisyal nang minarkahan bilang ${newStatus}.`,
-      });
-      setSelectedDisaster(null);
-    } catch {
-      toast.error("Hindi nai-update ang status.", {
-        description: "Subukan muli o i-check ang koneksyon.",
-      });
-    } finally {
-      setSubmittingAction(false);
-    }
-  };
-
-  // ── Resolve expert case ───────────────────────────────────────────────
-  const handleResolveCase = async (caseId: string) => {
-    if (!advisoryInput.trim()) {
-      toast.error("Kulang ang Rekomendasyon", {
-        description:
-          "Mangyaring maglagay ng payo o agronomic prescription para sa magsasaka.",
-      });
-      return;
-    }
-
-    setSubmittingAction(true);
-    try {
-      await resolveExpertCase(caseId, { recommendation: advisoryInput.trim() });
-      setExpertCases((prev) =>
-        prev.map((c) =>
-          c.id === caseId
-            ? { ...c, status: "RESOLVED", recommendation: advisoryInput.trim() }
-            : c
-        )
-      );
-      toast.success("Naipadala ang Opisyal na Payo sa Magsasaka!", {
-        description:
-          "Nakatanggap ang magsasaka ng abiso sa kanyang Tarabay-Mais app.",
-      });
-      setSelectedCase(null);
-      setAdvisoryInput("");
-    } catch {
-      toast.error("Hindi naipadala ang rekomendasyon.", {
-        description: "Subukan muli o i-check ang koneksyon.",
-      });
-    } finally {
-      setSubmittingAction(false);
-    }
-  };
-
   const handleLogout = async () => {
+    if (userId) clearReadNotifications(userId);
     await logout();
-    toast.info("Naka-logout sa Portal", {
-      description: "Bumalik sa authentication screen.",
-    });
+    toast.info("Naka-logout sa Portal");
     navigate("/officer/login");
   };
 
-  const pendingDisastersCount = disasterReports.filter(
-    (d) => d.status === "SUBMITTED" || d.status === "UNDER_REVIEW"
-  ).length;
+  // ─── Bell callbacks ───────────────────────────────────────────────────────
 
-  const pendingCasesCount = expertCases.filter(
-    (c) => c.status === "SUBMITTED"
-  ).length;
+  const handleBellOpenCase = useCallback(
+    (caseId: string, type: NotifType) => {
+      if (type === "KONSULTASYON") {
+        setActiveTab("KONSULTASYON");
+        const ec = expertCases.find((c) => c.id === caseId);
+        if (ec) setSelectedCase(ec);
+      } else {
+        setActiveTab("PINSALA");
+        const dr = disasterReports.find((d) => d.id === caseId);
+        if (dr) setSelectedDisaster(dr);
+      }
+    },
+    [expertCases, disasterReports]
+  );
 
-  // ── KPI display helper ────────────────────────────────────────────────
-  const KpiValue = ({
-    value,
-    loading: isLoading,
-    className = "",
-  }: {
-    value: number | null;
-    loading: boolean;
-    className?: string;
-  }) => {
-    if (isLoading) return <Loader2 className="w-7 h-7 animate-spin text-slate-400" />;
-    if (value === null) return <span className={className}>—</span>;
-    return <span className={className}>{value.toLocaleString()}</span>;
+  const handleBellViewAll = useCallback(() => {
+    setActiveTab("KONSULTASYON");
+  }, []);
+
+  // ─── Derived helpers ──────────────────────────────────────────────────────
+
+  const officerName = profile
+    ? `${profile.firstName} ${profile.lastName}`.trim()
+    : user?.displayName ?? "";
+
+  const officerRole =
+    profile?.role === "OFFICER" ? "Municipal Officer" : "Agricultural Technician";
+
+  const barangayTotalHa = useMemo(
+    () => barangays.reduce((s, b) => s + b.totalHectares, 0),
+    [barangays]
+  );
+
+  // ─── Filter pills component ───────────────────────────────────────────────
+
+  const FilterPills: React.FC<{
+    value: FilterGroup;
+    onChange: (v: FilterGroup) => void;
+  }> = ({ value, onChange }) => {
+    const pills: { key: FilterGroup; label: string }[] = [
+      { key: "LAHAT", label: "Lahat" },
+      { key: "BAGO", label: "Bago" },
+      { key: "SINUSURI", label: "Sinusuri" },
+      { key: "TAPOS_NA", label: "Tapos na" },
+    ];
+    return (
+      <div className="flex flex-wrap gap-2">
+        {pills.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => onChange(p.key)}
+            className={[
+              "min-h-[48px] rounded-xl px-4 text-base font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400",
+              value === p.key
+                ? "bg-[#1D4ED8] text-white"
+                : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50",
+            ].join(" ")}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+    );
   };
 
+  // ─── Render ───────────────────────────────────────────────────────────────
+
   return (
-    <div className="min-h-screen w-full bg-[#061325] text-white font-sans selection:bg-blue-500/30 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-
-        {/* ── HEADER ───────────────────────────────────────────────────────── */}
-        <header className="w-full bg-linear-to-r from-[#1e3a8a] via-[#1d4ed8] to-[#1e40af] text-white rounded-3xl border border-blue-900/30 p-5 sm:p-6 shadow-xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="flex items-center gap-4 z-10">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-linear-to-br from-amber-400 to-amber-500 flex items-center justify-center text-amber-950 shadow-md shrink-0">
-              <Building2 className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2.2]" />
-            </div>
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
-                  Department of Agriculture — Region II
-                </h1>
-                <span className="bg-amber-400/20 border border-amber-300/40 text-amber-200 font-bold text-[11px] px-3 py-0.5 rounded-full shadow-inner">
-                  Authorized Officer Portal
-                </span>
+    <div className="min-h-screen bg-slate-100 pb-24 md:pb-8">
+      {/* ── HEADER ──────────────────────────────────────────────────────────── */}
+      <header className="bg-[#0F2A5C] text-white">
+        <div className="mx-auto max-w-[1184px] px-4 md:px-12">
+          <div className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between md:py-5">
+            {/* Left: logo + title */}
+            <div className="flex items-center gap-3">
+              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
+                <Building2 className="h-7 w-7 text-[#0F2A5C]" aria-hidden="true" />
               </div>
-              <p className="text-xs sm:text-sm text-blue-100/90 font-medium">
-                Cagayan Valley Regional Corn Operations & Disaster Monitoring Center
+              <div>
+                <p className="text-[22px] font-bold leading-tight">
+                  Officer Portal &middot; DA Region II
+                </p>
+                <p className="text-[15px] text-slate-300">
+                  Cagayan Valley &middot; Mais at Pinsala ng Sakuna
+                </p>
+              </div>
+            </div>
+
+            {/* Right: name + bell + logout */}
+            <div className="flex items-center gap-3 self-start md:self-auto">
+              {/* Officer info */}
+              <div className="hidden md:block text-right">
+                <p className="text-base font-bold leading-tight">
+                  {officerName || "\u2014"}
+                </p>
+                <p className="text-sm text-slate-300">{officerRole}</p>
+              </div>
+
+              {/* Bell */}
+              <NotificationBell
+                userId={userId}
+                expertCases={expertCases}
+                disasterCases={disasterReports}
+                onOpenCase={handleBellOpenCase}
+                onViewAll={handleBellViewAll}
+              />
+
+              {/* Logout */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex h-[52px] items-center gap-2 rounded-xl border border-blue-300/50 px-4 text-base font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95"
+              >
+                <LogOut className="h-5 w-5" aria-hidden="true" />
+                <span>Mag-logout</span>
+              </button>
+            </div>
+
+            {/* Mobile: name row */}
+            <div className="flex items-center gap-2 md:hidden">
+              <p className="text-base font-bold">{officerName || "\u2014"}</p>
+              <span className="text-slate-400">&middot;</span>
+              <p className="text-sm text-slate-300">{officerRole}</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
+      <main className="mx-auto max-w-[1184px] px-4 py-6 md:px-12 space-y-6">
+
+        {/* ── ACTION CARDS ──────────────────────────────────────────────────── */}
+        <section aria-labelledby="action-heading">
+          <h2
+            id="action-heading"
+            className="mb-4 text-2xl font-bold text-slate-900"
+          >
+            Kailangan ng Aksyon Ngayon
+          </h2>
+
+          {pendingConsultations === 0 && pendingDisasterClaims === 0 ? (
+            <div className="rounded-[20px] border-2 border-emerald-300 bg-[#ECFDF5] p-6 text-center">
+              <p className="text-xl font-bold text-[#065F46]">
+                Wala nang nakabinbin ✓
+              </p>
+              <p className="mt-1 text-base text-emerald-700">
+                Lahat ng kaso ay na-aasikaso na.
               </p>
             </div>
-          </div>
-
-          <div className="flex items-center gap-3 z-10 self-start lg:self-auto">
-            <div className="rounded-2xl border border-blue-300/30 bg-blue-950/50 backdrop-blur-md px-4 py-2.5 flex items-center gap-3 shadow-inner">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
-                <ShieldCheck className="w-4 h-4 stroke-[2.5]" />
+          ) : (
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              {/* Card A — Consultation */}
+              <div className="rounded-[20px] border-2 border-[#FDA4AF] bg-[#FFF1F2] p-6 flex items-center gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#BE123C]">
+                  <span className="text-3xl font-bold text-white">
+                    {pendingConsultations}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xl font-bold text-[#881337]">
+                    Kaso ng Konsultasyon
+                  </p>
+                  <p className="mt-0.5 text-base text-[#9F1239]">
+                    Naghihintay ng payo mula sa technician
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("KONSULTASYON")}
+                    className="mt-3 flex h-[52px] items-center gap-2 rounded-xl bg-[#BE123C] px-5 text-base font-bold text-white transition hover:bg-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 active:scale-95"
+                  >
+                    Suriin ang Kaso &rarr;
+                  </button>
+                </div>
               </div>
-              <div className="text-left">
-                <p className="text-[10px] text-blue-200 font-semibold uppercase tracking-wider">
-                  Officer On Duty:
-                </p>
-                <p className="text-xs sm:text-sm font-extrabold text-white">
-                  {officerName || "—"}
-                </p>
+
+              {/* Card B — Disaster */}
+              <div className="rounded-[20px] border-2 border-[#FDBA74] bg-[#FFF7ED] p-6 flex items-center gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#C2410C]">
+                  <span className="text-3xl font-bold text-white">
+                    {pendingDisasterClaims}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xl font-bold text-[#7C2D12]">
+                    Disaster Claim (Bagyo/Baha)
+                  </p>
+                  <p className="mt-0.5 text-base text-[#9A3412]">
+                    Kailangang repasuhin at aprubahan
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("PINSALA")}
+                    className="mt-3 flex h-[52px] items-center gap-2 rounded-xl bg-[#C2410C] px-5 text-base font-bold text-white transition hover:bg-orange-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400 active:scale-95"
+                  >
+                    Suriin ang Claim &rarr;
+                  </button>
+                </div>
               </div>
             </div>
+          )}
+        </section>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="w-11 h-11 rounded-2xl bg-blue-950/60 hover:bg-blue-900/80 border border-blue-300/30 flex items-center justify-center text-blue-100 hover:text-white transition active:scale-95 cursor-pointer shadow-sm"
-              title="Mag-logout sa Officer Portal"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </header>
-
-        {/* ── KPI CARDS ─────────────────────────────────────────────────────── */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          {/* Kabuuang Rehistradong Sakahan */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2">
-            <p className="text-xs font-black text-black tracking-wide uppercase">
-              Kabuuang Rehistradong Sakahan
+        {/* ── STAT STRIP ────────────────────────────────────────────────────── */}
+        <section
+          aria-label="Mga istatistika"
+          className="grid gap-4"
+          style={{
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          }}
+        >
+          {/* Registered farms */}
+          <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
+            <p className="text-base font-semibold text-slate-600">
+              Rehistradong Sakahan
             </p>
-            <div className="text-3xl sm:text-4xl font-black text-black tracking-tight min-h-10 flex items-center">
-              <KpiValue value={kpi.totalFarms} loading={kpiLoading} />
-            </div>
-            <div className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-300 text-xs font-bold">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>Rehistrado sa Sistema</span>
-            </div>
+            <p className="mt-1 text-4xl font-bold text-[#047857]">
+              {totalFarms !== null ? totalFarms.toLocaleString() : "\u2014"}
+            </p>
           </div>
 
-          {/* Aktibong Luwang ng Mais */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2">
-            <p className="text-xs font-black text-black tracking-wide uppercase">
-              Aktibong Luwang ng Mais (Corn Ha)
+          {/* Active hectares */}
+          <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
+            <p className="text-base font-semibold text-slate-600">
+              Aktibong Taniman ng Mais
             </p>
-            <div className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight min-h-10 flex items-center gap-1">
-              <KpiValue value={kpi.activeHectares} loading={kpiLoading} className="text-emerald-600" />
-              {!kpiLoading && kpi.activeHectares !== null && (
-                <span className="text-2xl"> ha</span>
-              )}
-            </div>
-            <p className="text-xs text-black font-semibold">Cagayan River Basin Scope</p>
+            <p className="mt-1 text-4xl font-bold text-[#1D4ED8]">
+              {totalActiveHectares !== null
+                ? `${formatHa(totalActiveHectares)} ha`
+                : "\u2014"}
+            </p>
           </div>
 
-          {/* Pending Disaster Claims */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2">
-            <p className="text-xs font-black text-black tracking-wide uppercase">
-              Pending Disaster Claims (Bagyo/Baha)
+          {/* Total pending */}
+          <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
+            <p className="text-base font-semibold text-slate-600">
+              Kabuuang Nakabinbin
             </p>
-            <p className="text-3xl sm:text-4xl font-black text-amber-600 tracking-tight">
-              {pendingDisastersCount}
+            <p className="mt-1 text-4xl font-bold text-[#B45309]">
+              {totalPending}
             </p>
-            <p className="text-xs text-amber-800 font-extrabold">Kailangang Repasuhin</p>
-          </div>
-
-          {/* Pending Expert Cases */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-lg space-y-2">
-            <p className="text-xs font-black text-black tracking-wide uppercase">
-              Pending Consultation Cases
-            </p>
-            <p className="text-3xl sm:text-4xl font-black text-rose-600 tracking-tight">
-              {pendingCasesCount}
-            </p>
-            <p className="text-xs text-rose-800 font-bold">Naghihintay ng Payo</p>
           </div>
         </section>
 
-        {/* ── TAB NAV ───────────────────────────────────────────────────────── */}
-        <nav className="flex items-center gap-6 sm:gap-8 border-b-2 border-white px-2 overflow-x-auto scrollbar-none">
+        {/* ── DESKTOP TAB NAV ───────────────────────────────────────────────── */}
+        <nav
+          aria-label="Mga seksyon"
+          className="hidden md:flex items-end gap-0 border-b-2 border-slate-300"
+        >
           {(
             [
-              { key: "OVERVIEW", label: "Regional Overview" },
+              { key: "BUOD" as TabKey, label: "Buod" },
               {
-                key: "DAMAGE_REPORTS",
-                label: "Damage Reports",
-                badge: pendingDisastersCount,
-                badgeColor: "bg-amber-400",
+                key: "PINSALA" as TabKey,
+                label: "Pinsala",
+                badge: pendingDisasterClaims,
+                badgeColor: "bg-[#C2410C]",
               },
               {
-                key: "ASSISTANCE_CASES",
-                label: "Assistance Cases",
-                badge: pendingCasesCount,
-                badgeColor: "bg-blue-400",
+                key: "KONSULTASYON" as TabKey,
+                label: "Konsultasyon",
+                badge: pendingConsultations,
+                badgeColor: "bg-[#BE123C]",
               },
-              { key: "MAP", label: "Cagayan Farm & Incident Map", icon: <MapIcon className="w-3.5 h-3.5" /> },
+              {
+                key: "MAPA" as TabKey,
+                label: "Mapa \u00b7 Malapit na",
+                disabled: true,
+              },
             ] as const
           ).map((tab) => (
             <button
               key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab.key as typeof activeTab)}
-              className={`pb-3.5 text-xs sm:text-sm font-extrabold transition cursor-pointer whitespace-nowrap relative flex items-center gap-1.5 ${
-                activeTab === tab.key ? "text-white" : "text-white/80 hover:text-white"
-              }`}
+              disabled={"disabled" in tab && tab.disabled}
+              onClick={() =>
+                !("disabled" in tab && tab.disabled) &&
+                setActiveTab(tab.key)
+              }
+              className={[
+                "relative flex min-h-[52px] items-center gap-2 px-5 pb-3 pt-2 text-[17px] font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400",
+                activeTab === tab.key
+                  ? "text-[#1D4ED8]"
+                  : "disabled" in tab && tab.disabled
+                  ? "cursor-not-allowed text-slate-400"
+                  : "text-slate-600 hover:text-slate-900",
+              ].join(" ")}
             >
-              {"icon" in tab && tab.icon}
-              <span>{tab.label}</span>
+              {tab.label}
               {"badge" in tab && tab.badge > 0 && (
-                <span className={`${tab.badgeColor} text-black text-[10px] font-black px-2 py-0.5 rounded-full border border-white/20`}>
+                <span
+                  className={`${tab.badgeColor} rounded-full px-2 py-0.5 text-xs font-bold text-white`}
+                >
                   {tab.badge}
                 </span>
               )}
               {activeTab === tab.key && (
-                <span className="absolute bottom-0 left-0 right-0 h-1 bg-white rounded-full shadow-sm" />
+                <span className="absolute bottom-0 left-0 right-0 h-1 rounded-t-full bg-[#1D4ED8]" />
               )}
             </button>
           ))}
         </nav>
 
-        {/* ── OVERVIEW TAB ─────────────────────────────────────────────────── */}
-        {activeTab === "OVERVIEW" && (
-          <div className="space-y-5">
-            {/* Per-barangay distribution */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-white" />
-                <h2 className="text-sm font-extrabold text-white tracking-wide">
-                  Cagayan Barangay Breakdown (Rehistradong Sakahan)
-                </h2>
-              </div>
+        {/* ── TAB CONTENT ───────────────────────────────────────────────────── */}
 
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-lg">
-                {barangaysLoading ? (
-                  <div className="flex items-center justify-center py-12 gap-3 text-slate-400">
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                    <span className="text-sm">Kinukuha ang datos ng barangay...</span>
-                  </div>
-                ) : barangays.length === 0 ? (
-                  <div className="py-12 text-center text-slate-400 text-sm">
-                    Wala pang rehistradong sakahan kada barangay.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-slate-50 text-slate-700 text-xs uppercase tracking-wider border-b border-slate-200">
-                        <tr>
-                          <th className="py-3 px-4">Barangay</th>
-                          <th className="py-3 px-4 text-right">Bilang ng Sakahan</th>
-                          <th className="py-3 px-4 text-right">Kabuuang Ektarya</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {barangays.map((b) => (
-                          <tr key={b.barangay} className="hover:bg-slate-50 transition">
-                            <td className="py-3 px-4 font-bold text-slate-900">{b.barangay}</td>
-                            <td className="py-3 px-4 text-right font-bold text-blue-700">
-                              {b.farmCount.toLocaleString()}
-                            </td>
-                            <td className="py-3 px-4 text-right font-bold text-emerald-700">
-                              {b.totalHectares.toLocaleString(undefined, { maximumFractionDigits: 2 })} ha
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="border-t-2 border-slate-200 bg-slate-50/60">
-                        <tr>
-                          <td className="py-3 px-4 font-black text-slate-900">Kabuuan</td>
-                          <td className="py-3 px-4 text-right font-black text-blue-800">
-                            {barangays.reduce((s, b) => s + b.farmCount, 0).toLocaleString()}
-                          </td>
-                          <td className="py-3 px-4 text-right font-black text-emerald-800">
-                            {barangays
-                              .reduce((s, b) => s + b.totalHectares, 0)
-                              .toLocaleString(undefined, { maximumFractionDigits: 2 })}{" "}
-                            ha
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
+        {/* BUOD TAB */}
+        {activeTab === "BUOD" && (
+          <div className="grid gap-5 lg:grid-cols-2">
+            {/* Mga Barangay */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-slate-500" aria-hidden="true" />
+                <h3 className="text-xl font-bold text-slate-900">
+                  Mga Barangay
+                </h3>
               </div>
+              {barangaysLoading ? (
+                <LoadingState label="Kinukuha ang datos ng barangay..." />
+              ) : barangaysError ? (
+                <ErrorState
+                  title="Hindi makuha ang datos"
+                  message="Subukan muli ang pagkuha ng listahan ng barangay."
+                  onRetry={fetchBarangays}
+                />
+              ) : barangays.length === 0 ? (
+                <EmptyState
+                  title="Walang barangay"
+                  message="Wala pang rehistradong sakahan ayon sa barangay."
+                />
+              ) : (
+                <ul className="space-y-3">
+                  {barangays.map((b) => {
+                    const pct =
+                      barangayTotalHa > 0
+                        ? (b.totalHectares / barangayTotalHa) * 100
+                        : 0;
+                    return (
+                      <li key={b.barangay}>
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-base font-bold text-slate-900">
+                            {b.barangay}
+                          </span>
+                          <span className="text-base text-slate-600">
+                            {b.farmCount} sakahan &middot;{" "}
+                            {formatHa(b.totalHectares)} ha
+                          </span>
+                        </div>
+                        <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className="h-full rounded-full bg-[#047857] transition-all"
+                            style={{ width: `${pct.toFixed(1)}%` }}
+                            aria-label={`${pct.toFixed(0)}% ng kabuuang ektarya`}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
 
-            {/* Export panel */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-white" />
-                <h2 className="text-sm font-extrabold text-white tracking-wide">
-                  Mag-export ng Ulat (DA / PCIC Reporting)
-                </h2>
+            {/* I-download ang Ulat */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-1 flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 text-slate-500" aria-hidden="true" />
+                <h3 className="text-xl font-bold text-slate-900">
+                  I-download ang Ulat
+                </h3>
+              </div>
+              <p className="mb-4 text-base text-slate-500">
+                Para sa disaster claims at buod ng barangay
+              </p>
+
+              {/* Type selector */}
+              <div className="mb-3">
+                <label
+                  htmlFor="export-type"
+                  className="mb-1 block text-base font-semibold text-slate-700"
+                >
+                  Uri ng Ulat
+                </label>
+                <select
+                  id="export-type"
+                  value={exportType}
+                  onChange={(e) => setExportType(e.target.value as ExportType)}
+                  className="w-full min-h-[48px] rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
+                >
+                  <option value="disaster-claims">Disaster Claims</option>
+                  <option value="barangay-summary">Buod ng Barangay</option>
+                </select>
               </div>
 
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-lg space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Uri ng Ulat
-                    </label>
-                    <select
-                      value={exportType}
-                      onChange={(e) => setExportType(e.target.value as ExportType)}
-                      className="w-full min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 outline-none"
-                    >
-                      <option value="disaster-claims">Disaster Claims (detalyado)</option>
-                      <option value="barangay-summary">Barangay Summary (buod)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Format
-                    </label>
-                    <select
-                      value={exportFormat}
-                      onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
-                      className="w-full min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 outline-none"
-                    >
-                      <option value="xlsx">Excel (.xlsx)</option>
-                      <option value="csv">CSV (.csv)</option>
-                    </select>
-                  </div>
-                </div>
+              {/* Format buttons */}
+              <div className="mb-4 flex gap-3">
                 <button
                   type="button"
-                  onClick={handleExport}
+                  onClick={async () => {
+                    setExportFormat("xlsx");
+                    await handleExport();
+                  }}
                   disabled={exporting}
-                  className="w-full min-h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer shadow-sm disabled:opacity-60"
+                  className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
                 >
-                  {exporting ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Ginagawa ang report...</>
+                  {exporting && exportFormat === "xlsx" ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <><Download className="w-4 h-4" /> I-download ang Report</>
+                    <Download className="h-5 w-5" aria-hidden="true" />
                   )}
+                  Excel (.xlsx)
                 </button>
-                <p className="text-xs text-slate-500 text-center">
-                  Ang report ay base sa lahat ng naitalang disaster claims sa sistema.
-                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setExportFormat("csv");
+                    await handleExport();
+                  }}
+                  disabled={exporting}
+                  className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
+                >
+                  {exporting && exportFormat === "csv" ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Download className="h-5 w-5" aria-hidden="true" />
+                  )}
+                  CSV
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── DAMAGE REPORTS TAB ───────────────────────────────────────────── */}
-        {activeTab === "DAMAGE_REPORTS" && (
-          <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-500" />
-                  <span>Ulat ng Pinsala mula sa mga Magsasaka (Disaster Claims)</span>
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Repasuhin at beripikahin ang claims para sa indemnification payout ng DA at PCIC.
-                </p>
-              </div>
+        {/* PINSALA TAB */}
+        {activeTab === "PINSALA" && (
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-2xl font-bold text-slate-900">
+                Disaster Claim{" "}
+                <span className="ml-1 rounded-full bg-[#C2410C] px-3 py-0.5 text-sm font-bold text-white">
+                  {pendingDisasterClaims}
+                </span>
+              </h2>
               <button
                 type="button"
-                onClick={fetchPipeline}
-                disabled={loading}
-                className="flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-white bg-blue-50 hover:bg-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl cursor-pointer transition active:scale-95 shadow-xs"
+                onClick={() => fetchPipeline()}
+                disabled={pipelineLoading}
+                className="flex min-h-[48px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-                <span>Refresh</span>
+                <RefreshCw
+                  className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
+                  aria-hidden="true"
+                />
+                I-refresh
               </button>
             </div>
 
-            {loading ? (
-              <div className="py-12 flex items-center justify-center gap-2 text-slate-400">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span className="text-sm">Kinukuha ang mga ulat...</span>
-              </div>
-            ) : disasterReports.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-sm">
-                Walang pending disaster claims sa kasalukuyan.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-700 text-xs uppercase tracking-wider border-b border-slate-200">
-                    <tr>
-                      <th className="py-3 px-4">Uri ng Sakuna</th>
-                      <th className="py-3 px-4">Sakahan / ID</th>
-                      <th className="py-3 px-4">Porsyento ng Pinsala</th>
-                      <th className="py-3 px-4">Tinatayang Lugi</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">Aksyon</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {disasterReports.map((report) => (
-                      <tr key={report.id} className="hover:bg-slate-50 transition">
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{report.disasterType}</td>
-                        <td className="py-3.5 px-4 text-xs font-mono text-slate-500">{report.farmId}</td>
-                        <td className="py-3.5 px-4 text-xs font-bold text-rose-600">{report.damagePercentage}%</td>
-                        <td className="py-3.5 px-4 text-xs font-bold text-emerald-700">
-                          ₱{Number(report.estimatedLoss || 0).toLocaleString()}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${caseStatusDisplay(report.status).badge}`}
-                          >
-                            {caseStatusDisplay(report.status).label}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDisaster(report)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl cursor-pointer transition active:scale-95 shadow-xs inline-flex items-center gap-1"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Suriin</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+            <FilterPills value={disasterFilter} onChange={setDisasterFilter} />
 
-        {/* ── ASSISTANCE CASES TAB ─────────────────────────────────────────── */}
-        {activeTab === "ASSISTANCE_CASES" && (
-          <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Sprout className="w-5 h-5 text-emerald-600" />
-                  <span>Kaso ng Peste at Sakit (Farmer Consultation Queue)</span>
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Magbigay ng opisyal na rekomendasyon ayon sa DA Region II Corn Techno-Guide.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={fetchPipeline}
-                disabled={loading}
-                className="flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-white bg-blue-50 hover:bg-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl cursor-pointer transition active:scale-95 shadow-xs"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-                <span>Refresh</span>
-              </button>
-            </div>
-
-            {loading ? (
-              <div className="py-12 flex items-center justify-center gap-2 text-slate-400">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span className="text-sm">Kinukuha ang mga kaso...</span>
-              </div>
-            ) : expertCases.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-sm">
-                Walang pending expert consultation cases.
-              </div>
+            {pipelineLoading ? (
+              <LoadingState label="Kinukuha ang mga disaster claims..." />
+            ) : pipelineError ? (
+              <ErrorState
+                title="Hindi makuha ang mga kaso"
+                message="Subukan muli ang pagkuha ng pipeline."
+                onRetry={() => fetchPipeline()}
+              />
+            ) : filteredDisasters.length === 0 ? (
+              <EmptyState
+                title="Walang kaso sa ngayon"
+                message="Walang disaster claim na tumutugma sa napiling filter."
+              />
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {expertCases.map((ec) => (
-                  <div
-                    key={ec.id}
-                    className="bg-slate-50/80 rounded-2xl border border-slate-200 p-4 space-y-3 flex flex-col justify-between hover:bg-white hover:shadow-xs transition"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-start gap-2">
-                        <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                          {ec.observation?.title || "Obserbasyon sa Sakahan"}
-                        </h3>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredDisasters.map((report) => {
+                  const sd = caseStatusDisplay(report.status);
+                  return (
+                    <div
+                      key={report.id}
+                      className="rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm space-y-3 flex flex-col"
+                    >
+                      <div className="flex items-start justify-between gap-2">
                         <span
-                          className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${caseStatusDisplay(ec.status).badge}`}
+                          className={`rounded-full border px-3 py-0.5 text-sm font-bold ${sd.badge}`}
                         >
-                          {caseStatusDisplay(ec.status).label}
+                          {sd.label}
                         </span>
+                        <AlertTriangle
+                          className="h-5 w-5 shrink-0 text-orange-500 mt-0.5"
+                          aria-hidden="true"
+                        />
                       </div>
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        {ec.observation?.description}
-                      </p>
-                      <div className="flex items-center gap-2 pt-1">
-                        <span className="text-[11px] text-slate-500">Severity:</span>
-                        <span className="text-[11px] font-bold text-rose-600">
-                          {ec.observation?.severity || "—"}
-                        </span>
+
+                      <div>
+                        <p className="text-lg font-bold text-slate-900">
+                          {report.disasterType}
+                        </p>
+                        {report.farm && (
+                          <p className="mt-0.5 flex items-center gap-1 text-base text-slate-500">
+                            <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            {report.farm.name} &middot; {report.farm.barangay}
+                          </p>
+                        )}
                       </div>
-                      {ec.recommendation && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mt-2">
-                          <p className="text-[11px] font-bold text-emerald-900">Naipadalang Rekomendasyon:</p>
-                          <p className="text-xs text-emerald-800 mt-0.5">{ec.recommendation}</p>
-                        </div>
+
+                      {Number(report.damagePercentage) > 0 && (
+                        <p className="text-base font-semibold text-rose-600">
+                          Pinsala: {Number(report.damagePercentage).toFixed(0)}%
+                        </p>
                       )}
-                    </div>
-                    {ec.status !== "RESOLVED" && (
+
                       <button
                         type="button"
-                        onClick={() => setSelectedCase(ec)}
-                        className="w-full mt-2 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
+                        onClick={() => setSelectedDisaster(report)}
+                        className="mt-auto flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95"
                       >
-                        <Send className="w-3.5 h-3.5" />
-                        <span>Magbigay ng Opisyal na Payo</span>
+                        <Eye className="h-5 w-5" aria-hidden="true" />
+                        Suriin / Sagutin
                       </button>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         )}
 
-        {/* ── MAP TAB ───────────────────────────────────────────────────────── */}
-        {activeTab === "MAP" && (
-          <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-blue-600" />
-                  <span>Cagayan River Basin Corn Distribution & Incident Map</span>
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Rehiyon II Geo-monitoring para sa mga aktibong pananim at alert zones.
-                </p>
-              </div>
+        {/* KONSULTASYON TAB */}
+        {activeTab === "KONSULTASYON" && (
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-2xl font-bold text-slate-900">
+                Kaso ng Konsultasyon{" "}
+                <span className="ml-1 rounded-full bg-[#BE123C] px-3 py-0.5 text-sm font-bold text-white">
+                  {pendingConsultations}
+                </span>
+              </h2>
+              <button
+                type="button"
+                onClick={() => fetchPipeline()}
+                disabled={pipelineLoading}
+                className="flex min-h-[48px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+              >
+                <RefreshCw
+                  className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
+                  aria-hidden="true"
+                />
+                I-refresh
+              </button>
             </div>
 
-            {/* Map placeholder — real map integration pending */}
-            <div className="w-full h-96 bg-[#040e1c] rounded-2xl border border-slate-200 relative overflow-hidden flex flex-col items-center justify-center gap-4 p-6 shadow-inner">
-              <div
-                className="absolute inset-0 opacity-15"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(#2563eb 1px, transparent 1px), linear-gradient(to right, #2563eb 1px, transparent 1px)",
-                  backgroundSize: "32px 32px",
-                }}
+            <FilterPills value={expertFilter} onChange={setExpertFilter} />
+
+            {pipelineLoading ? (
+              <LoadingState label="Kinukuha ang mga kaso..." />
+            ) : pipelineError ? (
+              <ErrorState
+                title="Hindi makuha ang mga kaso"
+                message="Subukan muli ang pagkuha ng pipeline."
+                onRetry={() => fetchPipeline()}
               />
-              <MapPin className="w-12 h-12 text-blue-400/60 relative z-10" />
-              <div className="text-center relative z-10 space-y-1">
-                <p className="text-sm font-bold text-white/80">
-                  Mapa ay hindi pa available
-                </p>
-                <p className="text-xs text-white/50">
-                  Ang interactive farm map ay ilalagay dito kapag naikonekta na ang GIS integration.
-                </p>
+            ) : filteredExperts.length === 0 ? (
+              <EmptyState
+                title="Walang kaso sa ngayon"
+                message="Walang consultation case na tumutugma sa napiling filter."
+              />
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredExperts.map((ec) => {
+                  const sd = caseStatusDisplay(ec.status);
+                  const farm = ec.observation?.cropCycle?.farm;
+                  return (
+                    <div
+                      key={ec.id}
+                      className="rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm space-y-3 flex flex-col"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span
+                          className={`rounded-full border px-3 py-0.5 text-sm font-bold ${sd.badge}`}
+                        >
+                          {sd.label}
+                        </span>
+                        {ec.observation?.severity &&
+                          ["HIGH", "CRITICAL"].includes(
+                            ec.observation.severity
+                          ) && (
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+                              {ec.observation.severity === "CRITICAL"
+                                ? "Kritikal"
+                                : "Mataas na Priyoridad"}
+                            </span>
+                          )}
+                      </div>
+
+                      <div>
+                        <p className="text-lg font-bold text-slate-900">
+                          {ec.observation?.title ?? "Obserbasyon sa Sakahan"}
+                        </p>
+                        {farm && (
+                          <p className="mt-0.5 flex items-center gap-1 text-base text-slate-500">
+                            <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            {farm.name} &middot; {farm.barangay}
+                          </p>
+                        )}
+                      </div>
+
+                      {ec.observation?.severity && (
+                        <p className="text-base font-semibold text-rose-600">
+                          Severity: {ec.observation.severity}
+                        </p>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdvisoryInput(ec.recommendation ?? "");
+                          setSelectedCase(ec);
+                        }}
+                        className="mt-auto flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95"
+                      >
+                        <Send className="h-5 w-5" aria-hidden="true" />
+                        Suriin / Sagutin
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </div>
         )}
 
-      </div>
+        {/* MAPA TAB (placeholder) */}
+        {activeTab === "MAPA" && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <MapPin className="mx-auto mb-3 h-12 w-12 text-slate-300" aria-hidden="true" />
+            <p className="text-xl font-bold text-slate-600">
+              Mapa &middot; Malapit na
+            </p>
+            <p className="mt-1 text-base text-slate-400">
+              Ang interactive farm map ay darating sa susunod na bersyon.
+            </p>
+          </div>
+        )}
+      </main>
 
-      {/* ── DISASTER INSPECTION MODAL ────────────────────────────────────── */}
+      {/* ── MOBILE BOTTOM TAB BAR ─────────────────────────────────────────── */}
+      <nav
+        aria-label="Nabigasyon ng pahina"
+        className="fixed bottom-0 left-0 right-0 z-30 flex h-16 border-t-2 border-slate-200 bg-white md:hidden"
+      >
+        {(
+          [
+            { key: "BUOD" as TabKey, label: "Buod" },
+            {
+              key: "PINSALA" as TabKey,
+              label: "Pinsala",
+              badge: pendingDisasterClaims,
+            },
+            {
+              key: "KONSULTASYON" as TabKey,
+              label: "Konsulta",
+              badge: pendingConsultations,
+            },
+            { key: "MAPA" as TabKey, label: "Ulat" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={[
+              "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400",
+              activeTab === tab.key
+                ? "text-[#1D4ED8]"
+                : "text-slate-500 hover:text-slate-800",
+            ].join(" ")}
+          >
+            <span className="text-sm">{tab.label}</span>
+            {"badge" in tab && tab.badge > 0 && (
+              <span className="absolute right-3 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#BE123C] text-[10px] font-bold text-white">
+                {tab.badge}
+              </span>
+            )}
+            {activeTab === tab.key && (
+              <span className="absolute top-0 left-3 right-3 h-0.5 rounded-b-full bg-[#1D4ED8]" />
+            )}
+          </button>
+        ))}
+      </nav>
+
+      {/* ── DISASTER REVIEW MODAL ─────────────────────────────────────────── */}
       {selectedDisaster && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5 text-slate-900">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
-                <span>Pagsusuri sa Disaster Claim</span>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm md:items-center md:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Pagsusuri sa Disaster Claim"
+        >
+          <div className="w-full max-w-lg rounded-t-2xl bg-white p-6 shadow-2xl md:rounded-2xl max-h-[90vh] overflow-y-auto">
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-xl font-bold text-slate-900">
+                <AlertTriangle className="h-6 w-6 text-orange-500" aria-hidden="true" />
+                Pagsusuri sa Disaster Claim
               </h3>
               <button
                 type="button"
                 onClick={() => setSelectedDisaster(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 cursor-pointer"
+                aria-label="Isara"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
               >
-                <X className="w-4 h-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                <div>
-                  <p className="text-slate-500">Uri ng Sakuna:</p>
-                  <p className="font-bold text-slate-900 text-sm">{selectedDisaster.disasterType}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500">Porsyento ng Pinsala:</p>
-                  <p className="font-black text-rose-600 text-sm">{selectedDisaster.damagePercentage}%</p>
-                </div>
-                <div>
-                  <p className="text-slate-500">Tinatayang Halaga ng Lugi:</p>
-                  <p className="font-black text-emerald-700 text-sm">
-                    ₱{Number(selectedDisaster.estimatedLoss || 0).toLocaleString()}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-500">Kasalukuyang Status:</p>
-                  <p className="font-bold text-amber-600 text-sm">
-                    {caseStatusDisplay(selectedDisaster.status).label}
-                  </p>
-                </div>
-              </div>
+            <div className="mb-5 grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
               <div>
-                <p className="text-slate-700 font-bold mb-1">Ulat at Paliwanag ng Magsasaka:</p>
-                <p className="bg-slate-50 p-3.5 rounded-2xl text-slate-700 border border-slate-200 leading-relaxed">
-                  {selectedDisaster.notes || "Walang karagdagang tala."}
+                <p className="text-slate-500">Uri ng Sakuna</p>
+                <p className="mt-0.5 text-base font-bold text-slate-900">
+                  {selectedDisaster.disasterType}
                 </p>
               </div>
+              <div>
+                <p className="text-slate-500">Porsyento ng Pinsala</p>
+                <p className="mt-0.5 text-base font-black text-rose-600">
+                  {Number(selectedDisaster.damagePercentage).toFixed(0)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-500">Tinatayang Lugi</p>
+                <p className="mt-0.5 text-base font-black text-emerald-700">
+                  &#8369;
+                  {Number(selectedDisaster.estimatedLoss ?? 0).toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-500">Kasalukuyang Status</p>
+                <p className="mt-0.5 text-base font-bold text-amber-600">
+                  {caseStatusDisplay(selectedDisaster.status).label}
+                </p>
+              </div>
+              {selectedDisaster.farm && (
+                <div className="col-span-2">
+                  <p className="text-slate-500">Sakahan</p>
+                  <p className="mt-0.5 text-base font-bold text-slate-900">
+                    {selectedDisaster.farm.name} &middot;{" "}
+                    {selectedDisaster.farm.barangay}
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => handleStatusUpdate(selectedDisaster.id, "INSPECTED")}
-                disabled={submittingAction}
-                className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs disabled:opacity-60"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Markahan bilang Na-inspeksyon</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStatusUpdate(selectedDisaster.id, "RESOLVED")}
-                disabled={submittingAction}
-                className="h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs disabled:opacity-60"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Aprubahan ang Claim</span>
-              </button>
-            </div>
+            {selectedDisaster.notes && (
+              <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-1 text-base font-bold text-slate-700">
+                  Tala ng Magsasaka
+                </p>
+                <p className="text-base text-slate-700 leading-relaxed">
+                  {selectedDisaster.notes}
+                </p>
+              </div>
+            )}
+
+            {/* Reject confirm guard */}
+            {confirmReject === selectedDisaster.id ? (
+              <div className="space-y-3">
+                <p className="text-base font-semibold text-red-700">
+                  Sigurado ka bang i-reject ang claim na ito?
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmReject(null)}
+                    className="flex h-[52px] items-center justify-center rounded-xl border border-slate-300 text-base font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                  >
+                    Hindi, bumalik
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleStatusUpdate(selectedDisaster.id, "REJECTED")
+                    }
+                    disabled={submittingAction}
+                    className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-red-600 text-base font-bold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60"
+                  >
+                    {submittingAction ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <XCircle className="h-5 w-5" />
+                    )}
+                    Oo, i-reject
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleStatusUpdate(selectedDisaster.id, "UNDER_REVIEW")
+                  }
+                  disabled={submittingAction}
+                  className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+                >
+                  {submittingAction ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                  Sinusuri
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleStatusUpdate(selectedDisaster.id, "RESOLVED")
+                  }
+                  disabled={submittingAction}
+                  className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-emerald-600 text-base font-bold text-white transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60"
+                >
+                  {submittingAction ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="h-5 w-5" />
+                  )}
+                  Aprubahan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmReject(selectedDisaster.id)}
+                  disabled={submittingAction}
+                  className="col-span-2 sm:col-span-1 flex h-[52px] items-center justify-center gap-2 rounded-xl border-2 border-red-400 text-base font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60"
+                >
+                  <XCircle className="h-5 w-5" />
+                  I-reject
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* ── EXPERT ADVISORY MODAL ─────────────────────────────────────────── */}
       {selectedCase && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5 text-slate-900">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
-                <Sprout className="w-5 h-5 text-emerald-600" />
-                <span>Pagbibigay ng Opisyal na Payo sa Magsasaka</span>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm md:items-center md:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Rekomendasyon para sa Magsasaka"
+        >
+          <div className="w-full max-w-lg rounded-t-2xl bg-white p-6 shadow-2xl md:rounded-2xl max-h-[90vh] overflow-y-auto">
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-900">
+                Rekomendasyon para sa Magsasaka
               </h3>
               <button
                 type="button"
-                onClick={() => setSelectedCase(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 cursor-pointer"
+                onClick={() => {
+                  setSelectedCase(null);
+                  setAdvisoryInput("");
+                }}
+                aria-label="Isara"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
               >
-                <X className="w-4 h-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="space-y-2 text-xs">
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
-                <p className="font-bold text-slate-900 text-sm">
-                  {selectedCase.observation?.title}
+            {/* Case info */}
+            <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+              <p className="text-lg font-bold text-slate-900">
+                {selectedCase.observation?.title ?? "Obserbasyon"}
+              </p>
+              {selectedCase.observation?.description && (
+                <p className="text-base text-slate-600 leading-relaxed">
+                  {selectedCase.observation.description}
                 </p>
-                <p className="text-slate-600">{selectedCase.observation?.description}</p>
-                <p className="text-rose-600 font-bold pt-1">
-                  Severity: {selectedCase.observation?.severity}
+              )}
+              {selectedCase.observation?.severity && (
+                <p className="text-base font-semibold text-rose-600">
+                  Severity: {selectedCase.observation.severity}
                 </p>
-              </div>
-              <div>
-                <label className="block text-slate-700 font-bold mb-1.5">
-                  Agronomic Advisory / Rekomendasyon ng Technician:
-                </label>
-                <textarea
-                  rows={4}
-                  value={advisoryInput}
-                  onChange={(e) => setAdvisoryInput(e.target.value)}
-                  placeholder="Hal. Mag-apply ng biopesticide o Neem extract sa hapon. Iwasan ang labis na nitrogen kung may pag-uulan."
-                  className="w-full rounded-2xl border border-slate-300 bg-white p-3 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
+              )}
+              {selectedCase.observation?.cropCycle?.farm && (
+                <p className="flex items-center gap-1 text-base text-slate-500">
+                  <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {selectedCase.observation.cropCycle.farm.name} &middot;{" "}
+                  {selectedCase.observation.cropCycle.farm.barangay}
+                </p>
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => handleResolveCase(selectedCase.id)}
-              disabled={submittingAction}
-              className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer shadow-md disabled:opacity-60"
-            >
-              {submittingAction ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Ipinapadala...</>
-              ) : (
-                <><Send className="w-4 h-4" /> Ipadala ang Opisyal na Rekomendasyon</>
-              )}
-            </button>
+            {/* Photo */}
+            {selectedCase.observation?.imageUrl && (
+              <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200">
+                <img
+                  src={selectedCase.observation.imageUrl}
+                  alt="Larawan ng obserbasyon"
+                  className="w-full object-cover max-h-48"
+                />
+              </div>
+            )}
+
+            {/* Recommendation input */}
+            <div className="mb-4">
+              <label
+                htmlFor="advisory-input"
+                className="mb-1.5 block text-base font-bold text-slate-700"
+              >
+                Rekomendasyon
+              </label>
+              <textarea
+                id="advisory-input"
+                rows={4}
+                value={advisoryInput}
+                onChange={(e) => setAdvisoryInput(e.target.value)}
+                placeholder="Hal. Mag-apply ng biopesticide o Neem extract sa hapon..."
+                className="w-full resize-none rounded-2xl border border-slate-300 bg-white p-3 text-base text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </div>
+
+            {selectedCase.status !== "RESOLVED" ? (
+              <button
+                type="button"
+                onClick={() => handleResolveCase(selectedCase.id)}
+                disabled={submittingAction}
+                className="flex h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60"
+              >
+                {submittingAction ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Ipinapadala...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-5 w-5" />
+                    Ipadala ang Payo
+                  </>
+                )}
+              </button>
+            ) : (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="flex items-center gap-2 text-base font-bold text-emerald-800">
+                  <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+                  Nalutas na ang kasong ito
+                </p>
+                {selectedCase.recommendation && (
+                  <p className="mt-1 text-base text-emerald-700 leading-relaxed">
+                    {selectedCase.recommendation}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
-
     </div>
   );
 };
