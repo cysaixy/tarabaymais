@@ -47,10 +47,12 @@ export const scanPlantHealth = async (
 export const sendRagChat = async (
   prompt: string,
   cropCycleId?: string,
+  history?: { role: "user" | "assistant"; text: string }[],
 ): Promise<RagChatResponse> => {
   const { data } = await api.post("/ai/chat", {
     prompt,
     cropCycleId,
+    history: history?.slice(-10), // Limit to last 10 turns for token budget
   });
   return data.data;
 };

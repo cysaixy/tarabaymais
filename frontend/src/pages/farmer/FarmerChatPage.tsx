@@ -178,7 +178,7 @@ export const FarmerChatPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await sendRagChat(trimmed, sendKey || undefined);
+      const response = await sendRagChat(trimmed, sendKey || undefined, thread.messages);
       const botMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
         role: "assistant",
