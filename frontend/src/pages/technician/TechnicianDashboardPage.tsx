@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -23,10 +29,21 @@ import {
   Sprout,
   Sparkles,
   Maximize2,
+  LayoutDashboard,
+  CloudLightning,
+  MessageSquare,
+  FileDown,
+  ChevronDown,
+  Bell,
+  Clock,
+  Inbox,
+  Search,
+  List,
+  UserCheck,
 } from "lucide-react";
 import { parseLegacyCaseDescription } from "../../lib/parseLegacyCaseDescription";
+import { parseDisasterNotes } from "../../lib/parseDisasterNotes";
 import { useAuth } from "../../context/authContext";
-import { useNotifications } from "../../hooks/useNotifications";
 import {
   getCasePipeline,
   updateCaseStatus,
@@ -48,10 +65,15 @@ import { LoadingState } from "../../components/LoadingState";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import {
-  NotificationBell,
+  AccountSheet,
+  type AccountMenuItem,
+} from "../../components/AccountSheet";
+import { NotificationBell } from "../../components/NotificationBell";
+import {
   clearReadNotifications,
+  getUnreadNotificationsCount,
   type NotifType,
-} from "../../components/NotificationBell";
+} from "../../lib/notificationReadTracking";
 
 // ─── Tab keys ─────────────────────────────────────────────────────────────────
 
@@ -86,7 +108,8 @@ function formatHa(value: number): string {
 export const TechnicianDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile, user, logout } = useAuth();
-  useNotifications({ autoRegister: true, showForegroundToast: true });
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<TabKey>("BUOD");
@@ -96,6 +119,8 @@ export const TechnicianDashboardPage: React.FC = () => {
   const [expertCases, setExpertCases] = useState<ExpertCase[]>([]);
   const [pipelineLoading, setPipelineLoading] = useState(true);
   const [pipelineError, setPipelineError] = useState(false);
+  // Timestamp of the last successful pipeline fetch — shown in the case-list header.
+  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
 
   // ── Analytics summary ─────────────────────────────────────────────────────
   const [totalFarms, setTotalFarms] = useState<number | null>(null);
@@ -120,7 +145,13 @@ export const TechnicianDashboardPage: React.FC = () => {
   const [advisoryInput, setAdvisoryInput] = useState("");
   const [submittingAction, setSubmittingAction] = useState(false);
   const [confirmReject, setConfirmReject] = useState<string | null>(null);
+  const [confirmApprove, setConfirmApprove] = useState<string | null>(null);
   const [enlargedPhotoUrl, setEnlargedPhotoUrl] = useState<string | null>(null);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const profileTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileProfileTriggerRef = useRef<HTMLButtonElement>(null);
+  const activeTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   // ── Case-list filters ─────────────────────────────────────────────────────
   const [disasterFilter, setDisasterFilter] = useState<FilterGroup>("LAHAT");
@@ -137,6 +168,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       const data = await getCasePipeline();
       setDisasterReports(data.disasterCases ?? []);
       setExpertCases(data.expertCases ?? []);
+      setLastFetchedAt(new Date());
     } catch {
       if (!silent) setPipelineError(true);
     } finally {
@@ -225,12 +257,16 @@ export const TechnicianDashboardPage: React.FC = () => {
   // ─── Actions ──────────────────────────────────────────────────────────────
 
   const handleLogout = async () => {
+    setLoggingOut(true);
     try {
       if (userId) clearReadNotifications(userId);
       await logout();
       navigate("/login");
     } catch {
       toast.error("Hindi makapag-logout. Subukan muli.");
+    } finally {
+      setLoggingOut(false);
+      setConfirmLogout(false);
     }
   };
 
@@ -244,6 +280,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       toast.success("Na-update ang status ng claim.");
       setSelectedDisaster(null);
       setConfirmReject(null);
+      setConfirmApprove(null);
       await fetchPipeline(true);
     } catch {
       toast.error("Nagkaroon ng problema. Hindi na-update ang status.");
@@ -292,12 +329,14 @@ export const TechnicianDashboardPage: React.FC = () => {
         const found = expertCases.find((c) => c.id === caseId);
         if (found) {
           setAdvisoryInput(found.recommendation ?? "");
+          setSelectedDisaster(null);
           setSelectedCase(found);
           setActiveTab("KONSULTASYON");
         }
       } else {
         const found = disasterReports.find((d) => d.id === caseId);
         if (found) {
+          setSelectedCase(null);
           setSelectedDisaster(found);
           setActiveTab("PINSALA");
         }
@@ -321,40 +360,115 @@ export const TechnicianDashboardPage: React.FC = () => {
       ? "Municipal Officer"
       : "Agricultural Technician";
 
+  const profileInitials =
+    officerName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "OP";
+
+  const unreadNotifCount = useMemo(
+    () => getUnreadNotificationsCount(expertCases, disasterReports, userId),
+    [expertCases, disasterReports, userId],
+  );
+
+  const accountMenuItems: AccountMenuItem[] = useMemo(
+    () => [
+      {
+        key: "notifications",
+        title: "Mga Abiso",
+        subtitle:
+          unreadNotifCount > 0
+            ? `${unreadNotifCount} bagong abiso`
+            : "Walang bagong abiso",
+        icon: Bell,
+        iconBg: "bg-[#DBEAFE]",
+        iconColor: "text-[#1D4ED8]",
+        badge: unreadNotifCount > 0 ? unreadNotifCount : undefined,
+        badgeBg: "bg-[#1D4ED8]",
+        onClick: () => {
+          setIsAccountOpen(false);
+          setIsNotifOpen(true);
+        },
+      },
+      {
+        key: "download-reports",
+        title: "I-download ang Ulat",
+        subtitle: "Excel at CSV ng claims at barangay",
+        icon: FileDown,
+        iconBg: "bg-emerald-100",
+        iconColor: "text-emerald-700",
+        onClick: () => {
+          setIsAccountOpen(false);
+          setActiveTab("ULAT");
+        },
+      },
+      {
+        key: "logout",
+        title: "Mag-logout",
+        subtitle: "Kakailanganin mong mag-login muli",
+        icon: LogOut,
+        iconBg: "bg-rose-100",
+        iconColor: "text-rose-700",
+        itemBg: "bg-[#FFF1F2] hover:bg-rose-100/70",
+        titleColor: "text-[#B91C1C]",
+        subtitleColor: "text-[#DC2626]",
+        chevronColor: "text-rose-400",
+        onClick: () => {
+          setIsAccountOpen(false);
+          setConfirmLogout(true);
+        },
+      },
+    ],
+    [unreadNotifCount],
+  );
+
   const barangayTotalHa = useMemo(
     () => barangays.reduce((s, b) => s + b.totalHectares, 0),
     [barangays],
   );
 
-  // ─── Filter pills component ───────────────────────────────────────────────
+  // ─── Segmented filter control ─────────────────────────────────────────────
 
-  const FilterPills: React.FC<{
+  const FilterSegments: React.FC<{
     value: FilterGroup;
     onChange: (v: FilterGroup) => void;
   }> = ({ value, onChange }) => {
-    const pills: { key: FilterGroup; label: string }[] = [
-      { key: "LAHAT", label: "Lahat" },
-      { key: "BAGO", label: "Bago" },
-      { key: "SINUSURI", label: "Sinusuri" },
-      { key: "TAPOS_NA", label: "Tapos na" },
+    const segments: {
+      key: FilterGroup;
+      label: string;
+      Icon: React.FC<{ className?: string; strokeWidth?: number }>;
+    }[] = [
+      { key: "LAHAT", label: "Lahat", Icon: List },
+      { key: "BAGO", label: "Bago", Icon: Inbox },
+      { key: "SINUSURI", label: "Sinusuri", Icon: Search },
+      { key: "TAPOS_NA", label: "Tapos na", Icon: CheckCircle2 },
     ];
     return (
-      <div className="flex flex-wrap gap-2">
-        {pills.map((p) => (
-          <button
-            key={p.key}
-            type="button"
-            onClick={() => onChange(p.key)}
-            className={[
-              "min-h-[48px] rounded-xl px-4 text-base font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer",
-              value === p.key
-                ? "bg-[#1D4ED8] text-white shadow-sm"
-                : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50",
-            ].join(" ")}
-          >
-            {p.label}
-          </button>
-        ))}
+      <div className="grid grid-cols-4 gap-1 rounded-[18px] bg-slate-200 p-1.5 md:max-w-xl">
+        {segments.map(({ key, label, Icon }) => {
+          const isActive = value === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => onChange(key)}
+              className={[
+                "flex min-h-[60px] flex-col items-center justify-center gap-0.5 rounded-[14px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer",
+                isActive
+                  ? "bg-white text-[#1D4ED8] shadow-sm"
+                  : "bg-transparent text-slate-600 hover:bg-white/50",
+              ].join(" ")}
+            >
+              <Icon className="h-[22px] w-[22px]" strokeWidth={2} />
+              <span className="text-[14px] font-bold leading-none">
+                {label}
+              </span>
+            </button>
+          );
+        })}
       </div>
     );
   };
@@ -363,56 +477,110 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* ── A. HEADER (Mobile ONE compact row ~72px, Desktop full) ──────────── */}
+      {/* ── A. HEADER ──────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-blue-900/20 bg-[#0F2A5C] text-white shadow-md">
-        <div className="mx-auto flex max-w-[1184px] items-center justify-between px-4 py-2.5 md:py-4 md:px-12 min-h-[72px]">
-          {/* Left: icon (hidden on mobile) + Title & Officer Line */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="hidden md:flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
-              <Building2
-                className="h-7 w-7 text-[#0F2A5C]"
-                aria-hidden="true"
-              />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg md:text-[22px] font-bold leading-tight truncate text-white">
-                Officer Portal &middot; DA Region II
-              </h1>
-              <p className="hidden md:block text-[15px] text-slate-300">
-                Cagayan Valley &middot; Mais at Pinsala ng Sakuna
-              </p>
-              <p className="block md:hidden text-sm text-slate-300 truncate mt-0.5">
-                {officerName || "Opisyal"} &middot; {officerRole}
-              </p>
-            </div>
+        {/* ── Mobile row (< md): logo | name·role | bell | avatar ── */}
+        <div className="flex md:hidden items-center justify-between px-3.5 sm:px-4 h-[68px]">
+          {/* amber logo chip */}
+          <div className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
+            <Building2
+              className="h-[26px] w-[26px] text-[#0F2A5C]"
+              aria-hidden="true"
+            />
           </div>
 
-          {/* Right: Same row bell + logout (and desktop name) */}
-          <div className="flex items-center gap-2 md:gap-3 shrink-0">
-            <div className="hidden md:block text-right">
-              <p className="text-base font-bold leading-tight">
-                {officerName || "\u2014"}
-              </p>
-              <p className="text-sm text-slate-300">{officerRole}</p>
-            </div>
+          {/* name · role */}
+          <div className="flex-1 min-w-0 mx-2.5 text-[14px] leading-[1.25]">
+            <span className="font-bold text-white truncate block">
+              {officerName || "Opisyal"}
+            </span>
+            <span className="text-slate-300 text-[13px]">{officerRole}</span>
+          </div>
 
-            {/* Bell button (>= 48px) */}
+          {/* bell + avatar */}
+          <div className="flex items-center gap-2 shrink-0">
             <NotificationBell
               userId={userId}
               expertCases={expertCases}
               disasterCases={disasterReports}
               onOpenCase={handleBellOpenCase}
               onViewAll={handleBellViewAll}
+              isOpen={isNotifOpen}
+              onOpenChange={setIsNotifOpen}
             />
-
-            {/* Logout button (>= 48px) */}
             <button
+              ref={mobileProfileTriggerRef}
               type="button"
-              onClick={handleLogout}
-              className="flex h-[48px] md:h-[52px] items-center gap-1.5 md:gap-2 rounded-xl border border-blue-300/50 px-3.5 md:px-4 text-sm md:text-base font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95 cursor-pointer"
+              onClick={() => {
+                activeTriggerRef.current = mobileProfileTriggerRef.current;
+                setIsAccountOpen((prev) => !prev);
+              }}
+              aria-label="Account at profile"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white/45 bg-white/14 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95 cursor-pointer"
             >
-              <LogOut className="h-4 w-4 md:h-5 md:w-5" aria-hidden="true" />
-              <span>Logout</span>
+              <UserCheck className="h-6 w-6 text-white" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Desktop row (md+): logo | title/subtitle | bell | full pill ── */}
+        <div className="hidden md:flex mx-auto max-w-[1184px] items-center justify-between px-12 py-4">
+          {/* Left: logo + title */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
+              <Building2
+                className="h-7 w-7 text-[#0F2A5C]"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-[22px] font-bold leading-tight text-white whitespace-nowrap">
+                Officer Portal &middot; DA Region II
+              </h1>
+              <p className="text-[15px] text-slate-300 mt-0.5 whitespace-nowrap">
+                Cagayan Valley &middot; Mais at Pinsala ng Sakuna
+              </p>
+            </div>
+          </div>
+
+          {/* Right: bell + full profile pill */}
+          <div className="flex items-center gap-3 shrink-0">
+            <NotificationBell
+              userId={userId}
+              expertCases={expertCases}
+              disasterCases={disasterReports}
+              onOpenCase={handleBellOpenCase}
+              onViewAll={handleBellViewAll}
+              isOpen={isNotifOpen}
+              onOpenChange={setIsNotifOpen}
+            />
+            <button
+              ref={profileTriggerRef}
+              type="button"
+              onClick={() => {
+                activeTriggerRef.current = profileTriggerRef.current;
+                setIsAccountOpen((prev) => !prev);
+              }}
+              aria-label="Account at profile"
+              aria-haspopup="dialog"
+              aria-expanded={isAccountOpen}
+              className="flex min-h-[56px] items-center gap-3 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-left text-white transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-98 cursor-pointer"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FBBF24] text-[16px] font-bold text-[#0F2A5C]">
+                {profileInitials}
+              </div>
+              <div className="min-w-0 pr-1 max-w-[180px]">
+                <p className="text-[17px] font-bold leading-tight text-white truncate">
+                  {officerName || "Opisyal"}
+                </p>
+                <p className="text-[14px] text-slate-300 leading-snug truncate">
+                  {officerRole}
+                </p>
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 text-slate-300 transition-transform duration-200 ${isAccountOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              />
             </button>
           </div>
         </div>
@@ -420,6 +588,56 @@ export const TechnicianDashboardPage: React.FC = () => {
 
       {/* ── MAIN CONTENT (pb-24 so content never hides behind 64px bottom bar) ── */}
       <main className="mx-auto max-w-[1184px] px-4 py-6 md:px-12 space-y-6 pb-24">
+        {/* ── MAISY GREETING (BUOD tab on mobile; always on desktop) ─────────── */}
+        <section
+          aria-label="Bati mula kay Maisy"
+          className={`${activeTab === "BUOD" ? "block" : "hidden"} md:block`}
+        >
+          {/* Date line */}
+          <div className="px-1 pb-3 pt-1">
+            <p className="text-xs font-bold tracking-[0.08em] text-slate-500 uppercase">
+              {new Intl.DateTimeFormat("fil-PH", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              })
+                .format(new Date())
+                .toLocaleUpperCase("fil-PH")}
+            </p>
+            <h2 className="mt-1 text-3xl md:text-4xl font-black leading-tight tracking-tight text-slate-900">
+              Mabuhay,{" "}
+              {profile?.firstName || officerName.split(" ")[0] || "Opisyal"}!
+            </h2>
+          </div>
+
+          {/* Maisy card — navy/blue tint for officer portal */}
+          <div className="flex w-full items-center gap-3 rounded-2xl bg-[#DBEAFE] px-4 py-4 sm:px-5 sm:py-5">
+            <img
+              src="/assets/mascot-maisy.png"
+              alt="Maisy, ang iyong DA farming assistant"
+              className="h-[96px] w-auto shrink-0 object-contain sm:h-[108px]"
+              style={{ imageRendering: "pixelated" }}
+            />
+            <div className="relative min-w-0 flex-1 rounded-[20px] bg-white px-4 py-4 text-slate-900">
+              {/* speech-bubble tail */}
+              <span
+                aria-hidden="true"
+                className="absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rotate-45 bg-white"
+              />
+              <div className="relative">
+                <p className="text-lg font-extrabold leading-tight text-[#1D4ED8]">
+                  Maisy
+                </p>
+                <p className="mt-1 text-base font-medium leading-relaxed text-slate-800">
+                  Magandang araw, {profile?.firstName || "Opisyal"}! Handa na
+                  ang inyong dashboard. Suriin ang mga kaso at i-aksyon ang mga
+                  nakabinbin ngayon.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ── KAILANGAN NG AKSYON NGAYON (Desktop: above tabs; Mobile: Buod only) ── */}
         <section
           aria-labelledby="action-heading"
@@ -497,38 +715,72 @@ export const TechnicianDashboardPage: React.FC = () => {
           className={`${activeTab === "BUOD" ? "grid" : "hidden"} md:grid grid-cols-3 gap-2.5 md:gap-4`}
         >
           {/* Card 1: Registered farms */}
-          <div className="rounded-2xl border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
-            <p className="text-[13px] md:text-base font-semibold text-slate-600 truncate">
-              <span className="md:hidden">Sakahan</span>
-              <span className="hidden md:inline">Rehistradong Sakahan</span>
-            </p>
-            <p className="mt-1 text-[26px] md:text-4xl font-bold text-[#047857] leading-none">
-              {totalFarms !== null ? totalFarms.toLocaleString() : "\u2014"}
-            </p>
+          <div className="flex flex-col gap-2 rounded-[18px] border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
+            <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-[#D1FAE5]">
+              <MapPin
+                className="h-[22px] w-[22px] text-[#047857]"
+                strokeWidth={2}
+                aria-hidden="true"
+              />
+            </div>
+            <div>
+              <p className="text-[28px] md:text-[36px] font-bold leading-none text-[#047857]">
+                {totalFarms !== null ? totalFarms.toLocaleString() : "\u2014"}
+              </p>
+              <p className="mt-1 text-[14px] text-slate-600 truncate">
+                <span className="md:hidden">Sakahan</span>
+                <span className="hidden md:inline">Rehistradong Sakahan</span>
+              </p>
+            </div>
           </div>
 
           {/* Card 2: Active hectares */}
-          <div className="rounded-2xl border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
-            <p className="text-[13px] md:text-base font-semibold text-slate-600 truncate">
-              <span className="md:hidden">Taniman</span>
-              <span className="hidden md:inline">Aktibong Taniman ng Mais</span>
-            </p>
-            <p className="mt-1 text-[26px] md:text-4xl font-bold text-[#1D4ED8] leading-none">
-              {totalActiveHectares !== null
-                ? `${formatHa(totalActiveHectares)} ha`
-                : "\u2014"}
-            </p>
+          <div className="flex flex-col gap-2 rounded-[18px] border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
+            <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-[#DBEAFE]">
+              <Sprout
+                className="h-[22px] w-[22px] text-[#1D4ED8]"
+                strokeWidth={2}
+                aria-hidden="true"
+              />
+            </div>
+            <div>
+              <p className="text-[28px] md:text-[36px] font-bold leading-none text-[#1D4ED8]">
+                {totalActiveHectares !== null ? (
+                  <>
+                    {formatHa(totalActiveHectares)}
+                    <span className="text-[16px] font-bold ml-0.5">ha</span>
+                  </>
+                ) : (
+                  "\u2014"
+                )}
+              </p>
+              <p className="mt-1 text-[14px] text-slate-600 truncate">
+                <span className="md:hidden">Taniman</span>
+                <span className="hidden md:inline">
+                  Aktibong Taniman ng Mais
+                </span>
+              </p>
+            </div>
           </div>
 
           {/* Card 3: Total pending */}
-          <div className="rounded-2xl border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
-            <p className="text-[13px] md:text-base font-semibold text-slate-600 truncate">
-              <span className="md:hidden">Nakabinbin</span>
-              <span className="hidden md:inline">Kabuuang Nakabinbin</span>
-            </p>
-            <p className="mt-1 text-[26px] md:text-4xl font-bold text-[#B45309] leading-none">
-              {totalPending}
-            </p>
+          <div className="flex flex-col gap-2 rounded-[18px] border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
+            <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-[#FEF3C7]">
+              <Clock
+                className="h-[22px] w-[22px] text-[#B45309]"
+                strokeWidth={2}
+                aria-hidden="true"
+              />
+            </div>
+            <div>
+              <p className="text-[28px] md:text-[36px] font-bold leading-none text-[#B45309]">
+                {totalPending}
+              </p>
+              <p className="mt-1 text-[14px] text-slate-600 truncate">
+                <span className="md:hidden">Nakabinbin</span>
+                <span className="hidden md:inline">Kabuuang Nakabinbin</span>
+              </p>
+            </div>
           </div>
         </section>
 
@@ -721,28 +973,44 @@ export const TechnicianDashboardPage: React.FC = () => {
         {/* TAB 2: PINSALA */}
         {activeTab === "PINSALA" && (
           <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-2xl font-bold text-slate-900">
-                Disaster Claim{" "}
-                <span className="ml-1 rounded-full bg-[#C2410C] px-3 py-0.5 text-sm font-bold text-white">
-                  {pendingDisasterClaims}
-                </span>
-              </h2>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-[22px] font-bold text-slate-900">
+                  Disaster Claim
+                  <span className="rounded-full bg-[#C2410C] px-3 py-0.5 text-sm font-bold text-white">
+                    {pendingDisasterClaims}
+                  </span>
+                </h2>
+                {lastFetchedAt && (
+                  <p className="mt-0.5 text-[14px] text-slate-500">
+                    Huling update:{" "}
+                    {lastFetchedAt.toLocaleTimeString("en-PH", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}
+                  </p>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => fetchPipeline()}
                 disabled={pipelineLoading}
-                className="flex min-h-[48px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                className="flex min-h-[48px] items-center gap-2 rounded-[14px] border-2 border-slate-300 bg-white px-3.5 text-[14px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer self-start sm:self-auto"
               >
                 <RefreshCw
                   className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
+                  strokeWidth={2}
                   aria-hidden="true"
                 />
                 I-refresh
               </button>
             </div>
 
-            <FilterPills value={disasterFilter} onChange={setDisasterFilter} />
+            <FilterSegments
+              value={disasterFilter}
+              onChange={setDisasterFilter}
+            />
 
             {pipelineLoading ? (
               <LoadingState label="Kinukuha ang mga claim..." />
@@ -818,28 +1086,41 @@ export const TechnicianDashboardPage: React.FC = () => {
         {/* TAB 3: KONSULTASYON */}
         {activeTab === "KONSULTASYON" && (
           <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-2xl font-bold text-slate-900">
-                Kaso ng Konsultasyon{" "}
-                <span className="ml-1 rounded-full bg-[#BE123C] px-3 py-0.5 text-sm font-bold text-white">
-                  {pendingConsultations}
-                </span>
-              </h2>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-[22px] font-bold text-slate-900">
+                  Kaso ng Konsultasyon
+                  <span className="rounded-full bg-[#BE123C] px-3 py-0.5 text-sm font-bold text-white">
+                    {pendingConsultations}
+                  </span>
+                </h2>
+                {lastFetchedAt && (
+                  <p className="mt-0.5 text-[14px] text-slate-500">
+                    Huling update:{" "}
+                    {lastFetchedAt.toLocaleTimeString("en-PH", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}
+                  </p>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => fetchPipeline()}
                 disabled={pipelineLoading}
-                className="flex min-h-[48px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                className="flex min-h-[48px] items-center gap-2 rounded-[14px] border-2 border-slate-300 bg-white px-3.5 text-[14px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer self-start sm:self-auto"
               >
                 <RefreshCw
                   className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
+                  strokeWidth={2}
                   aria-hidden="true"
                 />
                 I-refresh
               </button>
             </div>
 
-            <FilterPills value={expertFilter} onChange={setExpertFilter} />
+            <FilterSegments value={expertFilter} onChange={setExpertFilter} />
 
             {pipelineLoading ? (
               <LoadingState label="Kinukuha ang mga kaso..." />
@@ -1044,50 +1325,83 @@ export const TechnicianDashboardPage: React.FC = () => {
         )}
       </main>
 
-      {/* ── D. MOBILE BOTTOM TAB BAR (fixed, 64px, 4 equal cols, 14px bold) ── */}
+      {/* ── D. MOBILE BOTTOM NAV BAR (< md) ─────────────────────────────────── */}
       <nav
-        aria-label="Mobile Navigation"
-        className="fixed bottom-0 left-0 right-0 z-40 h-[64px] bg-white border-t-2 border-slate-300 md:hidden"
+        aria-label="Pangunahing nabigasyon"
+        className="fixed bottom-0 left-0 right-0 z-40 h-[72px] bg-white border-t-2 border-slate-300 md:hidden"
       >
         <div className="grid grid-cols-4 h-full">
           {(
             [
-              { key: "BUOD" as TabKey, label: "Buod" },
+              {
+                key: "BUOD" as TabKey,
+                label: "Buod",
+                icon: LayoutDashboard,
+              },
               {
                 key: "PINSALA" as TabKey,
                 label: "Pinsala",
+                icon: CloudLightning,
                 badge: pendingDisasterClaims,
-                badgeColor: "bg-[#C2410C]",
+                badgeBg: "bg-[#C2410C]",
               },
               {
                 key: "KONSULTASYON" as TabKey,
                 label: "Konsulta",
+                icon: MessageSquare,
                 badge: pendingConsultations,
-                badgeColor: "bg-[#BE123C]",
+                badgeBg: "bg-[#BE123C]",
               },
-              { key: "ULAT" as TabKey, label: "Ulat" },
+              {
+                key: "ULAT" as TabKey,
+                label: "Ulat",
+                icon: FileDown,
+              },
             ] as const
           ).map((tab) => {
             const isActive = activeTab === tab.key;
+            const Icon = tab.icon;
+            const hasBadge = "badge" in tab && tab.badge > 0;
+
             return (
               <button
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative flex h-full items-center justify-center gap-1 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer ${
+                aria-current={isActive ? "page" : undefined}
+                className={`relative flex h-full flex-col items-center justify-center gap-[4px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer ${
                   isActive
                     ? "bg-[#EFF6FF] text-[#1D4ED8]"
                     : "text-[#334155] hover:bg-slate-50"
                 }`}
               >
-                <span>{tab.label}</span>
-                {"badge" in tab && tab.badge > 0 && (
-                  <span
-                    className={`ml-1 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-xs font-bold text-white leading-none ${tab.badgeColor}`}
-                  >
-                    {tab.badge}
-                  </span>
+                {/* 4px blue indicator bar along the top edge (inset 22% left & right, rounded bottom corners) */}
+                {isActive && (
+                  <span className="absolute top-0 left-[22%] right-[22%] h-[4px] rounded-b-full bg-[#1D4ED8]" />
                 )}
+
+                {/* Outline Icon (size 26, strokeWidth 2) with count badge sitting on the top-right corner */}
+                <div className="relative inline-flex items-center justify-center">
+                  <Icon
+                    className="h-[26px] w-[26px]"
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
+                  {hasBadge && (
+                    <span
+                      className={`absolute -top-1.5 -right-2.5 flex h-[20px] w-[20px] items-center justify-center rounded-full text-[13px] font-bold text-white border-2 leading-none ${
+                        tab.badgeBg
+                      } ${isActive ? "border-[#EFF6FF]" : "border-white"}`}
+                    >
+                      {tab.badge > 99 ? "99+" : tab.badge}
+                    </span>
+                  )}
+                </div>
+
+                {/* 14px bold label */}
+                <span className="text-[14px] font-bold leading-tight">
+                  {tab.label}
+                </span>
               </button>
             );
           })}
@@ -1113,7 +1427,11 @@ export const TechnicianDashboardPage: React.FC = () => {
               </h3>
               <button
                 type="button"
-                onClick={() => setSelectedDisaster(null)}
+                onClick={() => {
+                  setSelectedDisaster(null);
+                  setConfirmReject(null);
+                  setConfirmApprove(null);
+                }}
                 aria-label="Isara"
                 className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
               >
@@ -1121,7 +1439,8 @@ export const TechnicianDashboardPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              {/* Row 1 */}
               <div>
                 <p className="text-sm font-medium text-slate-600">
                   Uri ng Sakuna
@@ -1138,6 +1457,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   {Number(selectedDisaster.damagePercentage).toFixed(0)}%
                 </p>
               </div>
+              {/* Row 2 */}
               <div>
                 <p className="text-sm font-medium text-slate-600">
                   Tinatayang Lugi
@@ -1156,38 +1476,78 @@ export const TechnicianDashboardPage: React.FC = () => {
                 </p>
               </div>
               {selectedDisaster.farm && (
-                <div className="col-span-2 pt-2 border-t border-slate-200">
-                  <p className="text-sm font-medium text-slate-600">Sakahan</p>
-                  <p className="mt-0.5 text-[18px] font-bold text-slate-900">
+                <div className="col-span-2 border-t border-slate-200 pt-3">
+                  <p className="text-[14px] font-medium text-slate-600 whitespace-nowrap">
+                    Sakahan
+                  </p>
+                  <p className="mt-0.5 text-[19px] font-bold text-slate-900">
                     {selectedDisaster.farm.name} &middot;{" "}
-                    {selectedDisaster.farm.barangay}
+                    {selectedDisaster.farm.barangay},{" "}
+                    {selectedDisaster.farm.municipality}
                   </p>
                 </div>
               )}
             </div>
 
-            {selectedDisaster.notes && (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="mb-1 text-sm font-bold uppercase tracking-wider text-slate-700">
-                  Tala ng Magsasaka
-                </p>
-                <p className="text-base text-slate-800 leading-relaxed">
-                  {selectedDisaster.notes}
+            {(() => {
+              const dn = parseDisasterNotes(selectedDisaster.notes);
+              const farmerText = dn.cleanNotes || selectedDisaster.notes;
+              return farmerText ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="mb-1.5 text-[14px] font-bold uppercase tracking-wider text-slate-700">
+                    Tala ng Magsasaka
+                  </p>
+                  <p className="text-[16px] text-slate-800 leading-relaxed whitespace-pre-line">
+                    {farmerText}
+                  </p>
+                </div>
+              ) : null;
+            })()}
+
+            {/* ── ACTION BUTTONS ──────────────────────────────────────────── */}
+            {["RESOLVED", "REJECTED"].includes(selectedDisaster.status) ? (
+              /* Read-only status banner when already resolved/rejected */
+              <div
+                className={`rounded-2xl border p-4 flex items-center gap-3 ${
+                  selectedDisaster.status === "RESOLVED"
+                    ? "border-emerald-300 bg-emerald-50"
+                    : "border-rose-300 bg-rose-50"
+                }`}
+              >
+                {selectedDisaster.status === "RESOLVED" ? (
+                  <CheckCircle2
+                    className="h-6 w-6 shrink-0 text-emerald-600"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <XCircle
+                    className="h-6 w-6 shrink-0 text-rose-500"
+                    aria-hidden="true"
+                  />
+                )}
+                <p
+                  className={`text-[16px] font-bold ${
+                    selectedDisaster.status === "RESOLVED"
+                      ? "text-emerald-900"
+                      : "text-rose-900"
+                  }`}
+                >
+                  {selectedDisaster.status === "RESOLVED"
+                    ? "Aprubado na ang claim na ito."
+                    : "Hindi naaprubahan ang claim na ito."}
                 </p>
               </div>
-            )}
-
-            {/* Reject confirm guard */}
-            {confirmReject === selectedDisaster.id ? (
+            ) : confirmReject === selectedDisaster.id ? (
+              /* Reject confirmation step */
               <div className="space-y-3">
-                <p className="text-base font-semibold text-red-700">
+                <p className="text-[16px] font-semibold text-red-700">
                   Sigurado ka bang i-reject ang claim na ito?
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setConfirmReject(null)}
-                    className="flex h-[52px] items-center justify-center rounded-xl border border-slate-300 text-base font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
+                    className="flex h-[52px] items-center justify-center rounded-[14px] border border-slate-300 text-[16px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
                   >
                     Hindi, bumalik
                   </button>
@@ -1197,58 +1557,95 @@ export const TechnicianDashboardPage: React.FC = () => {
                       handleStatusUpdate(selectedDisaster.id, "REJECTED")
                     }
                     disabled={submittingAction}
-                    className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-red-600 text-base font-bold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                    className="flex h-[52px] items-center justify-center gap-2 rounded-[14px] bg-red-600 text-[16px] font-bold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
                   >
                     {submittingAction ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <Loader2 className="h-[22px] w-[22px] animate-spin" />
                     ) : (
-                      <XCircle className="h-5 w-5" />
+                      <XCircle className="h-[22px] w-[22px]" strokeWidth={2} />
                     )}
                     Oo, i-reject
                   </button>
                 </div>
               </div>
+            ) : confirmApprove === selectedDisaster.id ? (
+              /* Approve confirmation step */
+              <div className="space-y-3">
+                <p className="text-[16px] font-semibold text-emerald-800">
+                  Aprubahan ang disaster claim na ito?
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmApprove(null)}
+                    className="flex h-[52px] items-center justify-center rounded-[14px] border border-slate-300 text-[16px] font-bold text-slate-700 transition hover:bg-slate-50 cursor-pointer"
+                  >
+                    Hindi, bumalik
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleStatusUpdate(selectedDisaster.id, "RESOLVED")
+                    }
+                    disabled={submittingAction}
+                    className="flex h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#047857] text-[16px] font-bold text-white transition hover:bg-emerald-800 active:scale-95 disabled:opacity-60 cursor-pointer"
+                  >
+                    {submittingAction ? (
+                      <Loader2 className="h-[22px] w-[22px] animate-spin" />
+                    ) : (
+                      <ShieldCheck
+                        className="h-[22px] w-[22px]"
+                        strokeWidth={2}
+                      />
+                    )}
+                    Oo, aprubahan
+                  </button>
+                </div>
+              </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              /* Default action buttons */
+              <div className="space-y-3">
+                {/* PRIMARY: Aprubahan — full width, tall */}
                 <button
                   type="button"
-                  onClick={() =>
-                    handleStatusUpdate(selectedDisaster.id, "UNDER_REVIEW")
-                  }
+                  onClick={() => setConfirmApprove(selectedDisaster.id)}
                   disabled={submittingAction}
-                  className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                  className="flex w-full min-h-[64px] items-center justify-center gap-3 rounded-2xl bg-[#047857] text-[20px] font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-[0.99] disabled:opacity-60 cursor-pointer shadow-md"
                 >
-                  {submittingAction ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                  Sinusuri
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleStatusUpdate(selectedDisaster.id, "RESOLVED")
-                  }
-                  disabled={submittingAction}
-                  className="flex h-[52px] items-center justify-center gap-2 rounded-xl bg-emerald-600 text-base font-bold text-white transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60 cursor-pointer"
-                >
-                  {submittingAction ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <ShieldCheck className="h-5 w-5" />
-                  )}
+                  <ShieldCheck
+                    className="h-[26px] w-[26px]"
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
                   Aprubahan
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmReject(selectedDisaster.id)}
-                  disabled={submittingAction}
-                  className="col-span-2 sm:col-span-1 flex h-[52px] items-center justify-center gap-2 rounded-xl border-2 border-red-400 text-base font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
-                >
-                  <XCircle className="h-5 w-5" />
-                  I-reject
-                </button>
+                {/* SECONDARY ROW: Sinusuri + I-reject */}
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleStatusUpdate(selectedDisaster.id, "UNDER_REVIEW")
+                    }
+                    disabled={submittingAction}
+                    className="flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#1D4ED8] text-[16px] font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                  >
+                    {submittingAction ? (
+                      <Loader2 className="h-[22px] w-[22px] animate-spin" />
+                    ) : (
+                      <Eye className="h-[22px] w-[22px]" strokeWidth={2} />
+                    )}
+                    Sinusuri
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmReject(selectedDisaster.id)}
+                    disabled={submittingAction}
+                    className="flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] border-2 border-red-300 bg-white text-[16px] font-bold text-[#B91C1C] transition hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                  >
+                    <XCircle className="h-[22px] w-[22px]" strokeWidth={2} />
+                    I-reject
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1718,6 +2115,57 @@ export const TechnicianDashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {confirmLogout && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                <LogOut className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">
+                  Mag-logout?
+                </h3>
+                <p className="text-sm font-medium text-slate-500">
+                  Kakailanganin mong mag-login muli.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-red-600 text-base font-black text-white transition-colors hover:bg-red-700 disabled:opacity-60 cursor-pointer"
+              >
+                <LogOut className="h-5 w-5" />
+                {loggingOut ? "Nilalabas..." : "Oo, mag-logout"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmLogout(false)}
+                disabled={loggingOut}
+                className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-slate-100 text-base font-bold text-slate-600 transition-colors hover:bg-slate-200 cursor-pointer"
+              >
+                Huwag na
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ACCOUNT / PROFILE SHEET ───────────────────────────────────────── */}
+      <AccountSheet
+        isOpen={isAccountOpen}
+        onClose={() => setIsAccountOpen(false)}
+        triggerRef={activeTriggerRef}
+        profileName={officerName || "Opisyal"}
+        profileRoleSubtitle={`${officerRole} \u00b7 DA Region II`}
+        profileInitials={profileInitials}
+        menuItems={accountMenuItems}
+        footerText="TarabayMais v1.0.0 \u00b7 DA Region II"
+      />
     </div>
   );
 };

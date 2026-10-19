@@ -1,116 +1,25 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Bell, BellOff, X } from "lucide-react";
 import { tagalogRelativeTime } from "../lib/relativeTime";
+import {
+  deriveNotifications,
+  loadReadNotificationIds,
+  saveReadIds,
+  type DerivedNotification,
+  type NotifType,
+} from "../lib/notificationReadTracking";
 import type { ExpertCase, DisasterReport } from "../services/case.service";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export type NotifType = "KONSULTASYON" | "DISASTER";
-
-export interface DerivedNotification {
-  /** Stable ID composed from the case id + type so it never clashes. */
-  id: string;
-  type: NotifType;
-  title: string;
-  /** "{Farmer name} · {barangay}" */
-  subline: string;
-  createdAt: string;
-  /** true when severity is HIGH or CRITICAL (expert cases only). */
-  highPriority: boolean;
-  /** The underlying case id for navigation. */
-  caseId: string;
-}
-
-// ─── Read-tracking helpers ───────────────────────────────────────────────────
-
-function storageKey(userId: string): string {
-  return `tarabay_read_notifications:${userId}`;
-}
-
-function loadReadIds(userId: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(storageKey(userId));
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw) as string[]);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveReadIds(userId: string, ids: Set<string>): void {
-  try {
-    localStorage.setItem(storageKey(userId), JSON.stringify([...ids]));
-  } catch {
-    // Storage quota or private-mode — ignore silently.
-  }
-}
-
-export function clearReadNotifications(userId: string): void {
-  try {
-    localStorage.removeItem(storageKey(userId));
-  } catch {
-    // ignore
-  }
-}
-
-// ─── Derive notifications from pipeline data ─────────────────────────────────
-
-function deriveNotifications(
-  expertCases: ExpertCase[],
-  disasterCases: DisasterReport[],
-): DerivedNotification[] {
-  const items: DerivedNotification[] = [];
-
-  for (const ec of expertCases) {
-    if (!["SUBMITTED", "UNDER_REVIEW", "INSPECTED"].includes(ec.status))
-      continue;
-    const farm = ec.observation?.cropCycle?.farm;
-    const farmerName = farm?.name ?? "Hindi nakikilala";
-    const barangay = farm?.barangay ?? "\u2014";
-    const severity = ec.observation?.severity ?? "";
-    items.push({
-      id: `ec:${ec.id}`,
-      type: "KONSULTASYON",
-      title: `Bagong kaso: ${ec.observation?.title ?? "Obserbasyon"}`,
-      subline: `${farmerName} \u00b7 ${barangay}`,
-      createdAt: ec.createdAt ?? new Date(0).toISOString(),
-      highPriority: severity === "HIGH" || severity === "CRITICAL",
-      caseId: ec.id,
-    });
-  }
-
-  for (const dr of disasterCases) {
-    if (!["SUBMITTED", "UNDER_REVIEW"].includes(dr.status)) continue;
-    const farmerName = dr.farm?.name ?? "Hindi nakikilala";
-    const barangay = dr.farm?.barangay ?? "\u2014";
-    items.push({
-      id: `dr:${dr.id}`,
-      type: "DISASTER",
-      title: `Bagong claim: ${dr.disasterType}`,
-      subline: `${farmerName} \u00b7 ${barangay}`,
-      createdAt: dr.createdAt ?? new Date(0).toISOString(),
-      highPriority: false,
-      caseId: dr.id,
-    });
-  }
-
-  // Newest first, cap at 8 in the dropdown
-  items.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
-  return items;
-}
-
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
 interface NotificationBellProps {
   userId: string;
   expertCases: ExpertCase[];
   disasterCases: DisasterReport[];
-  /** Called when the user clicks a notification row. */
   onOpenCase: (caseId: string, type: NotifType) => void;
-  /** Called when footer "Tingnan lahat" is clicked (switches to Konsultasyon). */
   onViewAll: () => void;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const MAX_VISIBLE = 8;
@@ -121,14 +30,18 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   disasterCases,
   onOpenCase,
   onViewAll,
+  isOpen,
+  onOpenChange,
 }) => {
   const bellRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(() =>
-    loadReadIds(userId),
+    loadReadNotificationIds(userId),
   );
 
+  const isControlled = isOpen !== undefined;
+  const panelOpen = isOpen ?? open;
   const bellId = useId();
   const panelId = useId();
 
@@ -140,66 +53,81 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const visibleNotifs = allNotifs.slice(0, MAX_VISIBLE);
   const unreadCount = allNotifs.filter((n) => !readIds.has(n.id)).length;
 
+  useEffect(() => { saveReadIds(userId, readIds); }, [userId, readIds]);
   useEffect(() => {
-    saveReadIds(userId, readIds);
-  }, [userId, readIds]);
-
-  useEffect(() => {
-    setReadIds(loadReadIds(userId));
+    setReadIds(loadReadNotificationIds(userId));
   }, [userId]);
 
-  const openPanel = useCallback(() => setOpen(true), []);
+  // ── Open / close ───────────────────────────────────────────────────────────
+
+  const setPanelOpen = useCallback(
+    (nextOpen: boolean) => {
+      if (!isControlled) setOpen(nextOpen);
+      onOpenChange?.(nextOpen);
+    },
+    [isControlled, onOpenChange],
+  );
+
+  const openPanel = useCallback(() => setPanelOpen(true), [setPanelOpen]);
   const closePanel = useCallback(() => {
-    setOpen(false);
+    setPanelOpen(false);
     setTimeout(() => bellRef.current?.focus(), 0);
-  }, []);
+  }, [setPanelOpen]);
 
   // Move focus into the panel when opened
   useEffect(() => {
-    if (open) {
+    if (panelOpen) {
       const first = panelRef.current?.querySelector<HTMLElement>(
         "button, [href], input, [tabindex]:not([tabindex='-1'])",
       );
       first?.focus();
     }
-  }, [open]);
+  }, [panelOpen]);
 
-  // Close on Escape
+  // Escape key closes the panel
   useEffect(() => {
-    if (!open) return;
+    if (!panelOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") closePanel();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [open, closePanel]);
+  }, [panelOpen, closePanel]);
 
-  // Close on outside click
+  // Outside-click: only close if the click landed OUTSIDE both bell and panel.
+  // Uses "click" (not "mousedown") so row buttons always fire their onClick first.
   useEffect(() => {
-    if (!open) return;
+    if (!panelOpen) return;
     const handler = (e: MouseEvent) => {
+      const bell = bellRef.current;
+      if (!bell || bell.getClientRects().length === 0) return;
+
       if (
         panelRef.current &&
         !panelRef.current.contains(e.target as Node) &&
-        bellRef.current &&
-        !bellRef.current.contains(e.target as Node)
+        !bell.contains(e.target as Node)
       ) {
         closePanel();
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [open, closePanel]);
+  }, [panelOpen, closePanel]);
 
   const markAllRead = () => {
     setReadIds(new Set(allNotifs.map((n) => n.id)));
   };
 
-  const handleRowClick = (notif: DerivedNotification) => {
-    setReadIds((prev) => new Set([...prev, notif.id]));
-    closePanel();
-    onOpenCase(notif.caseId, notif.type);
-  };
+  const handleRowClick = useCallback(
+    (notif: DerivedNotification) => {
+      setReadIds((prev) => new Set([...prev, notif.id]));
+      closePanel();
+      requestAnimationFrame(() => {
+        onOpenCase(notif.caseId, notif.type);
+      });
+    },
+    [closePanel, onOpenCase],
+  );
 
   return (
     <div className="relative">
@@ -208,12 +136,12 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         ref={bellRef}
         id={bellId}
         type="button"
-        onClick={() => (open ? closePanel() : openPanel())}
+        onClick={() => (panelOpen ? closePanel() : openPanel())}
         aria-label={`Mga abiso, ${unreadCount} bago`}
         aria-haspopup="true"
-        aria-expanded={open}
+        aria-expanded={panelOpen}
         aria-controls={panelId}
-        className="relative flex h-[52px] w-[52px] items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95"
+        className="relative flex h-[52px] w-[52px] items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95 cursor-pointer"
       >
         <Bell className="h-6 w-6" aria-hidden="true" />
         {unreadCount > 0 && (
@@ -227,16 +155,15 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       </button>
 
       {/* Backdrop (mobile) */}
-      {open && (
+      {panelOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden pointer-events-none"
           aria-hidden="true"
-          onClick={closePanel}
         />
       )}
 
       {/* Dropdown panel */}
-      {open && (
+      {panelOpen && (
         <div
           ref={panelRef}
           id={panelId}
@@ -252,7 +179,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                 <button
                   type="button"
                   onClick={markAllRead}
-                  className="min-h-[48px] rounded-xl px-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                  className="min-h-[48px] rounded-xl px-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
                 >
                   Markahan lahat bilang nabasa
                 </button>
@@ -268,7 +195,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
             </div>
           </div>
 
-          {/* Notification list */}
+          {/* List */}
           {visibleNotifs.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
               <BellOff
@@ -287,9 +214,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                   <li key={notif.id}>
                     <button
                       type="button"
-                      onClick={() => handleRowClick(notif)}
+                      onClick={() =>
+                        handleRowClick(notif)
+                      }
                       className={[
-                        "flex w-full min-h-[64px] items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer",
+                        "flex w-full min-h-[64px] items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-100 active:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer",
                         isUnread ? "bg-blue-50" : "bg-white",
                       ].join(" ")}
                     >
@@ -345,7 +274,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                   closePanel();
                   onViewAll();
                 }}
-                className="flex h-[52px] w-full items-center justify-center rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95"
+                className="flex h-[52px] w-full items-center justify-center rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 cursor-pointer"
               >
                 Tingnan lahat ng kaso
               </button>
