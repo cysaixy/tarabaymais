@@ -325,12 +325,14 @@ export const TechnicianDashboardPage: React.FC = () => {
         const found = expertCases.find((c) => c.id === caseId);
         if (found) {
           setAdvisoryInput(found.recommendation ?? "");
+          setSelectedDisaster(null);
           setSelectedCase(found);
           setActiveTab("KONSULTASYON");
         }
       } else {
         const found = disasterReports.find((d) => d.id === caseId);
         if (found) {
+          setSelectedCase(null);
           setSelectedDisaster(found);
           setActiveTab("PINSALA");
         }

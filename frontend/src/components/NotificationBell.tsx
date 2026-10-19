@@ -99,11 +99,13 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   useEffect(() => {
     if (!panelOpen) return;
     const handler = (e: MouseEvent) => {
+      const bell = bellRef.current;
+      if (!bell || bell.getClientRects().length === 0) return;
+
       if (
         panelRef.current &&
         !panelRef.current.contains(e.target as Node) &&
-        bellRef.current &&
-        !bellRef.current.contains(e.target as Node)
+        !bell.contains(e.target as Node)
       ) {
         closePanel();
       }
@@ -116,11 +118,16 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     setReadIds(new Set(allNotifs.map((n) => n.id)));
   };
 
-  const handleRowClick = (notif: DerivedNotification) => {
-    setReadIds((prev) => new Set([...prev, notif.id]));
-    closePanel();
-    onOpenCase(notif.caseId, notif.type);
-  };
+  const handleRowClick = useCallback(
+    (notif: DerivedNotification) => {
+      setReadIds((prev) => new Set([...prev, notif.id]));
+      closePanel();
+      requestAnimationFrame(() => {
+        onOpenCase(notif.caseId, notif.type);
+      });
+    },
+    [closePanel, onOpenCase],
+  );
 
   return (
     <div className="relative">
