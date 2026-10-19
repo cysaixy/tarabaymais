@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { parseLegacyCaseDescription } from "../../lib/parseLegacyCaseDescription";
 import { useAuth } from "../../context/authContext";
+import { useNotifications } from "../../hooks/useNotifications";
 import {
   getCasePipeline,
   updateCaseStatus,
@@ -85,6 +86,7 @@ function formatHa(value: number): string {
 export const TechnicianDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile, user, logout } = useAuth();
+  useNotifications({ autoRegister: true, showForegroundToast: true });
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<TabKey>("BUOD");

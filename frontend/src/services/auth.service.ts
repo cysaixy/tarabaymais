@@ -86,3 +86,10 @@ export const registerProfile = async (
   const { data } = await api.post("/auth/sync", payload);
   return data.data.user as DbUserProfile;
 };
+
+/**
+ * Registers the FCM push notification token with the backend.
+ */
+export const registerFcmToken = async (fcmToken: string): Promise<void> => {
+  await api.post("/register/fcm-token", { fcmToken });
+};

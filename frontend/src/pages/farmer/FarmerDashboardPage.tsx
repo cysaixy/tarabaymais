@@ -35,6 +35,8 @@ import {
   RefreshCw as RefreshCwIcon,
 } from "lucide-react";
 import { useWeather } from "../../hooks/useWeather";
+import { useNotifications } from "../../hooks/useNotifications";
+import { NotificationBell } from "../../components/NotificationBell";
 import {
   createActivity,
   type ActivityType,
@@ -407,6 +409,7 @@ const DynamicWeatherCard: React.FC<{
 export const FarmerDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile, logout } = useAuth();
+  useNotifications({ autoRegister: true, showForegroundToast: true });
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -801,7 +804,7 @@ export const FarmerDashboardPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Right: Essential actions only — Sync (if needed) + Profile Menu */}
+          {/* Right: Essential actions only — Sync (if needed) + Notifications + Profile Menu */}
           <div className="flex items-center gap-2 shrink-0">
             {/* Sync Button — only shows when there's queue, prominent */}
             {queueCount > 0 && (
@@ -821,6 +824,15 @@ export const FarmerDashboardPage: React.FC = () => {
                 </span>
               </button>
             )}
+
+            {/* Notification Bell */}
+            <NotificationBell
+              userId={profile?.id ?? ""}
+              expertCases={[]} // Farmer doesn't have expert cases
+              disasterCases={[]} // Farmer doesn't have disaster cases directly
+              onOpenCase={() => {}} // No navigation needed for farmer
+              onViewAll={() => {}} // No view all for farmer
+            />
 
             {/* Profile Menu Button — single tap target for all account actions */}
             <button

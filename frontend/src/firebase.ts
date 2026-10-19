@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, RecaptchaVerifier } from "firebase/auth";
 
 // Build the configuration object pulling from Vite's secure env layer
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey:
     import.meta.env.VITE_FIREBASE_API_KEY ||
     "AIzaSyDemoFallbackKeyForLocalDevelopment123",
