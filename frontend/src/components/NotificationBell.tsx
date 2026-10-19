@@ -1,112 +1,14 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Bell, BellOff, X } from "lucide-react";
 import { tagalogRelativeTime } from "../lib/relativeTime";
+import {
+  deriveNotifications,
+  loadReadNotificationIds,
+  saveReadIds,
+  type DerivedNotification,
+  type NotifType,
+} from "../lib/notificationReadTracking";
 import type { ExpertCase, DisasterReport } from "../services/case.service";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export type NotifType = "KONSULTASYON" | "DISASTER";
-
-export interface DerivedNotification {
-  id: string;
-  type: NotifType;
-  title: string;
-  subline: string;
-  createdAt: string;
-  highPriority: boolean;
-  caseId: string;
-}
-
-// ─── Read-tracking helpers ────────────────────────────────────────────────────
-
-function storageKey(userId: string): string {
-  return `tarabay_read_notifications:${userId}`;
-}
-
-function loadReadIds(userId: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(storageKey(userId));
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw) as string[]);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveReadIds(userId: string, ids: Set<string>): void {
-  try {
-    localStorage.setItem(storageKey(userId), JSON.stringify([...ids]));
-  } catch {
-    // ignore
-  }
-}
-
-export function clearReadNotifications(userId: string): void {
-  try {
-    localStorage.removeItem(storageKey(userId));
-  } catch {
-    // ignore
-  }
-}
-
-// ─── Derive notifications ─────────────────────────────────────────────────────
-
-function deriveNotifications(
-  expertCases: ExpertCase[],
-  disasterCases: DisasterReport[],
-): DerivedNotification[] {
-  const items: DerivedNotification[] = [];
-
-  for (const ec of expertCases) {
-    if (!["SUBMITTED", "UNDER_REVIEW", "INSPECTED"].includes(ec.status))
-      continue;
-    const farm = ec.observation?.cropCycle?.farm;
-    const farmerName = farm?.name ?? "Hindi nakikilala";
-    const barangay = farm?.barangay ?? "\u2014";
-    const severity = ec.observation?.severity ?? "";
-    items.push({
-      id: `ec:${ec.id}`,
-      type: "KONSULTASYON",
-      title: `Bagong kaso: ${ec.observation?.title ?? "Obserbasyon"}`,
-      subline: `${farmerName} \u00b7 ${barangay}`,
-      createdAt: ec.createdAt ?? new Date(0).toISOString(),
-      highPriority: severity === "HIGH" || severity === "CRITICAL",
-      caseId: ec.id,
-    });
-  }
-
-  for (const dr of disasterCases) {
-    if (!["SUBMITTED", "UNDER_REVIEW"].includes(dr.status)) continue;
-    const farmerName = dr.farm?.name ?? "Hindi nakikilala";
-    const barangay = dr.farm?.barangay ?? "\u2014";
-    items.push({
-      id: `dr:${dr.id}`,
-      type: "DISASTER",
-      title: `Bagong claim: ${dr.disasterType}`,
-      subline: `${farmerName} \u00b7 ${barangay}`,
-      createdAt: dr.createdAt ?? new Date(0).toISOString(),
-      highPriority: false,
-      caseId: dr.id,
-    });
-  }
-
-  items.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
-  return items;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-export function getUnreadNotificationsCount(
-  expertCases: ExpertCase[],
-  disasterCases: DisasterReport[],
-  userId: string
-): number {
-  const notifs = deriveNotifications(expertCases, disasterCases);
-  const readIds = loadReadIds(userId);
-  return notifs.filter((n) => !readIds.has(n.id)).length;
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -135,9 +37,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(() =>
-    loadReadIds(userId),
+    loadReadNotificationIds(userId),
   );
 
+  const isControlled = isOpen !== undefined;
+  const panelOpen = isOpen ?? open;
   const bellId = useId();
   const panelId = useId();
 
@@ -150,40 +54,50 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const unreadCount = allNotifs.filter((n) => !readIds.has(n.id)).length;
 
   useEffect(() => { saveReadIds(userId, readIds); }, [userId, readIds]);
-  useEffect(() => { setReadIds(loadReadIds(userId)); }, [userId]);
+  useEffect(() => {
+    setReadIds(loadReadNotificationIds(userId));
+  }, [userId]);
 
   // ── Open / close ───────────────────────────────────────────────────────────
 
-  const openPanel = useCallback(() => setOpen(true), []);
+  const setPanelOpen = useCallback(
+    (nextOpen: boolean) => {
+      if (!isControlled) setOpen(nextOpen);
+      onOpenChange?.(nextOpen);
+    },
+    [isControlled, onOpenChange],
+  );
+
+  const openPanel = useCallback(() => setPanelOpen(true), [setPanelOpen]);
   const closePanel = useCallback(() => {
-    setOpen(false);
+    setPanelOpen(false);
     setTimeout(() => bellRef.current?.focus(), 0);
-  }, []);
+  }, [setPanelOpen]);
 
   // Move focus into the panel when opened
   useEffect(() => {
-    if (open) {
+    if (panelOpen) {
       const first = panelRef.current?.querySelector<HTMLElement>(
         "button, [href], input, [tabindex]:not([tabindex='-1'])",
       );
       first?.focus();
     }
-  }, [open]);
+  }, [panelOpen]);
 
   // Escape key closes the panel
   useEffect(() => {
-    if (!open) return;
+    if (!panelOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") closePanel();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [open, closePanel]);
+  }, [panelOpen, closePanel]);
 
   // Outside-click: only close if the click landed OUTSIDE both bell and panel.
   // Uses "click" (not "mousedown") so row buttons always fire their onClick first.
   useEffect(() => {
-    if (!open) return;
+    if (!panelOpen) return;
     const handler = (e: MouseEvent) => {
       if (
         panelRef.current &&
@@ -196,7 +110,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [open, closePanel]);
+  }, [panelOpen, closePanel]);
 
   const markAllRead = () => {
     setReadIds(new Set(allNotifs.map((n) => n.id)));
@@ -215,10 +129,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         ref={bellRef}
         id={bellId}
         type="button"
-        onClick={() => (open ? closePanel() : openPanel())}
+        onClick={() => (panelOpen ? closePanel() : openPanel())}
         aria-label={`Mga abiso, ${unreadCount} bago`}
         aria-haspopup="true"
-        aria-expanded={open}
+        aria-expanded={panelOpen}
         aria-controls={panelId}
         className="relative flex h-[52px] w-[52px] items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95 cursor-pointer"
       >
@@ -234,7 +148,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       </button>
 
       {/* Backdrop (mobile) */}
-      {open && (
+      {panelOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/40 md:hidden pointer-events-none"
           aria-hidden="true"
@@ -242,7 +156,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       )}
 
       {/* Dropdown panel */}
-      {open && (
+      {panelOpen && (
         <div
           ref={panelRef}
           id={panelId}
@@ -294,7 +208,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                     <button
                       type="button"
                       onClick={() =>
-                        handleRowClick(notif.caseId, notif.type, notif.id)
+                        handleRowClick(notif)
                       }
                       className={[
                         "flex w-full min-h-[64px] items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-100 active:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer",

@@ -9,7 +9,7 @@ import {
 } from "./authContext";
 import { getMe, logOut } from "../services/auth.service";
 import { clearFarmContext } from "../hooks/useFarmContext";
-import { clearReadNotifications } from "../components/NotificationBell";
+import { clearReadNotifications } from "../lib/notificationReadTracking";
 
 /**
  * Reads the role from the Firebase ID token's custom claim. The backend sets

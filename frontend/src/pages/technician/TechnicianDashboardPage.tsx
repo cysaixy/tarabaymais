@@ -64,10 +64,12 @@ import {
 } from "../../components/AccountSheet";
 import {
   NotificationBell,
+} from "../../components/NotificationBell";
+import {
   clearReadNotifications,
   getUnreadNotificationsCount,
   type NotifType,
-} from "../../components/NotificationBell";
+} from "../../lib/notificationReadTracking";
 
 // ─── Tab keys ─────────────────────────────────────────────────────────────────
 
@@ -574,6 +576,53 @@ export const TechnicianDashboardPage: React.FC = () => {
 
       {/* ── MAIN CONTENT (pb-24 so content never hides behind 64px bottom bar) ── */}
       <main className="mx-auto max-w-[1184px] px-4 py-6 md:px-12 space-y-6 pb-24">
+
+        {/* ── MAISY GREETING (BUOD tab on mobile; always on desktop) ─────────── */}
+        <section
+          aria-label="Bati mula kay Maisy"
+          className={`${activeTab === "BUOD" ? "block" : "hidden"} md:block`}
+        >
+          {/* Date line */}
+          <div className="px-1 pb-3 pt-1">
+            <p className="text-xs font-bold tracking-[0.08em] text-slate-500 uppercase">
+              {new Intl.DateTimeFormat("fil-PH", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              }).format(new Date()).toLocaleUpperCase("fil-PH")}
+            </p>
+            <h2 className="mt-1 text-3xl md:text-4xl font-black leading-tight tracking-tight text-slate-900">
+              Mabuhay, {profile?.firstName || officerName.split(" ")[0] || "Opisyal"}!
+            </h2>
+          </div>
+
+          {/* Maisy card — navy/blue tint for officer portal */}
+          <div className="flex w-full items-center gap-3 rounded-2xl bg-[#DBEAFE] px-4 py-4 sm:px-5 sm:py-5">
+            <img
+              src="/assets/mascot-maisy.png"
+              alt="Maisy, ang iyong DA farming assistant"
+              className="h-[96px] w-auto shrink-0 object-contain sm:h-[108px]"
+              style={{ imageRendering: "pixelated" }}
+            />
+            <div className="relative min-w-0 flex-1 rounded-[20px] bg-white px-4 py-4 text-slate-900">
+              {/* speech-bubble tail */}
+              <span
+                aria-hidden="true"
+                className="absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rotate-45 bg-white"
+              />
+              <div className="relative">
+                <p className="text-lg font-extrabold leading-tight text-[#1D4ED8]">
+                  Maisy
+                </p>
+                <p className="mt-1 text-base font-medium leading-relaxed text-slate-800">
+                  Magandang araw, {profile?.firstName || "Opisyal"}! Handa na ang inyong
+                  dashboard. Suriin ang mga kaso at i-aksyon ang mga nakabinbin ngayon.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ── KAILANGAN NG AKSYON NGAYON (Desktop: above tabs; Mobile: Buod only) ── */}
         <section
           aria-labelledby="action-heading"

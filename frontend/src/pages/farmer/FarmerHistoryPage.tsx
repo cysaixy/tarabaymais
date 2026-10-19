@@ -109,7 +109,7 @@ export const FarmerHistoryPage: React.FC = () => {
     });
 
     // 2. Fetch live synced data from backend
-    let backendItems: HistoryItem[] = [];
+    const backendItems: HistoryItem[] = [];
     try {
       const [activities, observations, pipeline] = await Promise.allSettled([
         listActivities(farmCtx.cropCycleId || undefined),
