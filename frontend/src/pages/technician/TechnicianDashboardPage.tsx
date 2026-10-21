@@ -456,13 +456,13 @@ export const TechnicianDashboardPage: React.FC = () => {
               aria-pressed={isActive}
               onClick={() => onChange(key)}
               className={[
-                "flex min-h-[60px] flex-col items-center justify-center gap-0.5 rounded-[14px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer",
+                "flex min-h-15 flex-col items-center justify-center gap-0.5 rounded-[14px] transition focus-visible:outline focus-visible:outline-blue-400 cursor-pointer",
                 isActive
                   ? "bg-white text-[#1D4ED8] shadow-sm"
                   : "bg-transparent text-slate-600 hover:bg-white/50",
               ].join(" ")}
             >
-              <Icon className="h-[22px] w-[22px]" strokeWidth={2} />
+              <Icon className="h-5.5 w-5.5" strokeWidth={2} />
               <span className="text-[14px] font-bold leading-none">
                 {label}
               </span>
@@ -480,17 +480,17 @@ export const TechnicianDashboardPage: React.FC = () => {
       {/* ── A. HEADER ──────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-blue-900/20 bg-[#0F2A5C] text-white shadow-md">
         {/* ── Mobile row (< md): logo | name·role | bell | avatar ── */}
-        <div className="flex md:hidden items-center justify-between px-3.5 sm:px-4 h-[68px]">
+        <div className="flex md:hidden items-center justify-between px-3.5 sm:px-4 h-17">
           {/* amber logo chip */}
-          <div className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
             <Building2
-              className="h-[26px] w-[26px] text-[#0F2A5C]"
+              className="h-6.5 w-6.5 text-[#0F2A5C]"
               aria-hidden="true"
             />
           </div>
 
           {/* name · role */}
-          <div className="flex-1 min-w-0 mx-2.5 text-[14px] leading-[1.25]">
+          <div className="flex-1 min-w-0 mx-2.5 text-[14px] leading-tight">
             <span className="font-bold text-white truncate block">
               {officerName || "Opisyal"}
             </span>
@@ -516,7 +516,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 setIsAccountOpen((prev) => !prev);
               }}
               aria-label="Account at profile"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white/45 bg-white/14 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95 cursor-pointer"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white/45 bg-white/14 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-white active:scale-95 cursor-pointer"
             >
               <UserCheck className="h-6 w-6 text-white" aria-hidden="true" />
             </button>
@@ -524,10 +524,10 @@ export const TechnicianDashboardPage: React.FC = () => {
         </div>
 
         {/* ── Desktop row (md+): logo | title/subtitle | bell | full pill ── */}
-        <div className="hidden md:flex mx-auto max-w-[1184px] items-center justify-between px-12 py-4">
+        <div className="hidden md:flex mx-auto max-w-296 items-center justify-between px-12 py-4">
           {/* Left: logo + title */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
+            <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
               <Building2
                 className="h-7 w-7 text-[#0F2A5C]"
                 aria-hidden="true"
@@ -564,12 +564,12 @@ export const TechnicianDashboardPage: React.FC = () => {
               aria-label="Account at profile"
               aria-haspopup="dialog"
               aria-expanded={isAccountOpen}
-              className="flex min-h-[56px] items-center gap-3 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-left text-white transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-98 cursor-pointer"
+              className="flex min-h-14 items-center gap-3 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-left text-white transition hover:bg-white/15 focus-visible:outline focus-visible:outline-white active:scale-98 cursor-pointer"
             >
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FBBF24] text-[16px] font-bold text-[#0F2A5C]">
                 {profileInitials}
               </div>
-              <div className="min-w-0 pr-1 max-w-[180px]">
+              <div className="min-w-0 pr-1 max-w-45">
                 <p className="text-[17px] font-bold leading-tight text-white truncate">
                   {officerName || "Opisyal"}
                 </p>
@@ -587,7 +587,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       </header>
 
       {/* ── MAIN CONTENT (pb-24 so content never hides behind 64px bottom bar) ── */}
-      <main className="mx-auto max-w-[1184px] px-4 py-6 md:px-12 space-y-6 pb-24">
+      <main className="mx-auto max-w-296 px-4 py-6 md:px-12 space-y-6 pb-24">
         {/* ── MAISY GREETING (BUOD tab on mobile; always on desktop) ─────────── */}
         <section
           aria-label="Bati mula kay Maisy"
@@ -615,7 +615,7 @@ export const TechnicianDashboardPage: React.FC = () => {
             <img
               src="/assets/mascot-maisy.png"
               alt="Maisy, ang iyong DA farming assistant"
-              className="h-[96px] w-auto shrink-0 object-contain sm:h-[108px]"
+              className="h-24 w-auto shrink-0 object-contain sm:h-27"
               style={{ imageRendering: "pixelated" }}
             />
             <div className="relative min-w-0 flex-1 rounded-[20px] bg-white px-4 py-4 text-slate-900">
@@ -675,7 +675,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveTab("KONSULTASYON")}
-                    className="mt-3 flex h-[52px] items-center gap-2 rounded-xl bg-[#BE123C] px-5 text-base font-bold text-white transition hover:bg-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 active:scale-95 cursor-pointer"
+                    className="mt-3 flex h-13 items-center gap-2 rounded-xl bg-[#BE123C] px-5 text-base font-bold text-white transition hover:bg-rose-800 focus-visible:outline focus-visible:outline-rose-400 active:scale-95 cursor-pointer"
                   >
                     Suriin ang Kaso &rarr;
                   </button>
@@ -699,7 +699,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveTab("PINSALA")}
-                    className="mt-3 flex h-[52px] items-center gap-2 rounded-xl bg-[#C2410C] px-5 text-base font-bold text-white transition hover:bg-orange-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400 active:scale-95 cursor-pointer"
+                    className="mt-3 flex h-13 items-center gap-2 rounded-xl bg-[#C2410C] px-5 text-base font-bold text-white transition hover:bg-orange-800 focus-visible:outline focus-visible:outline-orange-400 active:scale-95 cursor-pointer"
                   >
                     Suriin ang Claim &rarr;
                   </button>
@@ -716,9 +716,9 @@ export const TechnicianDashboardPage: React.FC = () => {
         >
           {/* Card 1: Registered farms */}
           <div className="flex flex-col gap-2 rounded-[18px] border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
-            <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-[#D1FAE5]">
+            <div className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-xl bg-[#D1FAE5]">
               <MapPin
-                className="h-[22px] w-[22px] text-[#047857]"
+                className="h-5.5 w-5.5 text-[#047857]"
                 strokeWidth={2}
                 aria-hidden="true"
               />
@@ -736,9 +736,9 @@ export const TechnicianDashboardPage: React.FC = () => {
 
           {/* Card 2: Active hectares */}
           <div className="flex flex-col gap-2 rounded-[18px] border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
-            <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-[#DBEAFE]">
+            <div className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-xl bg-[#DBEAFE]">
               <Sprout
-                className="h-[22px] w-[22px] text-[#1D4ED8]"
+                className="h-5.5 w-5.5 text-[#1D4ED8]"
                 strokeWidth={2}
                 aria-hidden="true"
               />
@@ -765,9 +765,9 @@ export const TechnicianDashboardPage: React.FC = () => {
 
           {/* Card 3: Total pending */}
           <div className="flex flex-col gap-2 rounded-[18px] border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
-            <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-[#FEF3C7]">
+            <div className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-xl bg-[#FEF3C7]">
               <Clock
-                className="h-[22px] w-[22px] text-[#B45309]"
+                className="h-5.5 w-5.5 text-[#B45309]"
                 strokeWidth={2}
                 aria-hidden="true"
               />
@@ -815,7 +815,7 @@ export const TechnicianDashboardPage: React.FC = () => {
               type="button"
               onClick={() => setActiveTab(tab.key)}
               className={[
-                "relative flex min-h-[52px] items-center gap-2 px-5 pb-3 pt-2 text-[17px] font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer",
+                "relative flex min-h-13 items-center gap-2 px-5 pb-3 pt-2 text-[17px] font-bold transition focus-visible:outline focus-visible:outline-blue-400 cursor-pointer",
                 activeTab === tab.key
                   ? "text-[#1D4ED8]"
                   : "text-slate-600 hover:text-slate-900",
@@ -924,7 +924,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   id="export-type"
                   value={exportType}
                   onChange={(e) => setExportType(e.target.value as ExportType)}
-                  className="w-full min-h-[48px] rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
+                  className="w-full min-h-12 rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
                 >
                   <option value="disaster-claims">Disaster Claims</option>
                   <option value="barangay-summary">Buod ng Barangay</option>
@@ -940,7 +940,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     await handleExport();
                   }}
                   disabled={exporting}
-                  className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60 cursor-pointer"
                 >
                   {exporting && exportFormat === "xlsx" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -956,7 +956,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     await handleExport();
                   }}
                   disabled={exporting}
-                  className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60 cursor-pointer"
                 >
                   {exporting && exportFormat === "csv" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -996,7 +996,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => fetchPipeline()}
                 disabled={pipelineLoading}
-                className="flex min-h-[48px] items-center gap-2 rounded-[14px] border-2 border-slate-300 bg-white px-3.5 text-[14px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer self-start sm:self-auto"
+                className="flex min-h-12 items-center gap-2 rounded-[14px] border-2 border-slate-300 bg-white px-3.5 text-[14px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer self-start sm:self-auto"
               >
                 <RefreshCw
                   className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
@@ -1070,7 +1070,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedDisaster(report)}
-                        className="mt-auto flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 cursor-pointer"
+                        className="mt-auto flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 cursor-pointer"
                       >
                         <Eye className="h-5 w-5" aria-hidden="true" />
                         Suriin / Sagutin
@@ -1109,7 +1109,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => fetchPipeline()}
                 disabled={pipelineLoading}
-                className="flex min-h-[48px] items-center gap-2 rounded-[14px] border-2 border-slate-300 bg-white px-3.5 text-[14px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer self-start sm:self-auto"
+                className="flex min-h-12 items-center gap-2 rounded-[14px] border-2 border-slate-300 bg-white px-3.5 text-[14px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer self-start sm:self-auto"
               >
                 <RefreshCw
                   className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
@@ -1200,7 +1200,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                           setAdvisoryInput(ec.recommendation ?? "");
                           setSelectedCase(ec);
                         }}
-                        className="mt-auto flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 cursor-pointer"
+                        className="mt-auto flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 cursor-pointer"
                       >
                         <Send className="h-5 w-5" aria-hidden="true" />
                         Suriin / Sagutin
@@ -1243,7 +1243,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   id="export-type-tab"
                   value={exportType}
                   onChange={(e) => setExportType(e.target.value as ExportType)}
-                  className="w-full min-h-[48px] rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
+                  className="w-full min-h-12 rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
                 >
                   <option value="disaster-claims">Disaster Claims</option>
                   <option value="barangay-summary">Buod ng Barangay</option>
@@ -1258,7 +1258,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     await handleExport();
                   }}
                   disabled={exporting}
-                  className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 active:scale-95 disabled:opacity-60 cursor-pointer"
+                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 active:scale-95 disabled:opacity-60 cursor-pointer"
                 >
                   {exporting && exportFormat === "xlsx" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -1274,7 +1274,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     await handleExport();
                   }}
                   disabled={exporting}
-                  className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 active:scale-95 disabled:opacity-60 cursor-pointer"
+                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 active:scale-95 disabled:opacity-60 cursor-pointer"
                 >
                   {exporting && exportFormat === "csv" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -1328,7 +1328,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       {/* ── D. MOBILE BOTTOM NAV BAR (< md) ─────────────────────────────────── */}
       <nav
         aria-label="Pangunahing nabigasyon"
-        className="fixed bottom-0 left-0 right-0 z-40 h-[72px] bg-white border-t-2 border-slate-300 md:hidden"
+        className="fixed bottom-0 left-0 right-0 z-40 h-18 bg-white border-t-2 border-slate-300 md:hidden"
       >
         <div className="grid grid-cols-4 h-full">
           {(
@@ -1369,7 +1369,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
                 aria-current={isActive ? "page" : undefined}
-                className={`relative flex h-full flex-col items-center justify-center gap-[4px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer ${
+                className={`relative flex h-full flex-col items-center justify-center gap-1 transition focus-visible:outline focus-visible:outline-blue-400 cursor-pointer ${
                   isActive
                     ? "bg-[#EFF6FF] text-[#1D4ED8]"
                     : "text-[#334155] hover:bg-slate-50"
@@ -1377,19 +1377,19 @@ export const TechnicianDashboardPage: React.FC = () => {
               >
                 {/* 4px blue indicator bar along the top edge (inset 22% left & right, rounded bottom corners) */}
                 {isActive && (
-                  <span className="absolute top-0 left-[22%] right-[22%] h-[4px] rounded-b-full bg-[#1D4ED8]" />
+                  <span className="absolute top-0 left-[22%] right-[22%] h-1 rounded-b-full bg-[#1D4ED8]" />
                 )}
 
                 {/* Outline Icon (size 26, strokeWidth 2) with count badge sitting on the top-right corner */}
                 <div className="relative inline-flex items-center justify-center">
                   <Icon
-                    className="h-[26px] w-[26px]"
+                    className="h-6.5 w-6.5"
                     strokeWidth={2}
                     aria-hidden="true"
                   />
                   {hasBadge && (
                     <span
-                      className={`absolute -top-1.5 -right-2.5 flex h-[20px] w-[20px] items-center justify-center rounded-full text-[13px] font-bold text-white border-2 leading-none ${
+                      className={`absolute -top-1.5 -right-2.5 flex h-5 w-5 items-center justify-center rounded-full text-[13px] font-bold text-white border-2 leading-none ${
                         tab.badgeBg
                       } ${isActive ? "border-[#EFF6FF]" : "border-white"}`}
                     >
@@ -1433,7 +1433,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   setConfirmApprove(null);
                 }}
                 aria-label="Isara"
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-blue-400 cursor-pointer"
               >
                 <X className="h-6 w-6" />
               </button>
@@ -1547,7 +1547,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setConfirmReject(null)}
-                    className="flex h-[52px] items-center justify-center rounded-[14px] border border-slate-300 text-[16px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
+                    className="flex h-13 items-center justify-center rounded-[14px] border border-slate-300 text-[16px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400 cursor-pointer"
                   >
                     Hindi, bumalik
                   </button>
@@ -1557,12 +1557,12 @@ export const TechnicianDashboardPage: React.FC = () => {
                       handleStatusUpdate(selectedDisaster.id, "REJECTED")
                     }
                     disabled={submittingAction}
-                    className="flex h-[52px] items-center justify-center gap-2 rounded-[14px] bg-red-600 text-[16px] font-bold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                    className="flex h-13 items-center justify-center gap-2 rounded-[14px] bg-red-600 text-[16px] font-bold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
                   >
                     {submittingAction ? (
-                      <Loader2 className="h-[22px] w-[22px] animate-spin" />
+                      <Loader2 className="h-5.5 w-5.5 animate-spin" />
                     ) : (
-                      <XCircle className="h-[22px] w-[22px]" strokeWidth={2} />
+                      <XCircle className="h-5.5 w-5.5" strokeWidth={2} />
                     )}
                     Oo, i-reject
                   </button>
@@ -1578,7 +1578,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setConfirmApprove(null)}
-                    className="flex h-[52px] items-center justify-center rounded-[14px] border border-slate-300 text-[16px] font-bold text-slate-700 transition hover:bg-slate-50 cursor-pointer"
+                    className="flex h-13 items-center justify-center rounded-[14px] border border-slate-300 text-[16px] font-bold text-slate-700 transition hover:bg-slate-50 cursor-pointer"
                   >
                     Hindi, bumalik
                   </button>
@@ -1588,15 +1588,12 @@ export const TechnicianDashboardPage: React.FC = () => {
                       handleStatusUpdate(selectedDisaster.id, "RESOLVED")
                     }
                     disabled={submittingAction}
-                    className="flex h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#047857] text-[16px] font-bold text-white transition hover:bg-emerald-800 active:scale-95 disabled:opacity-60 cursor-pointer"
+                    className="flex h-13 items-center justify-center gap-2 rounded-[14px] bg-[#047857] text-[16px] font-bold text-white transition hover:bg-emerald-800 active:scale-95 disabled:opacity-60 cursor-pointer"
                   >
                     {submittingAction ? (
-                      <Loader2 className="h-[22px] w-[22px] animate-spin" />
+                      <Loader2 className="h-5.5 w-5.5 animate-spin" />
                     ) : (
-                      <ShieldCheck
-                        className="h-[22px] w-[22px]"
-                        strokeWidth={2}
-                      />
+                      <ShieldCheck className="h-5.5 w-5.5" strokeWidth={2} />
                     )}
                     Oo, aprubahan
                   </button>
@@ -1610,10 +1607,10 @@ export const TechnicianDashboardPage: React.FC = () => {
                   type="button"
                   onClick={() => setConfirmApprove(selectedDisaster.id)}
                   disabled={submittingAction}
-                  className="flex w-full min-h-[64px] items-center justify-center gap-3 rounded-2xl bg-[#047857] text-[20px] font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 active:scale-[0.99] disabled:opacity-60 cursor-pointer shadow-md"
+                  className="flex w-full min-h-16 items-center justify-center gap-3 rounded-2xl bg-[#047857] text-[20px] font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-emerald-400 active:scale-[0.99] disabled:opacity-60 cursor-pointer shadow-md"
                 >
                   <ShieldCheck
-                    className="h-[26px] w-[26px]"
+                    className="h-6.5 w-6.5"
                     strokeWidth={2}
                     aria-hidden="true"
                   />
@@ -1627,12 +1624,12 @@ export const TechnicianDashboardPage: React.FC = () => {
                       handleStatusUpdate(selectedDisaster.id, "UNDER_REVIEW")
                     }
                     disabled={submittingAction}
-                    className="flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] bg-[#1D4ED8] text-[16px] font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                    className="flex min-h-13 items-center justify-center gap-2 rounded-[14px] bg-[#1D4ED8] text-[16px] font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer"
                   >
                     {submittingAction ? (
-                      <Loader2 className="h-[22px] w-[22px] animate-spin" />
+                      <Loader2 className="h-5.5 w-5.5imate-spin" />
                     ) : (
-                      <Eye className="h-[22px] w-[22px]" strokeWidth={2} />
+                      <Eye className="h-5.5 w-5.5" strokeWidth={2} />
                     )}
                     Sinusuri
                   </button>
@@ -1640,9 +1637,9 @@ export const TechnicianDashboardPage: React.FC = () => {
                     type="button"
                     onClick={() => setConfirmReject(selectedDisaster.id)}
                     disabled={submittingAction}
-                    className="flex min-h-[52px] items-center justify-center gap-2 rounded-[14px] border-2 border-red-300 bg-white text-[16px] font-bold text-[#B91C1C] transition hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                    className="flex min-h-13 items-center justify-center gap-2 rounded-[14px] border-2 border-red-300 bg-white text-[16px] font-bold text-[#B91C1C] transition hover:bg-red-50 focus-visible:outline focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
                   >
-                    <XCircle className="h-[22px] w-[22px]" strokeWidth={2} />
+                    <XCircle className="h-5.5 w-5.5" strokeWidth={2} />
                     I-reject
                   </button>
                 </div>
@@ -1732,7 +1729,7 @@ export const TechnicianDashboardPage: React.FC = () => {
               aria-label="Detalye ng Kaso"
             >
               {/* Desktop: max-w-[760px], p-7, rounded-3xl. Mobile: full-screen sheet */}
-              <div className="w-full h-full md:h-auto md:max-h-[90vh] md:max-w-[760px] rounded-none md:rounded-3xl bg-white p-5 md:p-7 shadow-2xl overflow-y-auto space-y-5">
+              <div className="w-full h-full md:h-auto md:max-h-[90vh] md:max-w-190 rounded-none md:rounded-3xl bg-white p-5 md:p-7 shadow-2xl overflow-y-auto space-y-5">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                   <div>
@@ -1751,7 +1748,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                       setAdvisoryInput("");
                     }}
                     aria-label="Isara"
-                    className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 cursor-pointer"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-blue-400 cursor-pointer"
                   >
                     <X className="h-6 w-6" />
                   </button>
@@ -1846,13 +1843,13 @@ export const TechnicianDashboardPage: React.FC = () => {
                     {farmerPhone ? (
                       <a
                         href={`tel:${farmerPhone}`}
-                        className="mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#047857] hover:bg-emerald-800 active:scale-95 text-white text-base font-bold shadow-sm transition"
+                        className="mt-3 flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#047857] hover:bg-emerald-800 active:scale-95 text-white text-base font-bold shadow-sm transition"
                       >
                         <Phone className="h-5 w-5" />
                         <span>Tawagan</span>
                       </a>
                     ) : (
-                      <div className="mt-3 flex h-[52px] w-full items-center justify-center rounded-xl bg-slate-100 text-slate-400 text-sm font-medium">
+                      <div className="mt-3 flex h-13 w-full items-center justify-center rounded-xl bg-slate-100 text-slate-400 text-sm font-medium">
                         Walang nakatalang numero
                       </div>
                     )}
@@ -2044,13 +2041,13 @@ export const TechnicianDashboardPage: React.FC = () => {
                       value={advisoryInput}
                       onChange={(e) => setAdvisoryInput(e.target.value)}
                       placeholder="Hal. Mag-apply ng biopesticide o Neem extract sa hapon..."
-                      className="w-full min-h-[96px] resize-none rounded-2xl border border-slate-300 bg-white p-4 text-[17px] text-slate-900 outline-none focus:ring-2 focus:ring-blue-300 leading-relaxed"
+                      className="w-full min-h-24 resize-none rounded-2xl border border-slate-300 bg-white p-4 text-[17px] text-slate-900 outline-none focus:ring-2 focus:ring-blue-300 leading-relaxed"
                     />
                     <button
                       type="button"
                       onClick={() => handleResolveCase(selectedCase.id)}
                       disabled={submittingAction}
-                      className="flex h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base md:text-[17px] font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer shadow-md"
+                      className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base md:text-[17px] font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer shadow-md"
                     >
                       {submittingAction ? (
                         <>
@@ -2089,7 +2086,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       {/* ── PHOTO LIGHTBOX MODAL ─────────────────────────────────────────── */}
       {enlargedPhotoUrl && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Pinalaking Larawan"
@@ -2117,7 +2114,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       )}
 
       {confirmLogout && (
-        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-70 flex items-end sm:items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 shrink-0">
@@ -2137,7 +2134,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-red-600 text-base font-black text-white transition-colors hover:bg-red-700 disabled:opacity-60 cursor-pointer"
+                className="inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-red-600 text-base font-black text-white transition-colors hover:bg-red-700 disabled:opacity-60 cursor-pointer"
               >
                 <LogOut className="h-5 w-5" />
                 {loggingOut ? "Nilalabas..." : "Oo, mag-logout"}
@@ -2146,7 +2143,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => setConfirmLogout(false)}
                 disabled={loggingOut}
-                className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-slate-100 text-base font-bold text-slate-600 transition-colors hover:bg-slate-200 cursor-pointer"
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-slate-100 text-base font-bold text-slate-600 transition-colors hover:bg-slate-200 cursor-pointer"
               >
                 Huwag na
               </button>
