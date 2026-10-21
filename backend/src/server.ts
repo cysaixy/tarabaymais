@@ -30,6 +30,7 @@ const allowedOrigins = [
   "http://localhost:5173", // Vite
   "http://localhost:8081", // Expo / React Native Metro
   "http://10.0.2.2:8081", // Android emulator → host Metro
+  "http://localhost:4173", // PWA preview
 ];
 
 app.use(

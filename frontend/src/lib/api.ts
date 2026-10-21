@@ -73,9 +73,15 @@ api.interceptors.request.use(async (config) => {
   const currentUser = auth.currentUser;
   if (currentUser) {
     // getIdToken() returns a cached token and refreshes it automatically
-    // when it is close to expiring.
-    const token = await currentUser.getIdToken();
-    config.headers.set("Authorization", `Bearer ${token}`);
+    // when it is close to expiring. Wrap in try/catch for offline support.
+    try {
+      const token = await currentUser.getIdToken();
+      config.headers.set("Authorization", `Bearer ${token}`);
+    } catch (err) {
+      // Offline: getIdToken() may fail. Don't attach token - request will fail
+      // with proper network error in response interceptor.
+      console.warn("[API] Offline: could not get ID token, proceeding without auth header");
+    }
   }
 
   // Let the browser set multipart/form-data (with its boundary) for uploads.
@@ -93,6 +99,8 @@ interface RetriableConfig {
   [key: string]: unknown;
 }
 
+const isOnline = () => typeof navigator !== "undefined" && navigator.onLine;
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<BackendErrorBody>) => {
@@ -101,11 +109,13 @@ api.interceptors.response.use(
       | undefined;
 
     // On a 401, force a fresh ID token and retry the request a single time.
+    // Skip force-refresh when offline (getIdToken(true) will fail anyway).
     if (
       error.response?.status === 401 &&
       original &&
       !original._retried &&
-      auth.currentUser
+      auth.currentUser &&
+      isOnline()
     ) {
       original._retried = true;
       try {
@@ -119,6 +129,16 @@ api.interceptors.response.use(
       } catch {
         // Fall through to normalized rejection below.
       }
+    }
+
+    // If we're offline and got a 401, don't retry - just normalize as network error
+    // since the token refresh would fail anyway.
+    if (!isOnline() && error.response?.status === 401) {
+      return Promise.reject(
+        new ApiError("Walang koneksyon sa network. Pakisubukan muli.", 0, {
+          isNetworkError: true,
+        })
+      );
     }
 
     return Promise.reject(normalizeError(error));

@@ -46,6 +46,40 @@ export default defineConfig({
           },
         ],
       },
+      workbox: {
+        runtimeCaching: [
+          {
+            // Authentication responses must never be shared through the
+            // service-worker cache. The app stores `/auth/me` per Firebase UID
+            // in AuthProvider instead, which makes offline startup safe on a
+            // shared device.
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith("/api/v1/") &&
+              !url.pathname.startsWith("/api/v1/auth/"),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "api-cache",
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24, // 24 hours
+              },
+              networkTimeoutSeconds: 5,
+            },
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith("/ai/"),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "ai-cache",
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24, // 24 hours
+              },
+              networkTimeoutSeconds: 10,
+            },
+          },
+        ],
+      },
     }),
   ],
 });

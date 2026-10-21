@@ -19,9 +19,12 @@ const homeFor = (role: UserRole | null): string =>
  *   (role === null) are sent to /onboarding to finish registration.
  * - Authenticated users whose role is not permitted are redirected to their
  *   own home area (role-mismatch protection).
+ * - OFFLINE: If user has a Firebase session but profile fetch failed due to
+ *   network error, allow access to cached dashboard (don't redirect to onboarding).
  */
 export const ProtectedRoute: React.FC<GuardProps> = ({ allowedRoles }) => {
   const { user, profile, role, loading } = useAuth();
+  const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
 
   if (loading) {
     return (
@@ -42,7 +45,16 @@ export const ProtectedRoute: React.FC<GuardProps> = ({ allowedRoles }) => {
   // Signed in but no synced backend profile yet (e.g. /auth/me returned 401 on
   // a refresh/deeplink) → complete registration. `role` can be a provisional
   // token-claim value here, so the profile is the authoritative signal.
+  // OFFLINE EXCEPTION: If we're offline and have a cached profile/role, allow access.
+  const isOffline = !isOnline;
+  // A token claim alone is not enough to prove that this user completed
+  // onboarding. Require the locally persisted backend profile as well.
+  const hasCachedAccess = isOffline && Boolean(profile && role);
   if (!profile || !role) {
+    if (hasCachedAccess) {
+      console.log("[ProtectedRoute] Offline: allowing access with cached profile/role");
+      return <Outlet />;
+    }
     return <Navigate to="/onboarding" replace />;
   }
 
