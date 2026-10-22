@@ -9,6 +9,7 @@ export interface CreateObservationParams {
   severity: SeverityLevel;
   image?: File | null;
   aiDiagnosis?: Record<string, unknown> | null;
+  idempotencyKey?: string;
 }
 
 export interface ObservationRecord {
@@ -51,6 +52,9 @@ export const createObservation = async (
 
   if (params.aiDiagnosis) {
     fd.append("aiDiagnosis", JSON.stringify(params.aiDiagnosis));
+  }
+  if (params.idempotencyKey) {
+    fd.append("idempotencyKey", params.idempotencyKey);
   }
   if (params.image) {
     fd.append("image", params.image);

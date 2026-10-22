@@ -143,15 +143,16 @@ model CropActivity {
 }
 
 model Observation {
-  id          String        @id @default(uuid()) @db.VarChar(64)
-  cropCycleId String        @map("crop_cycle_id") @db.VarChar(64)
-  farmerId    String        @map("farmer_id") @db.VarChar(128)
-  title       String        @db.VarChar(150)
-  description String        @db.Text
-  imageUrl    String?       @map("image_url") @db.VarChar(500)
-  aiDiagnosis Json?         @map("ai_diagnosis")
-  severity    SeverityLevel @default(LOW)
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  id             String        @id @default(uuid()) @db.VarChar(64)
+  cropCycleId    String        @map("crop_cycle_id") @db.VarChar(64)
+  farmerId       String        @map("farmer_id") @db.VarChar(128)
+  title          String        @db.VarChar(150)
+  description    String        @db.Text
+  imageUrl       String?       @map("image_url") @db.VarChar(500)
+  aiDiagnosis    Json?         @map("ai_diagnosis")
+  severity       SeverityLevel @default(LOW)
+  idempotencyKey String?       @map("idempotency_key") @db.VarChar(128) @unique
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
 
   cropCycle     CropCycle      @relation(fields: [cropCycleId], references: [id], onDelete: Cascade)
   farmer        User           @relation(fields: [farmerId], references: [id], onDelete: Cascade)

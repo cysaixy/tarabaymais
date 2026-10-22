@@ -147,6 +147,7 @@ export const FarmerObservationsHistoryPage: React.FC = () => {
 
   const closeModal = () => {
     setModalOpen(false);
+    setImageViewerOpen(false);
     setSelectedObservation(null);
   };
 
@@ -314,7 +315,7 @@ export const FarmerObservationsHistoryPage: React.FC = () => {
           </div>
 
           {/* Severity Filter Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <div className="flex flex-wrap items-center gap-1.5 pb-1">
             {["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((severity) => {
               const count = stats.bySeverity[severity] || 0;
               const config = getSeverityConfig(severity);
@@ -412,7 +413,7 @@ export const FarmerObservationsHistoryPage: React.FC = () => {
                   >
                     <div className="space-y-3 pt-2 border-t border-slate-100">
                       {/* Photo Preview */}
-                      {hasPhoto && (
+                      {hasPhoto ? (
                         <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-100">
                           <img
                             src={observation.imageUrl!}
@@ -435,6 +436,13 @@ export const FarmerObservationsHistoryPage: React.FC = () => {
                               AI
                             </span>
                           </div>
+                        </div>
+                      ) : (
+                        <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-100 flex flex-col items-center justify-center text-slate-300">
+                          <ImageIcon className="w-10 h-10 mb-2 opacity-50" />
+                          <p className="text-[10px] font-medium text-slate-500 px-3">
+                            Walang litrato
+                          </p>
                         </div>
                       )}
 

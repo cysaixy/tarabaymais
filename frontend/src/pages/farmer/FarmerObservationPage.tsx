@@ -16,6 +16,7 @@ import {
 import {
   getOfflineQueue,
   queueOfflineAction,
+  fileToBase64,
 } from "../../services/sync.service";
 import { useFarmSelection } from "../../context/farmSelectionContext";
 import { ApiError } from "../../lib/api";
@@ -156,9 +157,17 @@ export const FarmerObservationPage: React.FC = () => {
         return;
       }
 
-      // Offline photo sync is deferred to the PWA phase. We queue the
-      // observation text only; the local `blob:` preview URL would be dead
-      // once synced, so it is intentionally NOT included in the payload.
+      // Offline: convert photo to Base64 so it survives IndexedDB/localStorage
+      // persistence, then queue with the image data included.
+      let imageBase64: string | null = null;
+      let imageFileName = "observation.jpg";
+      let imageMimeType = "image/jpeg";
+      if (imageFile) {
+        imageBase64 = await fileToBase64(imageFile);
+        imageFileName = imageFile.name;
+        imageMimeType = imageFile.type;
+      }
+
       queueOfflineAction({
         actionType: "CREATE_OBSERVATION",
         displayTitle: title,
@@ -167,15 +176,18 @@ export const FarmerObservationPage: React.FC = () => {
           title,
           description: fullDescription,
           severity,
+          imageBase64,
+          imageFileName,
+          imageMimeType,
         },
       });
 
       setQueueCount((prev) => prev + 1);
 
       toast.info("Nai-save sa Offline Storage (Queue)", {
-        description: imagePreview
-          ? "Nai-save nang walang litrato dahil offline. I-attach muli ang litrato kapag may koneksyon na."
-          : "Dahil mahina o walang cellular signal, itinago ito sa telepono. Awtomatikong mai-sync sa DA server kapag nagkaroon ng koneksyon.",
+        description: imageBase64
+          ? "Nai-save na ang litrato para i-sync kapag may koneksyon na."
+          : "Nai-save nang walang litrato dahil offline. I-attach muli ang litrato kapag may koneksyon na.",
       });
 
       navigate("/farmer");

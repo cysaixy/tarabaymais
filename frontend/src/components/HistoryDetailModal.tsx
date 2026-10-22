@@ -139,10 +139,16 @@ export const HistoryDetailModal: React.FC<HistoryDetailModalProps> = ({
       aria-modal="true"
       aria-labelledby="modal-title"
     >
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
+      {/* Keep the backdrop behind the sheet. Without an explicit stacking
+          order, this later fixed element paints above the details card and
+          makes the entire dialog look like a blocked, blurred screen. */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        aria-hidden="true"
+      />
 
       <div
-        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-4xl sm:rounded-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up"
+        className="relative z-10 w-full max-w-md sm:max-w-lg bg-white rounded-t-4xl sm:rounded-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -335,7 +341,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black flex items-center justify-center"
+      className="fixed inset-0 z-[60] bg-black flex items-center justify-center"
       onClick={onClose}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}

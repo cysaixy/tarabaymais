@@ -33,6 +33,8 @@ import {
   CloudRain,
   Cloud,
   RefreshCw as RefreshCwIcon,
+  Info,
+  Package,
 } from "lucide-react";
 import { useWeather } from "../../hooks/useWeather";
 import { useNotifications } from "../../hooks/useNotifications";
@@ -179,6 +181,138 @@ const WeatherIcon: React.FC<{ name: string; className?: string }> = ({
     default:
       return <CloudRain className={className} />;
   }
+};
+
+// ─── DA Advisory Parser & Renderer ────────────────────────────────────────────
+interface AdvisoryItem {
+  category: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
+const getAdvisoryIcon = (category: string): React.ReactNode => {
+  const cat = category.toLowerCase();
+  if (cat.includes("maulap") || cat.includes("cloud") || cat.includes("overcast")) {
+    return <Cloud className="w-4 h-4" />;
+  }
+  if (cat.includes("halumigmig") || cat.includes("humidity") || cat.includes("moist")) {
+    return <Droplets className="w-4 h-4" />;
+  }
+  if (cat.includes("vegetative") || cat.includes("stage") || cat.includes("grow") || cat.includes("paglaki") || cat.includes("tanom")) {
+    return <Sprout className="w-4 h-4" />;
+  }
+  if (cat.includes("rain") || cat.includes("ulan") || cat.includes("storm") || cat.includes("bagyo")) {
+    return <CloudRain className="w-4 h-4" />;
+  }
+  if (cat.includes("wind") || cat.includes("hangin")) {
+    return <Wind className="w-4 h-4" />;
+  }
+  if (cat.includes("heat") || cat.includes("init") || cat.includes("sun") || cat.includes("araw")) {
+    return <Sun className="w-4 h-4" />;
+  }
+  if (cat.includes("fertilizer") || cat.includes("pataba") || cat.includes("nutrient")) {
+    return <Package className="w-4 h-4" />;
+  }
+  if (cat.includes("disease") || cat.includes("fungal") || cat.includes("sakit") || cat.includes("peste")) {
+    return <AlertTriangle className="w-4 h-4" />;
+  }
+  return <Info className="w-4 h-4" />;
+};
+
+const parseAdvisory = (text: string): AdvisoryItem[] => {
+  if (!text) return [];
+  
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const segments = normalized.split(
+    /(?=💧|🌧️|🌿|🌞|🌱|🌾|🌽|🚜|⚠️|📋)/u,
+  );
+  
+  const items: AdvisoryItem[] = [];
+  
+  for (const segment of segments) {
+    const trimmed = segment.trim();
+    if (!trimmed) continue;
+    
+    const dashIndex = trimmed.indexOf('—');
+    const colonIndex = trimmed.indexOf(':');
+    const separatorIndex = dashIndex !== -1 ? dashIndex : (colonIndex !== -1 ? colonIndex : -1);
+    
+    let category = '';
+    let description = '';
+    
+    if (separatorIndex !== -1) {
+      category = trimmed.substring(0, separatorIndex).trim();
+      description = trimmed.substring(separatorIndex + 1).trim();
+    } else {
+      const words = trimmed.split(' ');
+      if (words.length >= 2) {
+        category = words.slice(0, 2).join(' ');
+        description = words.slice(2).join(' ');
+      } else {
+        category = trimmed;
+        description = '';
+      }
+    }
+    
+    category = category
+      .replace(/^(?:💧|🌧️|🌿|🌞|🌱|🌾|🌽|🚜|⚠️|📋|\s)+/u, "")
+      .trim();
+    description = description
+      .replace(/^(?:💧|🌧️|🌿|🌞|🌱|🌾|🌽|🚜|⚠️|📋|\s)+/u, "")
+      .trim();
+    
+    if (category || description) {
+      items.push({
+        category: category || 'Payo',
+        description: description || category,
+        icon: getAdvisoryIcon(category),
+      });
+    }
+  }
+  
+  if (items.length === 0 && text.trim()) {
+    return [{
+      category: 'Payo ng DA',
+      description: text.trim(),
+      icon: <Info className="w-4 h-4" />,
+    }];
+  }
+  
+  return items;
+};
+
+const DAAdvisoryList: React.FC<{ advisory: string }> = ({ advisory }) => {
+  const items = parseAdvisory(advisory);
+  
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-white/90 leading-relaxed">
+        {advisory}
+      </p>
+    );
+  }
+  
+  return (
+    <div className="space-y-3">
+      {items.map((item, index) => (
+        <div key={index} className="flex items-start gap-3 group">
+          <div className="shrink-0 w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center text-amber-600">
+            {item.icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white/95 leading-snug">
+              {item.category}
+            </p>
+            {item.description && (
+              <p className="text-sm text-white/80 leading-relaxed mt-0.5">
+                {item.description}
+              </p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 // ─── Dynamic Weather Card (uses Open-Meteo API) ──────────────────────────────
@@ -375,13 +509,18 @@ const DynamicWeatherCard: React.FC<{
         </div>
 
         {/* ── DA Advisory strip ── */}
-        <div className="bg-amber-400/20 border border-amber-300/30 rounded-2xl px-3.5 py-3">
-          <p className="text-[10px] font-black text-amber-200 uppercase tracking-wide mb-1 flex items-center gap-1">
-            <AlertTriangle className="w-3.5 h-3.5" /> Payo ng DA
-          </p>
-          <p className="text-[11px] sm:text-xs text-white/90 leading-relaxed">
-            {weather.daAdvisory}
-          </p>
+        <div className="bg-amber-400/15 border border-amber-300/40 rounded-2xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-3">
+                Payo ng DA
+              </p>
+              <DAAdvisoryList advisory={weather.daAdvisory} />
+            </div>
+          </div>   
         </div>
 
         {/* ── Timestamp + Refresh ── */}

@@ -42,7 +42,24 @@ export class SyncService {
               imageUrl,
               aiDiagnosis,
               severity,
+              idempotencyKey,
             } = action.payload;
+
+            // Idempotency: if this key was already processed, return success
+            // without inserting a duplicate. Handles network drop mid-request.
+            if (idempotencyKey) {
+              const existing = await prisma.observation.findUnique({
+                where: { idempotencyKey },
+              });
+              if (existing) {
+                results.push({
+                  clientRefId: action.clientRefId,
+                  serverId: existing.id,
+                  status: "SUCCESS",
+                });
+                break;
+              }
+            }
 
             // Verify cropCycle exists in PostgreSQL
             const cropCycle = await prisma.cropCycle.findUnique({
@@ -66,6 +83,7 @@ export class SyncService {
                 imageUrl: imageUrl || null,
                 aiDiagnosis: aiDiagnosis || null,
                 severity: severity || SeverityLevel.LOW,
+                ...(idempotencyKey ? { idempotencyKey } : {}),
               },
             });
 

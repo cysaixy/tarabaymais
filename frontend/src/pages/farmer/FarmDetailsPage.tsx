@@ -55,6 +55,13 @@ const labelClass = "mb-1.5 block text-sm font-bold text-slate-700";
 const inputClass =
   "w-full min-h-[52px] rounded-2xl border-2 border-slate-200 bg-white px-4 text-base font-semibold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200";
 
+const getLocalDateValue = (): string => {
+  const date = new Date();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+};
+
 const FarmDetailsPage = () => {
   const { farmId = "" } = useParams();
   const navigate = useNavigate();
@@ -76,7 +83,7 @@ const FarmDetailsPage = () => {
   const [cycleSaving, setCycleSaving] = useState(false);
   const [cycleVariety, setCycleVariety] = useState("");
   const [cyclePlantingDate, setCyclePlantingDate] = useState(
-    () => new Date().toISOString().split("T")[0],
+    getLocalDateValue,
   );
   const [cycleHarvestDate, setCycleHarvestDate] = useState("");
   const [cycleArea, setCycleArea] = useState("");
@@ -186,7 +193,7 @@ const FarmDetailsPage = () => {
 
   const resetCycleForm = useCallback(() => {
     setCycleVariety("");
-    setCyclePlantingDate(new Date().toISOString().split("T")[0]);
+    setCyclePlantingDate(getLocalDateValue());
     setCycleHarvestDate("");
     setCycleArea("");
     setCycleError(null);
@@ -200,7 +207,7 @@ const FarmDetailsPage = () => {
     setCycleError(null);
     setCycleFieldErrors({});
     try {
-      await createCropCycle(farm.id, {
+      const createdCycle = await createCropCycle(farm.id, {
         cropType: "corn",
         variety: cycleVariety.trim() || undefined,
         plantingDate: cyclePlantingDate,
@@ -208,15 +215,29 @@ const FarmDetailsPage = () => {
         areaHectares: Number(cycleArea),
       });
 
-      // Re-fetch this farm's cycles so the list + remaining area update, and
-      // refresh the shared selection so the cycle appears in every selector.
-      const freshCycles = await listCropCycles(farm.id);
-      setFarm((prev) => (prev ? { ...prev, cropCycles: freshCycles } : prev));
-      void refreshSelection();
+      // Use the create response immediately so a follow-up refresh failure
+      // cannot make a successfully created cycle look like a failed request.
+      setFarm((prev) =>
+        prev
+          ? { ...prev, cropCycles: [...(prev.cropCycles ?? []), createdCycle] }
+          : prev,
+      );
+      let selectionRefreshFailed = false;
+      try {
+        await refreshSelection();
+      } catch (refreshError) {
+        console.error("Refresh farm selection failed:", refreshError);
+        selectionRefreshFailed = true;
+      }
 
       toast.success("Naidagdag ang pananim!", {
         description: "Available na ito sa mga selector ng pananim.",
       });
+      if (selectionRefreshFailed) {
+        toast.warning("Naidagdag ang pananim, pero hindi na-refresh ang mga selector.", {
+          description: "Pakisubukan muli kapag maayos na ang koneksyon.",
+        });
+      }
       resetCycleForm();
       setShowCycleForm(false);
     } catch (err) {
@@ -304,7 +325,7 @@ const FarmDetailsPage = () => {
     }
   };
 
-  const cycles: CropCycle[] = (farm?.cropCycles ?? []) as CropCycle[];
+  const cycles: CropCycle[] = farm?.cropCycles ?? [];
 
   // Remaining plantable area = farm area − sum of ACTIVE cycle areas.
   const farmArea = farm ? Number(farm.areaHectares) : 0;
@@ -521,7 +542,7 @@ const FarmDetailsPage = () => {
                         type="date"
                         className={inputClass}
                         value={cyclePlantingDate}
-                        max={new Date().toISOString().split("T")[0]}
+                        max={getLocalDateValue()}
                         onChange={(e) => setCyclePlantingDate(e.target.value)}
                         required
                       />

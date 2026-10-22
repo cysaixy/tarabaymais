@@ -21,6 +21,7 @@ const syncActionSchema = z.object({
   ]),
   payload: z.record(z.string(), z.unknown()),
   clientTimestamp: z.string().optional(),
+  idempotencyKey: z.string().optional(),
 });
 
 const batchSyncSchema = z.object({

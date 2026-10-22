@@ -11,6 +11,7 @@ import { getMe, logOut } from "../services/auth.service";
 import { clearFarmContext } from "../hooks/useFarmContext";
 import { clearReadNotifications } from "../lib/notificationReadTracking";
 import { ApiError } from "../lib/api";
+import { LoadingState } from "../components/LoadingState";
 
 const PROFILE_CACHE_PREFIX = "tarabaymais.auth-profile.";
 
@@ -262,7 +263,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{ user, profile, role, loading, logout, refreshProfile }}
     >
-      {!loading && children}
+      {loading ? (
+        <div className="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center">
+          <LoadingState fullScreen label="Kinukuha ang sesyon..." />
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };
