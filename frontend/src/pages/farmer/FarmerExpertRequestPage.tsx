@@ -49,8 +49,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
 
   // Load queue count on mount
   useEffect(() => {
-    const q = getOfflineQueue();
-    setQueueCount(q.length);
+    getOfflineQueue().then((q) => setQueueCount(q.length));
   }, []);
 
   // Fetch cases when switching to status tab
@@ -127,7 +126,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
         return;
       }
 
-      queueOfflineAction({
+      await queueOfflineAction({
         actionType: "CREATE_OBSERVATION",
         displayTitle: `Humingi ng Tulong: ${subject.trim()}`,
         payload: {

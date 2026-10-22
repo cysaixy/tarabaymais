@@ -115,7 +115,7 @@ export const FarmerActivityPage: React.FC = () => {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    setQueueCount(getOfflineQueue().length);
+    getOfflineQueue().then((q) => setQueueCount(q.length));
 
     return () => {
       window.removeEventListener("online", handleOnline);
@@ -168,7 +168,7 @@ export const FarmerActivityPage: React.FC = () => {
       const isNetworkError = err instanceof ApiError && err.isNetworkError;
 
       if (isNetworkError) {
-        queueOfflineAction({
+        await queueOfflineAction({
           actionType: "CREATE_CROP_ACTIVITY",
           displayTitle: `Gawain: ${combinedDescription || activityType}`,
           payload: {

@@ -4,6 +4,7 @@ import { AppRouter } from "./routes/AppRouter";
 import { Toaster } from "sonner";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import { OfflineBanner } from "./components/OfflineBanner";
 
 function AppShell() {
   const location = useLocation();
@@ -33,6 +34,7 @@ function AppShell() {
       {!hideGlobalLayout && <Header />}
 
       <div className="flex flex-1 flex-col">
+        <OfflineBanner />
         <AppRouter />
       </div>
 

@@ -11,14 +11,12 @@ import {
   Sparkles,
   AlertTriangle,
   CheckCircle2,
-  Home,
-  MessageSquare,
-  Clock,
   ArrowRight,
   Sprout,
   Image as ImageIcon,
   RotateCcw,
 } from "lucide-react";
+import { BottomNav } from "../../components/BottomNav";
 import {
   scanPlantHealth,
   type ScanDiagnosisResult,
@@ -84,8 +82,7 @@ export const FarmerScannerPage: React.FC = () => {
 
   // Load queue count on mount
   useEffect(() => {
-    const q = getOfflineQueue();
-    setQueueCount(q.length);
+    getOfflineQueue().then((q) => setQueueCount(q.length));
   }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -536,54 +533,7 @@ export const FarmerScannerPage: React.FC = () => {
         {/* ========================================================= */}
         {/* 4. FIXED BOTTOM NAVIGATION BAR                            */}
         {/* ========================================================= */}
-        <nav className="fixed md:sticky bottom-0 left-0 right-0 max-w-full md:max-w-md lg:max-w-lg mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-2 flex justify-around items-center z-30 shadow-lg">
-          {/* Tahanan */}
-          <button
-            type="button"
-            onClick={() => navigate("/farmer")}
-            className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
-          >
-            <Home className="w-5 h-5 stroke-2" />
-            <span>Tahanan</span>
-          </button>
-
-          {/* Scanner (Active) */}
-          <button
-            type="button"
-            onClick={() => {}}
-            className="flex flex-col items-center gap-1 px-3 py-1 rounded-2xl bg-emerald-50 text-emerald-800 font-bold text-[11px] transition cursor-pointer"
-          >
-            <Scan className="w-5 h-5 text-emerald-700 stroke-[2.4]" />
-            <span>Scanner</span>
-          </button>
-
-          {/* AI Chat */}
-          <button
-            type="button"
-            onClick={() => navigate("/farmer/chat")}
-            className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
-          >
-            <MessageSquare className="w-5 h-5 stroke-2" />
-            <span>AI Chat</span>
-          </button>
-
-          {/* History */}
-          <button
-            type="button"
-            onClick={() => navigate("/farmer/history")}
-            className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer relative"
-          >
-            <div className="relative">
-              <Clock className="w-5 h-5 stroke-2" />
-              {queueCount > 0 && (
-                <span className="absolute -top-1 -right-2 bg-amber-500 text-amber-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
-                  {queueCount}
-                </span>
-              )}
-            </div>
-            <span>History</span>
-          </button>
-        </nav>
+        <BottomNav active="scanner" badgeCount={queueCount} />
       </div>
     </div>
   );

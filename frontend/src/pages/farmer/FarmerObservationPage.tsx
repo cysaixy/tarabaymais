@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ArrowRight,
   UploadCloud,
+  CloudOff,
 } from "lucide-react";
 import {
   createObservation,
@@ -19,6 +20,7 @@ import {
   fileToBase64,
 } from "../../services/sync.service";
 import { useFarmSelection } from "../../context/farmSelectionContext";
+import { useNetworkStatus } from "../../hooks/useNetworkStatus";
 import { ApiError } from "../../lib/api";
 import { LoadingState } from "../../components/LoadingState";
 import { FarmCycleSelector } from "../../components/FarmCycleSelector";
@@ -35,6 +37,7 @@ const SYMPTOM_OPTIONS = [
 export const FarmerObservationPage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isOffline = useNetworkStatus();
 
   const {
     selectedFarm,
@@ -56,8 +59,7 @@ export const FarmerObservationPage: React.FC = () => {
 
   // Load queue count on mount
   useEffect(() => {
-    const q = getOfflineQueue();
-    setQueueCount(q.length);
+    getOfflineQueue().then((q) => setQueueCount(q.length));
   }, []);
 
   // Compute severity from affected percentage
@@ -168,7 +170,7 @@ export const FarmerObservationPage: React.FC = () => {
         imageMimeType = imageFile.type;
       }
 
-      queueOfflineAction({
+      await queueOfflineAction({
         actionType: "CREATE_OBSERVATION",
         displayTitle: title,
         payload: {
@@ -454,6 +456,11 @@ export const FarmerObservationPage: React.FC = () => {
                   <>
                     <RefreshCw className="w-5 h-5 animate-spin" />
                     <span>Isinusumite ang Obserbasyon...</span>
+                  </>
+                ) : isOffline ? (
+                  <>
+                    <span>I-save sa Offline</span>
+                    <CloudOff className="w-5 h-5 stroke-[2.4]" />
                   </>
                 ) : (
                   <>

@@ -15,11 +15,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Trash2,
-  Home,
-  Scan,
-  MessageSquare,
-  History,
 } from "lucide-react";
+import { BottomNav } from "../../components/BottomNav";
 import {
   getOfflineQueue,
   clearOfflineQueue,
@@ -35,8 +32,8 @@ export const FarmerSyncQueuePage: React.FC = () => {
   const [queue, setQueue] = useState<SyncActionItem[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const loadQueue = useCallback(() => {
-    const q = getOfflineQueue();
+  const loadQueue = useCallback(async () => {
+    const q = await getOfflineQueue();
     setQueue(q);
   }, []);
 
@@ -85,7 +82,7 @@ export const FarmerSyncQueuePage: React.FC = () => {
 
     try {
       await sendBatchSync(queue);
-      clearOfflineQueue();
+      await clearOfflineQueue();
       loadQueue();
       toast.success("Matagumpay na nai-sync sa PostgreSQL Server!", {
         id: toastId,
@@ -111,7 +108,7 @@ export const FarmerSyncQueuePage: React.FC = () => {
 
     setClearing(true);
     try {
-      clearOfflineQueue();
+      await clearOfflineQueue();
       loadQueue();
       toast.success("Queue na-clear", { description: "Lahat ng nakabinbing rekord ay naalis na." });
     } catch {
@@ -333,12 +330,7 @@ export const FarmerSyncQueuePage: React.FC = () => {
         </main>
 
         {/* Bottom Nav */}
-        <nav className="shrink-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 pt-2 pb-3.5 md:py-2 flex justify-around items-center z-30 shadow-lg">
-          <button onClick={() => navigate("/farmer")} className="flex flex-col items-center justify-center min-h-[48px] gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"><Home className="w-5 h-5 stroke-[2]" /><span>Tahanan</span></button>
-          <button onClick={() => navigate("/farmer/scanner")} className="flex flex-col items-center justify-center min-h-[48px] gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"><Scan className="w-5 h-5 stroke-[2]" /><span>Scanner</span></button>
-          <button onClick={() => navigate("/farmer/chat")} className="flex flex-col items-center justify-center min-h-[48px] gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"><MessageSquare className="w-5 h-5 stroke-[2]" /><span>AI Chat</span></button>
-          <button onClick={() => navigate("/farmer/history")} className="flex flex-col items-center justify-center min-h-[48px] gap-1 px-3 py-1 rounded-2xl bg-emerald-50 text-emerald-800 font-bold text-[11px] transition cursor-pointer relative"><History className="w-5 h-5 text-emerald-700 stroke-[2.4]" /><span>History</span></button>
-        </nav>
+        <BottomNav active="history" />
 
       </div>
     </div>

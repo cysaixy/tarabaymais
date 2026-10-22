@@ -9,13 +9,11 @@ import {
   WifiOff,
   Clock,
   ClipboardCheck,
-  Home,
-  Scan,
-  MessageSquare,
   AlertTriangle,
   Loader2,
   CheckCircle2,
 } from "lucide-react";
+import { BottomNav } from "../../components/BottomNav";
 import {
   getOfflineQueue,
   clearOfflineQueue,
@@ -53,7 +51,7 @@ export const FarmerHistoryPage: React.FC = () => {
     setLoading(true);
 
     // 1. Get offline queued items
-    const queue = getOfflineQueue();
+    const queue = await getOfflineQueue();
     const pendingItems: HistoryItem[] = queue.map((q: SyncActionItem) => {
       const payload = (q.payload || {}) as Record<string, unknown>;
       const rawDate =
@@ -248,10 +246,10 @@ export const FarmerHistoryPage: React.FC = () => {
     const toastId = toast.loading("Isini-sync ang mga rekord sa DA Server...");
 
     try {
-      const queue = getOfflineQueue();
+      const queue = await getOfflineQueue();
       if (queue.length > 0) {
         await sendBatchSync(queue);
-        clearOfflineQueue();
+        await clearOfflineQueue();
       }
 
       await loadRecords();
@@ -284,7 +282,7 @@ export const FarmerHistoryPage: React.FC = () => {
 
   return (
     <div className="w-full min-h-screen bg-slate-100 md:bg-slate-950 flex flex-col items-center justify-start p-0 md:py-6 md:px-4 font-sans selection:bg-emerald-500/30">
-      <div className="w-full md:max-w-md lg:max-w-lg bg-slate-50 text-slate-900 shadow-2xl flex flex-col h-[100dvh] md:h-[92vh] md:max-h-[920px] overflow-hidden md:rounded-[36px] md:border-2 md:border-emerald-800/40 relative">
+      <div className="w-full md:max-w-md lg:max-w-lg bg-slate-50 text-slate-900 shadow-2xl flex flex-col h-dvh md:h-[92vh] md:max-h-230 overflow-hidden md:rounded-[36px] md:border-2 md:border-emerald-800/40 relative">
 
         {/* TOP HEADER */}
         <header className="w-full bg-[#03543f] text-white px-4 sm:px-6 pt-4 pb-3 flex justify-between items-center shadow-md shrink-0 z-20">
@@ -531,51 +529,7 @@ export const FarmerHistoryPage: React.FC = () => {
         </main>
 
         {/* BOTTOM NAVIGATION */}
-        <nav className="shrink-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 pt-2 pb-3.5 md:py-2 flex justify-around items-center z-30 shadow-lg">
-          <button
-            type="button"
-            onClick={() => navigate("/farmer")}
-            className="flex flex-col items-center justify-center min-h-[48px] gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
-          >
-            <Home className="w-5 h-5 stroke-[2]" />
-            <span>Tahanan</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate("/farmer/scanner")}
-            className="flex flex-col items-center justify-center min-h-[48px] gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
-          >
-            <Scan className="w-5 h-5 stroke-[2]" />
-            <span>Scanner</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate("/farmer/chat")}
-            className="flex flex-col items-center justify-center min-h-[48px] gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
-          >
-            <MessageSquare className="w-5 h-5 stroke-[2]" />
-            <span>AI Chat</span>
-          </button>
-
-          {/* History (Active) */}
-          <button
-            type="button"
-            onClick={() => {}}
-            className="flex flex-col items-center justify-center min-h-[48px] gap-1 px-3 py-1 rounded-2xl bg-emerald-50 text-emerald-800 font-bold text-[11px] transition cursor-pointer relative"
-          >
-            <div className="relative">
-              <Clock className="w-5 h-5 text-emerald-700 stroke-[2.4]" />
-              {pendingCount > 0 && (
-                <span className="absolute -top-1 -right-2 bg-amber-500 text-amber-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
-                  {pendingCount}
-                </span>
-              )}
-            </div>
-            <span>History</span>
-          </button>
-        </nav>
+        <BottomNav active="history" badgeCount={pendingCount} />
 
       </div>
     </div>

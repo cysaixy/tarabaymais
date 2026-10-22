@@ -66,8 +66,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
 
   // Load queue count on mount
   useEffect(() => {
-    const q = getOfflineQueue();
-    setQueueCount(q.length);
+    getOfflineQueue().then((q) => setQueueCount(q.length));
   }, []);
 
   // Fetch claims when switching to status tab
@@ -158,7 +157,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
         return;
       }
 
-      queueOfflineAction({
+      await queueOfflineAction({
         actionType: "CREATE_DISASTER_REPORT",
         displayTitle: `Ulat ng Kalamidad: ${disasterType} (${damagePct}%)`,
         payload: {

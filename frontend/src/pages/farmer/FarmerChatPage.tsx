@@ -8,14 +8,11 @@ import {
   ShieldCheck,
   ArrowRight,
   Send,
-  Home,
-  Scan,
-  MessageSquare,
   MessageSquarePlus,
-  Clock,
   Sprout,
   Globe,
 } from "lucide-react";
+import { BottomNav } from "../../components/BottomNav";
 import { sendRagChat } from "../../services/ai.service";
 import { getOfflineQueue } from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
@@ -109,10 +106,11 @@ export const FarmerChatPage: React.FC = () => {
 
   // Load queue count on mount
   useEffect(() => {
-    const q = getOfflineQueue();
-    if (q.length > 0) {
-      setQueueCount(q.length);
-    }
+    getOfflineQueue().then((q) => {
+      if (q.length > 0) {
+        setQueueCount(q.length);
+      }
+    });
   }, []);
 
   // Swap the loaded thread whenever the effective cycle (or general mode)
@@ -220,8 +218,8 @@ export const FarmerChatPage: React.FC = () => {
     }
   };
 
-  const handleQueueClick = () => {
-    const q = getOfflineQueue();
+  const handleQueueClick = async () => {
+    const q = await getOfflineQueue();
     if (q.length > 0) {
       toast.info("Offline Sync Queue", {
         description: `May ${q.length} nakatagong ulat/obserbasyon sa telepono na handang i-sync kapag nagkaroon ng signal.`,
@@ -463,54 +461,7 @@ export const FarmerChatPage: React.FC = () => {
         {/* ========================================================= */}
         {/* 5. FIXED BOTTOM NAVIGATION BAR                            */}
         {/* ========================================================= */}
-        <nav className="fixed md:sticky bottom-0 left-0 right-0 max-w-full md:max-w-2xl lg:max-w-3xl mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-2 flex justify-around items-center z-30 shadow-lg">
-          {/* Tahanan */}
-          <button
-            type="button"
-            onClick={() => navigate("/farmer")}
-            className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
-          >
-            <Home className="w-5 h-5 stroke-2" />
-            <span>Tahanan</span>
-          </button>
-
-          {/* Scanner */}
-          <button
-            type="button"
-            onClick={() => navigate("/farmer/scanner")}
-            className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer"
-          >
-            <Scan className="w-5 h-5 stroke-2" />
-            <span>Scanner</span>
-          </button>
-
-          {/* AI Chat (Active) */}
-          <button
-            type="button"
-            onClick={() => {}}
-            className="flex flex-col items-center gap-1 px-3 py-1 rounded-2xl bg-emerald-50 text-emerald-800 font-bold text-[11px] transition cursor-pointer"
-          >
-            <MessageSquare className="w-5 h-5 text-emerald-700 stroke-[2.4]" />
-            <span>AI Chat</span>
-          </button>
-
-          {/* History */}
-          <button
-            type="button"
-            onClick={() => navigate("/farmer/history")}
-            className="flex flex-col items-center gap-1 px-3 py-1 text-slate-500 hover:text-emerald-700 font-medium text-[11px] transition cursor-pointer relative"
-          >
-            <div className="relative">
-              <Clock className="w-5 h-5 stroke-2" />
-              {queueCount > 0 && (
-                <span className="absolute -top-1 -right-2 bg-amber-500 text-amber-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
-                  {queueCount}
-                </span>
-              )}
-            </div>
-            <span>History</span>
-          </button>
-        </nav>
+        <BottomNav active="chat" badgeCount={queueCount} />
       </div>
     </div>
   );

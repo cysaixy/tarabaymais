@@ -1,5 +1,11 @@
 import { api } from "../lib/api";
 import { createObservation } from "./observation.service";
+import {
+  idbAddItem,
+  idbClearQueue,
+  idbGetQueue,
+  notifyQueueUpdated,
+} from "../lib/offlineQueue";
 
 export type SyncActionType =
   | "CREATE_OBSERVATION"
@@ -29,13 +35,10 @@ export interface BatchSyncResponse {
   results: SyncResultItem[];
 }
 
-const OFFLINE_QUEUE_KEY = "tarabay_offline_queue";
-
-/** Reads queued actions from local storage */
-export const getOfflineQueue = (): SyncActionItem[] => {
+/** Reads queued actions from IndexedDB. */
+export const getOfflineQueue = async (): Promise<SyncActionItem[]> => {
   try {
-    const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return await idbGetQueue();
   } catch {
     return [];
   }
@@ -74,11 +77,10 @@ export const base64ToFile = (
   return new File([u8arr], fileName, { type: mimeType || mime });
 };
 
-/** Queues an action item when offline */
-export const queueOfflineAction = (
+/** Queues an action item when offline (persisted to IndexedDB). */
+export const queueOfflineAction = async (
   item: Omit<SyncActionItem, "clientRefId" | "clientTimestamp" | "idempotencyKey">,
-) => {
-  const current = getOfflineQueue();
+): Promise<SyncActionItem> => {
   const newItem: SyncActionItem = {
     ...item,
     payload: { ...item.payload },
@@ -86,14 +88,16 @@ export const queueOfflineAction = (
     clientTimestamp: new Date().toISOString(),
     idempotencyKey: `idem-${crypto.randomUUID()}`,
   };
-  current.push(newItem);
-  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(current));
+
+  await idbAddItem(newItem);
+  notifyQueueUpdated();
   return newItem;
 };
 
-/** Clears all queued items */
-export const clearOfflineQueue = () => {
-  localStorage.removeItem(OFFLINE_QUEUE_KEY);
+/** Clears all queued items (IndexedDB). */
+export const clearOfflineQueue = async (): Promise<void> => {
+  await idbClearQueue();
+  notifyQueueUpdated();
 };
 
 /**
