@@ -106,6 +106,7 @@ model Farm {
   cropCycles      CropCycle[]
   disasterReports DisasterReport[]
 
+  @@index([farmerId, createdAt(sort: Desc)], map: "idx_farms_farmer_id_created_at_desc")
   @@map("farms")
 }
 
@@ -125,6 +126,8 @@ model CropCycle {
   activities   CropActivity[]
   observations Observation[]
 
+  @@index([farmId, plantingDate(sort: Desc)], map: "idx_crop_cycles_farm_id_planting_date_desc")
+  @@index([farmId, status], map: "idx_crop_cycles_farm_id_status")
   @@map("crop_cycles")
 }
 
@@ -139,6 +142,7 @@ model CropActivity {
 
   cropCycle CropCycle @relation(fields: [cropCycleId], references: [id], onDelete: Cascade)
 
+  @@index([cropCycleId, performedAt(sort: Desc)], map: "idx_crop_activities_crop_cycle_id_performed_at_desc")
   @@map("crop_activities")
 }
 
@@ -158,6 +162,8 @@ model Observation {
   farmer        User           @relation(fields: [farmerId], references: [id], onDelete: Cascade)
   expertRequest ExpertRequest?
 
+  @@index([cropCycleId, createdAt(sort: Desc)], map: "idx_observations_crop_cycle_id_created_at_desc")
+  @@index([farmerId], map: "idx_observations_farmer_id")
   @@map("observations")
 }
 
@@ -174,6 +180,7 @@ model ExpertRequest {
   observation        Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
   assignedTechnician User?       @relation("TechnicianCases", fields: [assignedTechnicianId], references: [id])
 
+  @@index([createdAt(sort: Desc)], map: "idx_expert_requests_created_at_desc")
   @@map("expert_requests")
 }
 
@@ -192,6 +199,8 @@ model DisasterReport {
   farm       Farm  @relation(fields: [farmId], references: [id], onDelete: Cascade)
   verifiedBy User? @relation("VerifiedDisasters", fields: [verifiedById], references: [id])
 
+  @@index([createdAt(sort: Desc)], map: "idx_disaster_reports_created_at_desc")
+  @@index([farmId], map: "idx_disaster_reports_farm_id")
   @@map("disaster_reports")
 }
 
@@ -201,9 +210,9 @@ model KnowledgeChunk {
   source    String   @db.VarChar(255)
   category  String   @db.VarChar(100)
   content   String   @db.Text
-  // embedding column requires pgvector extension — install pgvector then re-add:
-  // embedding Unsupported("vector(768)")?
+  embedding Unsupported("vector(768)")?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
+  @@index([embedding], map: "idx_knowledge_chunks_embedding_hnsw")
   @@map("knowledge_chunks")
 }
