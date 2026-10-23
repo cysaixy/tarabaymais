@@ -1,5 +1,6 @@
 import prisma from "../config/prisma";
 import { EmbeddingService } from "./embedding.service";
+import { getOrSet, hashKey } from "../lib/cache";
 
 export interface RetrievedChunk {
   id: string;
@@ -9,9 +10,14 @@ export interface RetrievedChunk {
   similarity: number;
 }
 
+function normalizeQuery(q: string): string {
+  return q.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 export class RagService {
   /**
    * Searches the Knowledge Base using vector cosine distance.
+   * Cached for 1 hour since knowledge base is static.
    */
   static async retrieveRelevantChunks(
     query: string,
@@ -19,22 +25,29 @@ export class RagService {
   ): Promise<RetrievedChunk[]> {
     const queryEmbedding = await EmbeddingService.generateEmbedding(query);
     const vectorString = `[${queryEmbedding.join(",")}]`;
+    const cacheKey = `rag:chunks:${hashKey(normalizeQuery(query) + '|' + limit)}:${limit}`;
 
-    const results = await prisma.$queryRaw<RetrievedChunk[]>`
-        SELECT 
-        id, 
-        title, 
-        source, 
-        content, 
-        1 - (embedding <=> ${vectorString}::vector) AS similarity
-      FROM knowledge_chunks
-      WHERE embedding IS NOT NULL
-      ORDER BY embedding <=> ${vectorString}::vector ASC
-      LIMIT ${limit};
-    
-    `;
-
-    return results;
+    return getOrSet(
+      cacheKey,
+      3600, // 1 hour TTL
+      async () => {
+        const results = await prisma.$queryRaw<RetrievedChunk[]>`
+            SELECT 
+            id, 
+            title, 
+            source, 
+            content, 
+            1 - (embedding <=> ${vectorString}::vector) AS similarity
+          FROM knowledge_chunks
+          WHERE embedding IS NOT NULL
+          ORDER BY embedding <=> ${vectorString}::vector ASC
+          LIMIT ${limit};
+        
+        `;
+        return results;
+      },
+      { jitterSec: 300 }
+    );
   }
 
   /**

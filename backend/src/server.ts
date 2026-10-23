@@ -16,6 +16,7 @@ import userRoutes from "./routes/user.routes";
 import syncRoutes from "./routes/sync.routes";
 
 import { errorMiddleware } from "./middlewares/error.middleware";
+import { closeCache } from "./lib/cache";
 
 const app = express();
 const port = process.env.PORT ?? 3000;
@@ -97,7 +98,30 @@ app.get("/api/health", (_req, res) => {
 // ── Centralized error handler (MUST be last) ──────────────────────────────────
 app.use(errorMiddleware);
 
-// ── Start server ──────────────────────────────────────────────────────────────
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.info(`[Server] Running at http://localhost:${port}`);
 });
+
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+async function shutdown(signal: string) {
+  console.info(`[Server] ${signal} received, shutting down gracefully...`);
+  server.close(async () => {
+    console.info("[Server] HTTP server closed");
+    try {
+      await closeCache();
+      console.info("[Server] Redis connection closed");
+    } catch (err) {
+      console.error("[Server] Error closing Redis:", err);
+    }
+    process.exit(0);
+  });
+
+  // Force exit after 10s
+  setTimeout(() => {
+    console.error("[Server] Forced shutdown after timeout");
+    process.exit(1);
+  }, 10_000);
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

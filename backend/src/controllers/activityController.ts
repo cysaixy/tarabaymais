@@ -13,6 +13,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccess } from "../utils/apiResponse";
 import { ApiError } from "../utils/ApiError";
 import { z } from "zod";
+import { invalidateAnalyticsCache } from "./analyticsController";
 
 // ── Input schemas (Zod v4 compatible) ─────────────────────────────────────────
 
@@ -168,6 +169,8 @@ export const createObservation = asyncHandler(
           type: "EXPERT_DISPATCH",
         },
       );
+
+      await invalidateAnalyticsCache();
     }
 
     return sendSuccess(res, 201, { data: { observation, autoEscalatedCase } });

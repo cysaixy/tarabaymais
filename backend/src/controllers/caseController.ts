@@ -6,6 +6,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccess } from "../utils/apiResponse";
 import { ApiError } from "../utils/ApiError";
 import { z } from "zod";
+import { invalidateAnalyticsCache } from "./analyticsController";
 
 // ── Input schemas (Zod v4 compatible) ─────────────────────────────────────────
 
@@ -114,6 +115,7 @@ export const updateCaseStatus = asyncHandler(
           ...(status === CaseStatus.RESOLVED && { resolvedAt: new Date() }),
         },
       });
+      await invalidateAnalyticsCache();
       return sendSuccess(res, 200, { data: { updatedCase: updated } });
     }
 
@@ -122,6 +124,7 @@ export const updateCaseStatus = asyncHandler(
       where: { id: caseId },
       data: { status, verifiedById: req.user!.id },
     });
+    await invalidateAnalyticsCache();
     return sendSuccess(res, 200, { data: { updatedCase: updated } });
   },
 );
@@ -161,6 +164,8 @@ export const createDisasterReport = asyncHandler(
       },
     });
 
+    await invalidateAnalyticsCache();
+
     return sendSuccess(res, 201, { data: { disasterReport: report } });
   },
 );
@@ -199,6 +204,8 @@ export const resolveExpertCase = asyncHandler(
       `A field technician has responded to your observation: "${updatedCase.observation.title}"`,
       { caseId: updatedCase.id, type: "CASE_RESOLVED" },
     );
+
+    await invalidateAnalyticsCache();
 
     return sendSuccess(res, 200, { data: { resolvedCase: updatedCase } });
   },

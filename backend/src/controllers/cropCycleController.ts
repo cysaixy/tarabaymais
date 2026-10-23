@@ -5,6 +5,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccess } from "../utils/apiResponse";
 import { ApiError } from "../utils/ApiError";
 import { z } from "zod";
+import { invalidateAnalyticsCache } from "./analyticsController";
 
 // ── Input schemas ─────────────────────────────────────────────────────────────
 
@@ -89,6 +90,8 @@ export const createCropCycle = asyncHandler(
       },
     });
 
+    await invalidateAnalyticsCache();
+
     return sendSuccess(res, 201, { data: { cropCycle } });
   },
 );
@@ -145,6 +148,8 @@ export const updateCropCycleStatus = asyncHandler(
       data: { status: parseResult.data.status },
     });
 
+    await invalidateAnalyticsCache();
+
     return sendSuccess(res, 200, { data: { cropCycle: updatedCycle } });
   },
 );
@@ -163,6 +168,8 @@ export const deleteCropCycle = asyncHandler(
     }
 
     await prisma.cropCycle.delete({ where: { id } });
+
+    await invalidateAnalyticsCache();
 
     return sendSuccess(res, 200, {
       message: "Crop cycle deleted successfully",

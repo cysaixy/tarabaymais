@@ -5,6 +5,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccess } from "../utils/apiResponse";
 import { ApiError } from "../utils/ApiError";
 import { z } from "zod";
+import { invalidateAnalyticsCache } from "./analyticsController";
 
 // ── Input schemas ─────────────────────────────────────────────────────────────
 
@@ -59,6 +60,8 @@ export const createFarm = asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
+  await invalidateAnalyticsCache();
+
   return sendSuccess(res, 201, { data: { farm } });
 });
 
@@ -105,6 +108,8 @@ export const updateFarm = asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
+  await invalidateAnalyticsCache();
+
   return sendSuccess(res, 200, { data: { farm: updatedFarm } });
 });
 
@@ -125,6 +130,8 @@ export const deleteFarm = asyncHandler(async (req: Request, res: Response) => {
   }
 
   await prisma.farm.delete({ where: { id: farmId } });
+
+  await invalidateAnalyticsCache();
 
   return sendSuccess(res, 200, {
     message: "Farm deleted successfully",

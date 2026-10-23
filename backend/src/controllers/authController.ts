@@ -5,6 +5,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccess } from "../utils/apiResponse";
 import { ApiError } from "../utils/ApiError";
 import { z } from "zod";
+import { invalidateAnalyticsCache } from "./analyticsController";
 
 // ── Input schema ──────────────────────────────────────────────────────────────
 
@@ -72,6 +73,10 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
     },
     include: { farmerProfile: true },
   });
+
+  if (tokenRole === Role.FARMER) {
+    await invalidateAnalyticsCache();
+  }
 
   return sendSuccess(res, 201, {
     message: "User profile created and synchronized",

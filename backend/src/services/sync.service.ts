@@ -6,6 +6,7 @@ import {
 } from "@prisma/client";
 import { FcmService } from "./fcm.service";
 import prisma from "../config/prisma";
+import { invalidateAnalyticsCache } from "../controllers/analyticsController";
 
 export interface SyncAction {
   clientRefId: string;
@@ -105,6 +106,8 @@ export class SyncService {
                 `New ${observation.severity} observation synced: "${observation.title}"`,
                 { caseId: expertRequest.id, observationId: observation.id },
               );
+
+              await invalidateAnalyticsCache();
             }
             results.push({
               clientRefId: action.clientRefId,
@@ -186,6 +189,8 @@ export class SyncService {
                 status: CaseStatus.SUBMITTED,
               },
             });
+
+            await invalidateAnalyticsCache();
 
             results.push({
               clientRefId: action.clientRefId,
