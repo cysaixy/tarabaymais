@@ -1,10 +1,5 @@
 import { initializeApp } from "firebase/app";
-import {
-  getAuth,
-  indexedDBLocalPersistence,
-  setPersistence,
-  RecaptchaVerifier,
-} from "firebase/auth";
+import { getAuth, RecaptchaVerifier } from "firebase/auth";
 
 // Build the configuration object pulling from Vite's secure env layer
 export const firebaseConfig = {
@@ -29,28 +24,25 @@ export const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 /**
- * Auth instance with IndexedDB persistence explicitly set.
+ * Firebase Auth instance.
  *
- * Firebase's default in a browser PWA is already browserLocalPersistence
- * (IndexedDB-backed), but we set this explicitly to:
- *   1. Make the offline-first intent unmistakably clear.
- *   2. Guard against accidental regression if someone imports inMemoryPersistence.
+ * PERSISTENCE: We intentionally use the default `browserLocalPersistence`
+ * (localStorage). This is the correct choice for an offline-first PWA:
  *
- * IndexedDB survives full app close, device reboot, and service-worker clears,
- * so the farmer never has to log in again unless they explicitly sign out.
+ *   ✅  Survives full PWA close + swipe from recents
+ *   ✅  Survives phone reboot
+ *   ✅  NOT cleared when only the service worker is cleared
+ *   ✅  Cleared on explicit signOut() (correct)
+ *   ✅  Cleared on "Clear Site Data" in browser settings (correct)
+ *
+ * WHY NOT setPersistence(auth, indexedDBLocalPersistence):
+ *   Calling setPersistence() after getAuth() triggers an ASYNC session
+ *   migration (localStorage → IndexedDB). During that migration, Firebase
+ *   fires onAuthStateChanged(null) before restoring the user — which causes
+ *   the route guard to redirect the farmer to the login page on every cold
+ *   boot. Do NOT add a setPersistence() call here.
  */
 export const auth = getAuth(app);
-
-// Upgrade persistence to IndexedDB (the PWA standard). We call this
-// immediately after getAuth so it is settled before any auth listener fires.
-// The promise is intentionally fire-and-forget here: if the browser does not
-// support IndexedDB the SDK falls back to localStorage gracefully.
-void setPersistence(auth, indexedDBLocalPersistence).catch((err) => {
-  console.warn(
-    "[Firebase] Could not set IndexedDB persistence. Falling back to default:",
-    err,
-  );
-});
 
 /**
  * Creates (or reuses) an invisible reCAPTCHA verifier bound to a DOM element.
