@@ -166,6 +166,13 @@ export const FarmerLoginPage: React.FC = () => {
           navigate("/officer/dashboard", { replace: true });
           return;
         }
+        if (!me.farmerProfile) {
+          toast.info("Kailangan ng Rehistro", {
+            description: "Kumpletuhin muna ang inyong farmer profile.",
+          });
+          navigate("/onboarding", { replace: true });
+          return;
+        }
         toast.success("Maligayang Pagbabalik, Magsasaka!", {
           description: "Matagumpay na nakapasok sa Tarabay-Mais Sakahan.",
         });

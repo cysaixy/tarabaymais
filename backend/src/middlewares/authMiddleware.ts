@@ -3,14 +3,15 @@ import { Role } from "@prisma/client";
 import { auth } from "../config/firebase";
 import prisma from "../config/prisma";
 import { sendError } from "../utils/apiResponse";
+import {
+  isDesignatedFarmerPhone,
+  normalizePhilippinePhone,
+} from "../utils/phone";
 
 const TECHNICIAN_NUMBERS = new Set([
   "+639170000004",
   "09170000004",
   "639170000004",
-  "+639170000002",
-  "09170000002",
-  "639170000002",
 ]);
 
 /**
@@ -64,15 +65,36 @@ export const authenticate = async (
       include: { farmerProfile: true },
     });
 
-    // Auto-provision or promote designated technician accounts (e.g. 09170000004)
-    if (phone && TECHNICIAN_NUMBERS.has(phone)) {
+    const normalizedPhone = phone ? normalizePhilippinePhone(phone) : null;
+
+    // These Firebase test accounts are farmer registrations, not technician accounts.
+    if (user && isDesignatedFarmerPhone(phone)) {
+      if (user.role !== Role.FARMER) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { role: Role.FARMER },
+          include: { farmerProfile: true },
+        });
+      }
+
+      if (decodedToken.role !== "farmer") {
+        auth
+          .setCustomUserClaims(decodedToken.uid, { role: "farmer" })
+          .catch((error: unknown) => {
+            console.warn("[Auth] Could not update farmer role claim:", error);
+          });
+      }
+    }
+
+    // Auto-provision or promote the designated technician account.
+    if (normalizedPhone && TECHNICIAN_NUMBERS.has(normalizedPhone)) {
       if (!user) {
         user = await prisma.user.create({
           data: {
             id: decodedToken.uid,
             firstName: "DA Field",
             lastName: "Technician",
-            phone: phone,
+            phone: normalizedPhone,
             role: Role.TECHNICIAN,
           },
           include: { farmerProfile: true },
@@ -86,7 +108,11 @@ export const authenticate = async (
       }
 
       // Sync custom claims to Firebase token in background
-      auth.setCustomUserClaims(decodedToken.uid, { role: "technician" }).catch(() => {});
+      auth
+        .setCustomUserClaims(decodedToken.uid, { role: "technician" })
+        .catch((error: unknown) => {
+          console.warn("[Auth] Could not update technician role claim:", error);
+        });
     }
 
     if (user) {

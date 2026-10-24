@@ -15,8 +15,12 @@ const hasValidConfig =
   process.env.FIREBASE_PROJECT_ID !== "your-firebase-project-id" &&
   process.env.FIREBASE_CLIENT_EMAIL &&
   !process.env.FIREBASE_CLIENT_EMAIL.includes("xxxxx") &&
+  !process.env.FIREBASE_CLIENT_EMAIL.toUpperCase().startsWith("PASTE_") &&
+  process.env.FIREBASE_CLIENT_EMAIL.endsWith(".iam.gserviceaccount.com") &&
   privateKey &&
-  !privateKey.includes("YOUR_PRIVATE_KEY_HERE");
+  !privateKey.includes("YOUR_PRIVATE_KEY_HERE") &&
+  !privateKey.toUpperCase().startsWith("PASTE_") &&
+  privateKey.includes("-----BEGIN PRIVATE KEY-----");
 
 let app: App | undefined;
 let authInstance: Auth;

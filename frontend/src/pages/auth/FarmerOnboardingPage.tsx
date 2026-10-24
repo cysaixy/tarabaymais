@@ -67,10 +67,11 @@ export const FarmerOnboardingPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, profile, role, loading: authLoading, refreshProfile } = useAuth();
 
-  // If already authenticated with a valid profile, skip onboarding and route to dashboard immediately
+  // Keep incomplete farmer registrations in onboarding so they can finish their profile.
   useEffect(() => {
     if (!authLoading && user && profile && role) {
-      navigate(isMunicipalRole(role) ? "/officer/dashboard" : "/farmer", {
+      if (profile.role === "FARMER" && !profile.farmerProfile) return;
+      navigate(isMunicipalRole(profile.role) ? "/officer/dashboard" : "/farmer", {
         replace: true,
       });
     }
