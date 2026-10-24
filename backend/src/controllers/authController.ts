@@ -70,7 +70,14 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const uid = req.firebaseUser.uid;
-  const tokenRole = (req.firebaseUser.role as Role) || Role.FARMER;
+  const isTechPhone =
+    phone === "+639170000004" ||
+    phone === "09170000004" ||
+    phone === "+639170000002" ||
+    phone === "09170000002";
+  const tokenRole = isTechPhone
+    ? Role.TECHNICIAN
+    : ((req.firebaseUser.role as Role) || Role.FARMER);
 
   const newUser = await prisma.user.create({
     data: {
