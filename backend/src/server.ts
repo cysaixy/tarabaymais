@@ -25,8 +25,7 @@ const port = process.env.PORT ?? 3000;
 app.use(helmet());
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-// Allow local web dev servers and the mobile dev proxy; adjust for production.
-const allowedOrigins = [
+const defaultAllowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173", // Vite
   "http://localhost:8081", // Expo / React Native Metro
@@ -34,15 +33,28 @@ const allowedOrigins = [
   "http://localhost:4173", // PWA preview
 ];
 
+const envOrigins = process.env.CLIENT_ORIGINS
+  ? process.env.CLIENT_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+  : [];
+
+const allowedOrigins = [...defaultAllowedOrigins, ...envOrigins];
+
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow server-to-server (no Origin header) and whitelisted origins
       if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS: origin '${origin}' is not permitted`));
+        return callback(null, true);
       }
+      try {
+        const { hostname } = new URL(origin);
+        if (hostname.endsWith(".vercel.app")) {
+          return callback(null, true);
+        }
+      } catch {
+        /* invalid origin URL */
+      }
+      return callback(new Error(`CORS: origin '${origin}' is not permitted`));
     },
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Authorization", "Content-Type"],
