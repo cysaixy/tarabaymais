@@ -1,5 +1,11 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, RecaptchaVerifier } from "firebase/auth";
+import {
+  getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  RecaptchaVerifier,
+} from "firebase/auth";
 
 // Build the configuration object pulling from Vite's secure env layer
 export const firebaseConfig = {
@@ -24,25 +30,26 @@ export const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 /**
- * Firebase Auth instance.
+ * Firebase Auth instance with explicit multi-layer local persistence.
  *
- * PERSISTENCE: We intentionally use the default `browserLocalPersistence`
- * (localStorage). This is the correct choice for an offline-first PWA:
+ * Persistence hierarchy:
+ * 1. indexedDBLocalPersistence: Survives full browser restart, phone reboot,
+ *    and service-worker cache purges.
+ * 2. browserLocalPersistence (localStorage): Reliable fallback if IndexedDB is
+ *    blocked by private browsing restrictions.
  *
- *   ✅  Survives full PWA close + swipe from recents
- *   ✅  Survives phone reboot
- *   ✅  NOT cleared when only the service worker is cleared
- *   ✅  Cleared on explicit signOut() (correct)
- *   ✅  Cleared on "Clear Site Data" in browser settings (correct)
- *
- * WHY NOT setPersistence(auth, indexedDBLocalPersistence):
- *   Calling setPersistence() after getAuth() triggers an ASYNC session
- *   migration (localStorage → IndexedDB). During that migration, Firebase
- *   fires onAuthStateChanged(null) before restoring the user — which causes
- *   the route guard to redirect the farmer to the login page on every cold
- *   boot. Do NOT add a setPersistence() call here.
+ * Configured at initialization time so no asynchronous session migration occurs.
  */
-export const auth = getAuth(app);
+let authInstance: ReturnType<typeof getAuth>;
+try {
+  authInstance = initializeAuth(app, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+  });
+} catch {
+  authInstance = getAuth(app);
+}
+
+export const auth = authInstance;
 
 /**
  * Creates (or reuses) an invisible reCAPTCHA verifier bound to a DOM element.

@@ -64,52 +64,6 @@ const clearCachedProfile = (uid: string | null | undefined): void => {
   }
 };
 
-/**
- * Determines if an error is a transient network/offline error.
- *
- * Returns true only for errors caused by lack of internet connectivity, not
- * for real authentication rejections (disabled accounts, revoked tokens).
- *
- * Key distinction:
- *   - auth/network-request-failed → offline, no network to reach Firebase → true
- *   - auth/user-token-expired     → real server rejection (token revoked)   → false
- *   - auth/id-token-expired       → token expired; Firebase auto-refreshes on
- *                                    next online request via getIdToken()    → false
- *
- * Covers Firebase errors, Axios/ApiError, fetch TypeErrors, and common messages.
- */
-const isNetworkError = (err: unknown): boolean => {
-  if (!err) return false;
-
-  // Axios/ApiError with network flag (status 0, no response from server)
-  if (err instanceof ApiError && err.isNetworkError) return true;
-
-  // Firebase Auth errors
-  if (err instanceof Error) {
-    const msg = err.message.toLowerCase();
-    if (
-      msg.includes("network") ||
-      msg.includes("internet") ||
-      msg.includes("offline") ||
-      msg.includes("connection") ||
-      msg.includes("econnreset") ||
-      msg.includes("econnrefused") ||
-      msg.includes("enotfound") ||
-      msg.includes("timeout") ||
-      msg.includes("unreachable") ||
-      // Firebase's specific network-layer error code
-      msg.includes("auth/network-request-failed")
-    ) return true;
-  }
-
-  // Fetch TypeError (network failure — browser couldn't reach the server)
-  if (err instanceof TypeError && err.message.toLowerCase().includes("fetch")) {
-    return true;
-  }
-
-  return false;
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<DbUserProfile | null>(null);
@@ -118,51 +72,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const initialCheckDone = useRef(false);
 
   /**
-   * Resolves the backend profile for the signed-in Firebase user and syncs
-   * role/profile state. Falls back to the token claim role if the profile has
-   * not been synced yet (first-time user mid-registration).
-   *
-   * On network errors, preserves existing profile/role instead of clearing them.
+   * Refreshes the backend profile for the signed-in Firebase user in the background.
+   * On success: overwrites local cache and updates React state.
+   * On failure: if offline or server starting up (5xx/timeout), preserves cache.
+   * Only clears session and logs out on genuine 401/403 auth rejection while online.
    */
-  const resolveSession = useCallback(
+  const syncProfileBackground = useCallback(
     async (currentUser: User): Promise<DbUserProfile | null> => {
-      // Hydrate before making a network request. This lets a returning farmer
-      // open a cached screen while offline, including after a page refresh.
-      const cachedProfile = readCachedProfile(currentUser.uid);
-      if (cachedProfile) {
-        setProfile(cachedProfile);
-        setRole(cachedProfile.role);
-      }
-
-      // NOTE: We intentionally do NOT call getIdTokenResult() here.
-      // The profile cache (read above) is the authoritative source for role on
-      // startup. getIdTokenResult() makes a network round-trip that:
-      //   • Delays profile+role being set while offline.
-      //   • Is redundant because role is already in the cached DbUserProfile.
-      // getIdToken() in the API interceptor handles token refresh automatically.
-
-      // Try to fetch fresh profile from backend
       try {
         const dbProfile = await getMe();
-        console.log("[AuthProvider] Got fresh profile from backend");
+        console.log("[AuthProvider] Fresh profile loaded from backend");
         cacheProfile(currentUser.uid, dbProfile);
         setProfile(dbProfile);
         setRole(dbProfile.role);
         return dbProfile;
       } catch (err: unknown) {
-        // Network error (offline) -> preserve existing profile/role, don't clear
-        if (isNetworkError(err)) {
-          console.log("[AuthProvider] Offline: using cached profile/role");
-          return cachedProfile;
+        const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+        const isAuthRejection =
+          err instanceof ApiError &&
+          (err.status === 401 || err.status === 403);
+
+        const isUserDisabled =
+          err instanceof Error &&
+          (err.message.includes("auth/user-disabled") ||
+            err.message.includes("auth/user-token-expired") ||
+            err.message.includes("auth/invalid-user-token"));
+
+        if (isOnline && (isAuthRejection || isUserDisabled)) {
+          console.warn("[AuthProvider] Genuine online auth rejection: clearing session");
+          clearCachedProfile(currentUser.uid);
+          setProfile(null);
+          setRole(null);
+          await logOut().catch(() => {});
+          return null;
         }
 
-        // Auth error (401, 403, token expired, etc.) -> clear profile, needs re-sync
-        const msg = err instanceof Error ? err.message : String(err);
-        console.log("[AuthProvider] Auth error: clearing profile", msg);
-        clearCachedProfile(currentUser.uid);
-        setProfile(null);
-        setRole(null);
-        return null;
+        // Offline, timeout, network error, or Render cold start (502/504):
+        // PRESERVE the cached profile! Never sign out on network/server errors.
+        console.log("[AuthProvider] Background sync skipped/failed (offline or server waking up): keeping cached profile");
+        return readCachedProfile(currentUser.uid);
       }
     },
     [],
@@ -186,52 +134,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setUser(currentUser);
 
-      // Wrap in try/catch but NEVER clear profile on network errors
-      try {
-        await resolveSession(currentUser);
-      } catch (err) {
-        console.error("[AuthProvider] resolveSession unexpected error:", err);
-        // Only clear profile on non-network errors
-        if (!isNetworkError(err)) {
-          console.log("[AuthProvider] Non-network error, clearing profile");
-          setProfile(null);
-          setRole(null);
-        } else {
-          console.log("[AuthProvider] Network error caught in outer handler, preserving profile");
+      // Request persistent browser storage so cache survives low-memory cleanups (Requirement 4)
+      if (typeof navigator !== "undefined" && navigator.storage?.persist) {
+        navigator.storage.persist().catch(() => {});
+      }
+
+      // Step 1: Immediately restore from local cache (0ms blocking — Requirement 2 & 3)
+      const cached = readCachedProfile(currentUser.uid);
+      if (cached) {
+        setProfile(cached);
+        setRole(cached.role);
+        if (isFirstCheck) {
+          initialCheckDone.current = true;
+          setLoading(false);
         }
       }
 
-      if (!initialCheckDone.current) {
-        initialCheckDone.current = true;
-        setLoading(false);
+      // Step 2: Fetch fresh data in the background without blocking the dashboard
+      try {
+        await syncProfileBackground(currentUser);
+      } finally {
+        if (!initialCheckDone.current) {
+          initialCheckDone.current = true;
+          setLoading(false);
+        }
       }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [syncProfileBackground]);
 
-  // Revalidate the persisted session when connectivity returns. getIdToken()
-  // then uses Firebase's normal refresh flow and the profile cache is updated
-  // from the server without interrupting the farmer's current screen.
+  // Revalidate the persisted session when connectivity returns
   useEffect(() => {
     const revalidateWhenOnline = () => {
       const currentUser = auth.currentUser;
-      if (currentUser) void resolveSession(currentUser);
+      if (currentUser) void syncProfileBackground(currentUser);
     };
 
     window.addEventListener("online", revalidateWhenOnline);
     return () => window.removeEventListener("online", revalidateWhenOnline);
-  }, [resolveSession]);
+  }, [syncProfileBackground]);
 
   const refreshProfile = useCallback(async (): Promise<DbUserProfile | null> => {
     const currentUser = auth.currentUser;
     if (!currentUser) return null;
-    // Force a token refresh so any freshly-set custom claims (role) are picked
-    // up, then re-resolve the backend profile.
-    // Note: this is only called explicitly after registration — not on startup.
     await currentUser.getIdToken(true);
-    return resolveSession(currentUser);
-  }, [resolveSession]);
+    return syncProfileBackground(currentUser);
+  }, [syncProfileBackground]);
 
   const logout = useCallback(async () => {
     const uid = auth.currentUser?.uid;
@@ -240,21 +189,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // Ignore sign-out failures (e.g. already signed out / offline).
     } finally {
-      // --- Clear all service-worker caches (api-cache, ai-cache, etc.) ---
-      // Enumerate all named caches rather than hardcoding names so a future
-      // cache added to vite.config is automatically covered.
+      // --- Clear all service-worker caches (api-cache, photo-cache, workbox) ---
       if (typeof caches !== "undefined") {
         try {
           const cacheNames = await caches.keys();
           await Promise.all(cacheNames.map((name) => caches.delete(name)));
-          console.log("[AuthProvider] All SW caches cleared on logout", cacheNames);
+          console.log("[AuthProvider] All SW caches cleared on logout:", cacheNames);
         } catch (cacheErr) {
           console.warn("[AuthProvider] Failed to clear SW caches:", cacheErr);
         }
       }
 
-      // Clear the offline queue so a different farmer logging in on the same
-      // device never sees or flushes the previous user's queued actions.
+      // Clear the offline queue so another user on this device never sees or flushes it
       try {
         await clearOfflineQueue();
         console.log("[AuthProvider] Offline queue cleared on logout");
@@ -262,19 +208,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn("[AuthProvider] Failed to clear offline queue:", qErr);
       }
 
-      // Clear the cached active-farm context so the next session (e.g. a
-      // different farmer on a shared device) does not inherit stale farm data.
+      // Clear the cached farm selection & local storage items
       clearFarmContext();
-      // Clear read-notification IDs for this user so the badge resets cleanly.
+      localStorage.removeItem("tarabaymais.farm-selection");
+      localStorage.removeItem("fcm_token");
+      localStorage.removeItem("fcm_token_registered");
+      localStorage.removeItem("notification_prompted_at");
+
       if (uid) clearReadNotifications(uid);
       clearCachedProfile(uid);
-      // Reset the initial-check flag so the next login cycle works correctly.
+
       initialCheckDone.current = false;
       setUser(null);
       setProfile(null);
       setRole(null);
     }
   }, []);
+
 
   return (
     <AuthContext.Provider

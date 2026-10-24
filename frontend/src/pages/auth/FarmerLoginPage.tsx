@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FirebaseError } from "firebase/app";
 import type { ConfirmationResult } from "firebase/auth";
@@ -27,7 +27,7 @@ import {
   clearRecaptchaVerifier,
   auth,
 } from "../../firebase";
-import { isMunicipalRole } from "../../context/authContext";
+import { useAuth, isMunicipalRole } from "../../context/authContext";
 import { OtpInput } from "../../components/OtpInput";
 
 type Step = "phone" | "otp";
@@ -54,6 +54,16 @@ const friendlyAuthError = (err: unknown): string => {
 
 export const FarmerLoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, profile, role, loading: authLoading } = useAuth();
+
+  // If already authenticated with a valid profile, skip login screen immediately
+  useEffect(() => {
+    if (!authLoading && user && profile && role) {
+      navigate(isMunicipalRole(role) ? "/officer/dashboard" : "/farmer", {
+        replace: true,
+      });
+    }
+  }, [authLoading, user, profile, role, navigate]);
 
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("0917 000 0000");
@@ -62,6 +72,7 @@ export const FarmerLoginPage: React.FC = () => {
     null,
   );
   const [loading, setLoading] = useState(false);
+
 
   // Visual phone formatting (0917 000 0000)
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
