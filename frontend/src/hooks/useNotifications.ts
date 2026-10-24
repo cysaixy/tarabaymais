@@ -29,16 +29,19 @@ export function useNotifications({
   showForegroundToast = true,
 }: UseNotificationsOptions = {}) {
   const { profile } = useAuth();
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
-    typeof window !== "undefined" ? Notification.permission : "default",
-  );
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      return Notification.permission;
+    }
+    return "default";
+  });
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
 
   // Update permission status
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && "Notification" in window) {
       setPermissionStatus(Notification.permission);
     }
   }, []);

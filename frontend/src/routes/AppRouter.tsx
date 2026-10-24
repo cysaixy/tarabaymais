@@ -93,9 +93,11 @@ export const AppRouter: React.FC = () => {
       <Route element={<ProtectedRoute allowedRoles={["FARMER"]} />}>
         <Route
           element={
-            <FarmSelectionProvider>
-              <Outlet />
-            </FarmSelectionProvider>
+            <ErrorBoundary area="Farmer Portal">
+              <FarmSelectionProvider>
+                <Outlet />
+              </FarmSelectionProvider>
+            </ErrorBoundary>
           }
         >
           {farmerRoutes}
