@@ -90,6 +90,7 @@ export function isNotificationSupported(): boolean {
 }
 
 export function isPermissionGranted(): boolean {
+  if (!isNotificationSupported()) return false;
   return Notification.permission === "granted";
 }
 
