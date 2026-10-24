@@ -1,0 +1,29 @@
+{
+  "mcp": {
+    "servers": {
+      "filesystem": {
+        "type": "local",
+        "command": [
+          "npx",
+          "@modelcontextprotocol/server-filesystem",
+          "C:\\Users\\PC\\OneDrive\\Documents\\TarabayMais"
+        ]
+      },
+      "postgres": {
+        "type": "local",
+        "command": [
+          "npx",
+          "@modelcontextprotocol/server-postgres",
+          "postgresql://postgres:alexSQL@localhost:5432/tarabay-mais-db"
+        ]
+      },
+      "browser": {
+        "type": "local",
+        "command": [
+          "npx",
+          "@browsermcp/mcp"
+        ]
+      }
+    }
+  }
+}

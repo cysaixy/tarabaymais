@@ -1,29 +1,40 @@
 import Redis from 'ioredis';
 import { createHash } from 'crypto';
 
-const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
+const cachingEnabled = Boolean(process.env.REDIS_URL) && process.env.CACHE_ENABLED !== 'false';
+const redisUrl = process.env.REDIS_URL;
 
-export const redis = new Redis(redisUrl, {
-  maxRetriesPerRequest: 3,
-  retryStrategy: (times) => Math.min(times * 50, 2000),
+const redis = cachingEnabled ? new Redis(redisUrl!, {
+  maxRetriesPerRequest: 1,
+  retryStrategy: (times) => (times > 2 ? null : 100),
   lazyConnect: true,
-  // Fail fast instead of queueing/hanging
-  connectTimeout: 5000,
-  commandTimeout: 3000,
+  // Fail fast instead of queueing commands while Redis is unavailable.
+  connectTimeout: 1500,
+  commandTimeout: 1500,
   enableOfflineQueue: false,
-});
+}) : null;
 
-redis.on('error', (err) => {
-  console.error('[Cache] Redis connection error:', err.message);
-});
+if (redis) {
+  redis.on('error', (err) => {
+    console.error('[Cache] Redis connection error:', err.message);
+  });
+}
 
 /** Connect lazily on first use */
 let connected = false;
+let connectPromise: Promise<void> | undefined;
 async function ensureConnected() {
-  if (!connected) {
-    await redis.connect();
-    connected = true;
+  if (!redis || connected) return;
+
+  if (!connectPromise) {
+    connectPromise = redis.connect().then(() => {
+      connected = true;
+    }).finally(() => {
+      connectPromise = undefined;
+    });
   }
+
+  await connectPromise;
 }
 
 /** Hash a string to a short hex for cache keys */
@@ -38,6 +49,8 @@ export async function getOrSet<T>(
   fetchFn: () => Promise<T>,
   options?: { lockMs?: number; jitterSec?: number }
 ): Promise<T> {
+  if (!redis) return fetchFn();
+
   let fetchFnCalled = false;
   try {
     await ensureConnected();
@@ -77,12 +90,16 @@ export async function getOrSet<T>(
 
 /** Invalidate a single key */
 export async function invalidate(key: string): Promise<void> {
+  if (!redis) return;
+
   await ensureConnected();
   await redis.del(key);
 }
 
 /** Invalidate all keys matching a prefix (SCAN + DEL in batches) */
 export async function invalidatePrefix(prefix: string): Promise<void> {
+  if (!redis) return;
+
   await ensureConnected();
   let cursor = '0';
   do {
@@ -99,5 +116,9 @@ export function versionedKey(namespace: string, version: string | number, ...par
 
 /** Close connection (for graceful shutdown) */
 export async function closeCache(): Promise<void> {
-  await redis.quit();
+  if (!redis) return;
+
+  // disconnect() is immediate, unlike quit(), so shutdown cannot wait on Redis.
+  redis.disconnect();
+  connected = false;
 }
