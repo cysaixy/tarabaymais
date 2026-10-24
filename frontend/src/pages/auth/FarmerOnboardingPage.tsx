@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { FirebaseError } from "firebase/app";
 import type { ConfirmationResult } from "firebase/auth";
@@ -69,6 +69,7 @@ export const FarmerOnboardingPage: React.FC = () => {
 
   const [step, setStep] = useState<Step>(0);
   const [submitting, setSubmitting] = useState(false);
+  const createdFarmRef = useRef<string | null>(null);
 
   // ── Step 0 State: Phone Auth ──────────────────────────────────────────────
   const [authSubStep, setAuthSubStep] = useState<"phone" | "otp">("phone");
@@ -287,6 +288,8 @@ export const FarmerOnboardingPage: React.FC = () => {
   const handleStep3Submit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (submitting) return;
+
     if (!auth.currentUser) {
       toast.error("Nawala ang Session", {
         description: "Mangyaring ulitin ang pagpapatunay ng numero.",
@@ -309,16 +312,21 @@ export const FarmerOnboardingPage: React.FC = () => {
         preferredLanguage: "filipino",
       });
 
-      // Step B: create the farm (separate post-onboarding resource).
-      const farm = await createFarm({
-        name: farmName.trim(),
-        municipality,
-        barangay: barangay.trim(),
-        areaHectares: numArea,
-      });
+      // Step B: create the farm (or reuse if a previous attempt already created it).
+      let currentFarmId = createdFarmRef.current;
+      if (!currentFarmId) {
+        const farm = await createFarm({
+          name: farmName.trim(),
+          municipality,
+          barangay: barangay.trim(),
+          areaHectares: numArea,
+        });
+        currentFarmId = farm.id;
+        createdFarmRef.current = farm.id;
+      }
 
       // Step C: create the first crop cycle for that farm.
-      await createCropCycle(farm.id, {
+      await createCropCycle(currentFarmId, {
         cropType: "corn",
         variety,
         plantingDate,
