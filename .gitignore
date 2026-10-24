@@ -46,3 +46,5 @@ backend/firebase-service-account.json
 
 # Graphify maps and Obsidian vault outputs
 graphify-out/
+.vercel
+.env*
