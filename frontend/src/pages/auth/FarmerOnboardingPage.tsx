@@ -333,6 +333,14 @@ export const FarmerOnboardingPage: React.FC = () => {
         areaHectares: numArea,
       });
 
+      // Request "persistent" storage so the browser never evicts IndexedDB
+      // (where Firebase stores the auth token) under storage pressure.
+      if (navigator.storage?.persist) {
+        navigator.storage.persist().then((granted) => {
+          console.log("[Onboarding] Storage persistence granted:", granted);
+        }).catch(() => {/* silently ignore if not supported */});
+      }
+
       // Refresh the auth context so guards see the new FARMER profile.
       await refreshProfile();
 

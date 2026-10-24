@@ -19,7 +19,7 @@ function getAiClient(): GoogleGenAI {
 
 // Single source of truth for the chat model, shared with the scan controller
 // via the GEMINI_MODEL env var so there is only one place to update.
-const modelName = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+const modelName = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
 
 
 // ── Input schema ──────────────────────────────────────────────────────────────

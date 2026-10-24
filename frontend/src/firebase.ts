@@ -1,5 +1,10 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, RecaptchaVerifier } from "firebase/auth";
+import {
+  getAuth,
+  indexedDBLocalPersistence,
+  setPersistence,
+  RecaptchaVerifier,
+} from "firebase/auth";
 
 // Build the configuration object pulling from Vite's secure env layer
 export const firebaseConfig = {
@@ -23,8 +28,29 @@ export const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Export the initialized authentication reference
+/**
+ * Auth instance with IndexedDB persistence explicitly set.
+ *
+ * Firebase's default in a browser PWA is already browserLocalPersistence
+ * (IndexedDB-backed), but we set this explicitly to:
+ *   1. Make the offline-first intent unmistakably clear.
+ *   2. Guard against accidental regression if someone imports inMemoryPersistence.
+ *
+ * IndexedDB survives full app close, device reboot, and service-worker clears,
+ * so the farmer never has to log in again unless they explicitly sign out.
+ */
 export const auth = getAuth(app);
+
+// Upgrade persistence to IndexedDB (the PWA standard). We call this
+// immediately after getAuth so it is settled before any auth listener fires.
+// The promise is intentionally fire-and-forget here: if the browser does not
+// support IndexedDB the SDK falls back to localStorage gracefully.
+void setPersistence(auth, indexedDBLocalPersistence).catch((err) => {
+  console.warn(
+    "[Firebase] Could not set IndexedDB persistence. Falling back to default:",
+    err,
+  );
+});
 
 /**
  * Creates (or reuses) an invisible reCAPTCHA verifier bound to a DOM element.

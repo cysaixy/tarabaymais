@@ -122,6 +122,15 @@ export const FarmerLoginPage: React.FC = () => {
       await confirmOtp(confirmation, otp);
       clearRecaptchaVerifier();
 
+      // Request "persistent" storage so the browser never evicts IndexedDB
+      // (where Firebase stores the auth token) under storage pressure.
+      // This is the correct moment because we have a fresh user gesture.
+      if (navigator.storage?.persist) {
+        navigator.storage.persist().then((granted) => {
+          console.log("[Auth] Storage persistence granted:", granted);
+        }).catch(() => {/* silently ignore if not supported */});
+      }
+
       // Confirm the backend profile exists and inspect the role.
       try {
         const me = await getMe();

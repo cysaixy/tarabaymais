@@ -13,25 +13,31 @@ const homeFor = (role: UserRole | null): string =>
 /**
  * Route guard that gates access by authentication state and role.
  *
- * - While auth is resolving, shows a loading state.
+ * - While auth is resolving (first onAuthStateChanged not yet fired), shows a
+ *   loading splash. This is the only blocking wait; it never requires a
+ *   network call to succeed.
  * - Unauthenticated users (no Firebase session) are sent to /login.
- * - Authenticated users with a valid Firebase session but no synced profile
- *   (role === null) are sent to /onboarding to finish registration.
- * - Authenticated users whose role is not permitted are redirected to their
- *   own home area (role-mismatch protection).
- * - OFFLINE: If user has a Firebase session but profile fetch failed due to
- *   network error, allow access to cached dashboard (don't redirect to onboarding).
+ * - Authenticated users with a Firebase session AND a cached profile (offline
+ *   or online) are granted access immediately. profile+role are set by
+ *   AuthProvider regardless of network status.
+ * - Authenticated users with no profile AND no cache (first login, incomplete
+ *   onboarding, or cleared storage) are sent to /onboarding.
+ * - Role mismatch → bounce to the caller's own home area.
+ *
+ * OFFLINE: AuthProvider hydrates profile+role from localStorage on startup
+ * before any network call. So by the time this guard renders, profile and role
+ * are already populated from cache if the farmer was previously logged in.
+ * We do NOT rely on navigator.onLine here — it is unreliable in rural areas.
  */
 export const ProtectedRoute: React.FC<GuardProps> = ({ allowedRoles }) => {
   const { user, profile, role, loading } = useAuth();
-  const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-400">
         <div className="flex flex-col items-center gap-2">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-700 border-t-teal-500" />
-          <p className="text-xs tracking-wide">Validating permissions...</p>
+          <p className="text-xs tracking-wide">Kinukuha ang sesyon...</p>
         </div>
       </div>
     );
@@ -42,19 +48,18 @@ export const ProtectedRoute: React.FC<GuardProps> = ({ allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Signed in but no synced backend profile yet (e.g. /auth/me returned 401 on
-  // a refresh/deeplink) → complete registration. `role` can be a provisional
-  // token-claim value here, so the profile is the authoritative signal.
-  // OFFLINE EXCEPTION: If we're offline and have a cached profile/role, allow access.
-  const isOffline = !isOnline;
-  // A token claim alone is not enough to prove that this user completed
-  // onboarding. Require the locally persisted backend profile as well.
-  const hasCachedAccess = isOffline && Boolean(profile && role);
+  // Signed in but no synced backend profile yet.
+  //
+  // profile is null in two cases:
+  //   1. The user completed Firebase auth but never finished /auth/sync
+  //      (incomplete onboarding). Send them to /onboarding.
+  //   2. /auth/me returned a real auth error (401/403) while online.
+  //      profile is cleared and the user needs to re-authenticate.
+  //
+  // If profile IS set (from cache or a fresh API call), we allow access.
+  // We never send a cached user to /onboarding — AuthProvider is the
+  // authority on whether we have a valid profile.
   if (!profile || !role) {
-    if (hasCachedAccess) {
-      console.log("[ProtectedRoute] Offline: allowing access with cached profile/role");
-      return <Outlet />;
-    }
     return <Navigate to="/onboarding" replace />;
   }
 
