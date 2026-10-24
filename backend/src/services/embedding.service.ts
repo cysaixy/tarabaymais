@@ -3,16 +3,17 @@ import prisma from "../config/prisma";
 import dotenv from "dotenv";
 dotenv.config();
 
-const apiKey = process.env.GEMINI_API_KEY_RAG;
-
-if (!apiKey) {
-  throw new Error("GEMINI_API_KEY environment variable is not configured");
+function getAiClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY_RAG || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY environment variable is not configured");
+  }
+  return new GoogleGenAI({ apiKey });
 }
-
-const ai = new GoogleGenAI({ apiKey });
 
 export class EmbeddingService {
   static async generateEmbedding(text: string): Promise<number[]> {
+    const ai = getAiClient();
     const response = await ai.models.embedContent({
       model: "gemini-embedding-001",
       contents: text,

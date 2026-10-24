@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { FirebaseError } from "firebase/app";
 import type { ConfirmationResult } from "firebase/auth";
@@ -27,33 +27,10 @@ import {
 } from "../../firebase";
 import { createFarm, createCropCycle } from "../../services/farm.service";
 
-const CAGAYAN_MUNICIPALITIES = [
-  "Solana",
-  "Tuguegarao City",
-  "Iguig",
-  "Piat",
-  "Tuao",
-  "Enrile",
-  "Alcala",
-  "Amulung",
-  "Baggao",
-  "Ballesteros",
-  "Buguey",
-  "Camalaniugan",
-  "Claveria",
-  "Gattaran",
-  "Gonzaga",
-  "Lal-lo",
-  "Lasam",
-  "Pamplona",
-  "Peñablanca",
-  "Rizal",
-  "Sanchez-Mira",
-  "Santa Ana",
-  "Santa Praxedes",
-  "Santa Teresita",
-  "Santo Niño",
-];
+import {
+  CAGAYAN_LOCATION_DATA,
+  CAGAYAN_MUNICIPALITIES,
+} from "../../data/cagayanLocations";
 
 const CORN_VARIETIES = [
   "Pioneer 30T60 (Yellow Hybrid)",
@@ -92,6 +69,7 @@ export const FarmerOnboardingPage: React.FC = () => {
 
   const [step, setStep] = useState<Step>(0);
   const [submitting, setSubmitting] = useState(false);
+  const createdFarmRef = useRef<string | null>(null);
 
   // ── Step 0 State: Phone Auth ──────────────────────────────────────────────
   const [authSubStep, setAuthSubStep] = useState<"phone" | "otp">("phone");
@@ -107,6 +85,16 @@ export const FarmerOnboardingPage: React.FC = () => {
   const [rsbsaNumber, setRsbsaNumber] = useState("");
   const [municipality, setMunicipality] = useState("Solana");
   const [barangay, setBarangay] = useState("");
+
+  const availableBarangays = useMemo(() => {
+    return CAGAYAN_LOCATION_DATA[municipality] || [];
+  }, [municipality]);
+
+  const handleMunicipalityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextMun = e.target.value;
+    setMunicipality(nextMun);
+    setBarangay("");
+  };
 
   // ── Step 2 State: Farm Information ────────────────────────────────────────
   const [farmName, setFarmName] = useState("");
@@ -268,6 +256,12 @@ export const FarmerOnboardingPage: React.FC = () => {
       });
       return;
     }
+    if (!barangay.trim()) {
+      toast.error("Kulang ang Barangay", {
+        description: "Mangyaring pumili ng inyong barangay.",
+      });
+      return;
+    }
     setStep(2);
   };
 
@@ -294,6 +288,8 @@ export const FarmerOnboardingPage: React.FC = () => {
   const handleStep3Submit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (submitting) return;
+
     if (!auth.currentUser) {
       toast.error("Nawala ang Session", {
         description: "Mangyaring ulitin ang pagpapatunay ng numero.",
@@ -316,16 +312,21 @@ export const FarmerOnboardingPage: React.FC = () => {
         preferredLanguage: "filipino",
       });
 
-      // Step B: create the farm (separate post-onboarding resource).
-      const farm = await createFarm({
-        name: farmName.trim(),
-        municipality,
-        barangay: barangay.trim(),
-        areaHectares: numArea,
-      });
+      // Step B: create the farm (or reuse if a previous attempt already created it).
+      let currentFarmId = createdFarmRef.current;
+      if (!currentFarmId) {
+        const farm = await createFarm({
+          name: farmName.trim(),
+          municipality,
+          barangay: barangay.trim(),
+          areaHectares: numArea,
+        });
+        currentFarmId = farm.id;
+        createdFarmRef.current = farm.id;
+      }
 
       // Step C: create the first crop cycle for that farm.
-      await createCropCycle(farm.id, {
+      await createCropCycle(currentFarmId, {
         cropType: "corn",
         variety,
         plantingDate,
@@ -612,8 +613,8 @@ export const FarmerOnboardingPage: React.FC = () => {
                     </label>
                     <select
                       value={municipality}
-                      onChange={(e) => setMunicipality(e.target.value)}
-                      className="w-full rounded-2xl border-2 bg-slate-50/80 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600"
+                      onChange={handleMunicipalityChange}
+                      className="w-full rounded-2xl border-2 bg-slate-50/80 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
                     >
                       {CAGAYAN_MUNICIPALITIES.map((mun) => (
                         <option key={mun} value={mun}>
@@ -627,13 +628,21 @@ export const FarmerOnboardingPage: React.FC = () => {
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
                       Barangay
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={barangay}
                       onChange={(e) => setBarangay(e.target.value)}
-                      placeholder="Basi East"
-                      className="w-full rounded-2xl border-2 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
-                    />
+                      required
+                      className="w-full rounded-2xl border-2 bg-slate-50/80 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
+                    >
+                      <option value="" disabled>
+                        Pumili ng Barangay
+                      </option>
+                      {availableBarangays.map((bg) => (
+                        <option key={bg} value={bg}>
+                          {bg}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
