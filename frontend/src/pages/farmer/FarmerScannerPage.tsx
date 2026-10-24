@@ -26,7 +26,11 @@ import {
   createObservation,
   type ObservationRecord,
 } from "../../services/observation.service";
-import { getOfflineQueue } from "../../services/sync.service";
+import {
+  fileToBase64,
+  getOfflineQueue,
+  queueOfflineAction,
+} from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
 import { useFarmSelection } from "../../context/farmSelectionContext";
 import { ApiError } from "../../lib/api";
@@ -38,7 +42,8 @@ export const FarmerScannerPage: React.FC = () => {
   // opens the photo library without forcing the camera.
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  // Alias kept so handleResetScanner can clear both in one loop.
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const farmCtx = useFarmContext();
   const { selectedCycle } = useFarmSelection();
@@ -48,6 +53,8 @@ export const FarmerScannerPage: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraFallbackSuggested, setCameraFallbackSuggested] = useState(false);
 
   // Bottom Sheet State: Controls smooth upward sliding
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -85,12 +92,124 @@ export const FarmerScannerPage: React.FC = () => {
     getOfflineQueue().then((q) => setQueueCount(q.length));
   }, []);
 
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraActive(false);
+  };
+
+  useEffect(() => stopCamera, []);
+
+  const showCameraError = (error: unknown) => {
+    const name = error instanceof DOMException ? error.name : "UnknownError";
+    let description = "Hindi mabuksan ang kamera. Maaari pa ring pumili ng litrato mula sa Gallery.";
+
+    switch (name) {
+      case "NotAllowedError":
+      case "SecurityError":
+        description = "Hindi pinayagan ang kamera. Buksan ang camera permission sa browser site settings o sa App permissions ng telepono, pagkatapos subukan muli.";
+        break;
+      case "NotFoundError":
+        description = "Walang nakitang kamera sa device na ito. Pumili ng litrato mula sa Gallery.";
+        break;
+      case "NotReadableError":
+        description = "May ibang app na gumagamit ng kamera. Isara ito at subukan muli, o pumili mula sa Gallery.";
+        break;
+      case "OverconstrainedError":
+        description = "Hindi tugma ang camera setting sa device na ito. Pumili ng litrato mula sa Gallery.";
+        break;
+      case "TypeError":
+        description = "Hindi available ang live camera sa koneksyong ito. Gumamit ng HTTPS o localhost, o pumili mula sa Gallery.";
+        break;
+    }
+
+    toast.error("Hindi Mabuksan ang Kamera", { description });
+    setCameraFallbackSuggested(true);
+  };
+
+  const startCamera = async () => {
+    stopCamera();
+    setCameraFallbackSuggested(false);
+
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      showCameraError(new DOMException("Camera needs HTTPS or localhost.", "TypeError"));
+      return;
+    }
+
+    try {
+      const permission = await navigator.permissions?.query({ name: "camera" as PermissionName });
+      if (permission?.state === "denied") {
+        showCameraError(new DOMException("Camera permission is denied.", "NotAllowedError"));
+        return;
+      }
+    } catch {
+      // Some browsers do not support querying camera permission. getUserMedia
+      // still provides the authoritative result and its error is handled below.
+    }
+
+    try {
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false,
+        });
+      } catch (error) {
+        if (!(error instanceof DOMException) || error.name !== "OverconstrainedError") {
+          throw error;
+        }
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+
+      streamRef.current = stream;
+      const video = videoRef.current;
+      if (!video) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      video.srcObject = stream;
+      await video.play();
+      setCameraActive(true);
+    } catch (error) {
+      stopCamera();
+      showCameraError(error);
+    }
+  };
+
+  const captureFromCamera = async () => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      toast.info("Inihahanda pa ang kamera", {
+        description: "Sandali lang, pagkatapos ay pindutin muli ang kuha.",
+      });
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+    if (!blob) {
+      toast.error("Hindi nakuha ang litrato", { description: "Subukan muli o pumili mula sa Gallery." });
+      return;
+    }
+
+    const file = new File([blob], `plant-scan-${Date.now()}.jpg`, { type: "image/jpeg" });
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    stopCamera();
+    await runDiagnosis(file);
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const url = URL.createObjectURL(file);
       setImageFile(file);
       setImagePreview(url);
+      stopCamera();
       await runDiagnosis(file);
     }
   };
@@ -110,6 +229,28 @@ export const FarmerScannerPage: React.FC = () => {
           : "Malusog ang pananim!",
       });
     } catch (err) {
+      if (err instanceof ApiError && err.isNetworkError && selectedCycle) {
+        const imageBase64 = await fileToBase64(file);
+        await queueOfflineAction({
+          actionType: "CREATE_OBSERVATION",
+          displayTitle: "Litrato para sa AI Scan",
+          payload: {
+            cropCycleId: selectedCycle.id,
+            title: "Litrato para sa AI Scan",
+            description: "Nakuhang litrato habang offline. Ipapasuri sa AI kapag may koneksyon na.",
+            severity: "LOW",
+            imageBase64,
+            imageFileName: file.name,
+            imageMimeType: file.type,
+          },
+        });
+        setQueueCount((count) => count + 1);
+        setSheetOpen(true);
+        toast.info("Nai-save ang litrato habang offline", {
+          description: "Ika-queue ito at isi-sync kapag may koneksyon na. Maaaring ipasuri sa AI pagkatapos mag-sync.",
+        });
+        return;
+      }
       // No fabricated fallback: show the real reason and let the farmer retry.
       const description =
         err instanceof ApiError
@@ -122,6 +263,8 @@ export const FarmerScannerPage: React.FC = () => {
   };
 
   const handleResetScanner = () => {
+    stopCamera();
+    setCameraFallbackSuggested(false);
     setImageFile(null);
     setImagePreview(null);
     setDiagnosis(null);
@@ -261,7 +404,19 @@ export const FarmerScannerPage: React.FC = () => {
               className="absolute inset-0 w-full h-full object-cover opacity-85"
             />
           ) : (
-            <div className="absolute inset-0 bg-linear-to-b from-slate-900 via-slate-950 to-emerald-950/40 opacity-90" />
+            <>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`absolute inset-0 h-full w-full object-cover ${cameraActive ? "block" : "hidden"}`}
+                aria-label="Live na camera preview"
+              />
+              <div
+                className={`absolute inset-0 bg-linear-to-b from-slate-900 via-slate-950 to-emerald-950/40 opacity-90 ${cameraActive ? "hidden" : "block"}`}
+              />
+            </>
           )}
 
           {/* Top Overlay Bar */}
@@ -306,6 +461,18 @@ export const FarmerScannerPage: React.FC = () => {
             </div>
           </div>
 
+          {cameraFallbackSuggested && (
+            <div className="relative z-10 flex justify-center pb-3">
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="min-h-12 rounded-xl bg-white px-4 py-2 text-sm font-extrabold text-emerald-800 shadow-md active:scale-95"
+              >
+                Subukan ang camera app
+              </button>
+            </div>
+          )}
+
           {/* Bottom Shutter & Gallery Controls (Sitting well above the white sheet) */}
           <div className="relative z-10 flex justify-between items-center px-8 pb-32 sm:pb-36">
             {/* Gallery Pick Button */}
@@ -322,9 +489,9 @@ export const FarmerScannerPage: React.FC = () => {
             <button
               type="button"
               disabled={scanning}
-              onClick={() => cameraInputRef.current?.click()}
+              onClick={() => (cameraActive ? captureFromCamera() : startCamera())}
               className="w-18 h-18 rounded-full border-4 border-white/90 bg-emerald-600 hover:bg-emerald-500 active:scale-90 transition-transform shadow-[0_0_24px_rgba(16,185,129,0.6)] flex items-center justify-center cursor-pointer disabled:opacity-50"
-              title="Kuhanan ng litrato gamit ang camera"
+              title={cameraActive ? "Kuhanan ng litrato" : "Buksan ang camera"}
             >
               <div className="w-14 h-14 rounded-full border-2 border-white/60 bg-emerald-700/80 flex items-center justify-center">
                 <Scan className="w-7 h-7 text-white stroke-[2.2]" />
