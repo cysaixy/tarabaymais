@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FirebaseError } from "firebase/app";
 import type { ConfirmationResult } from "firebase/auth";
@@ -13,7 +13,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { OtpInput } from "../../components/OtpInput";
-import { useAuth } from "../../context/authContext";
+import { useAuth, isMunicipalRole } from "../../context/authContext";
 import {
   sendOtp,
   confirmOtp,
@@ -65,7 +65,16 @@ const friendlyAuthError = (err: unknown): string => {
 
 export const FarmerOnboardingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { refreshProfile } = useAuth();
+  const { user, profile, role, loading: authLoading, refreshProfile } = useAuth();
+
+  // If already authenticated with a valid profile, skip onboarding and route to dashboard immediately
+  useEffect(() => {
+    if (!authLoading && user && profile && role) {
+      navigate(isMunicipalRole(role) ? "/officer/dashboard" : "/farmer", {
+        replace: true,
+      });
+    }
+  }, [authLoading, user, profile, role, navigate]);
 
   const [step, setStep] = useState<Step>(0);
   const [submitting, setSubmitting] = useState(false);

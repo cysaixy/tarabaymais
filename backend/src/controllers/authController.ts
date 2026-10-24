@@ -50,6 +50,25 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
   const { firstName, lastName, phone, rsbsaNumber, preferredLanguage } =
     parseResult.data;
 
+  // Check if a user with this phone already exists in the database
+  const existingUserByPhone = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { phone },
+        { phone: phone.replace("+63", "0") },
+        { phone: phone.startsWith("0") ? `+63${phone.slice(1)}` : phone },
+      ],
+    },
+    include: { farmerProfile: true },
+  });
+
+  if (existingUserByPhone) {
+    return sendSuccess(res, 200, {
+      message: "User already synchronized",
+      data: { user: existingUserByPhone },
+    });
+  }
+
   const uid = req.firebaseUser.uid;
   const tokenRole = (req.firebaseUser.role as Role) || Role.FARMER;
 

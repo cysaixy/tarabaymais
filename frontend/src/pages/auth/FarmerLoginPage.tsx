@@ -54,7 +54,7 @@ const friendlyAuthError = (err: unknown): string => {
 
 export const FarmerLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, profile, role, loading: authLoading } = useAuth();
+  const { user, profile, role, loading: authLoading, refreshProfile } = useAuth();
 
   // If already authenticated with a valid profile, skip login screen immediately
   useEffect(() => {
@@ -144,7 +144,12 @@ export const FarmerLoginPage: React.FC = () => {
 
       // Confirm the backend profile exists and inspect the role.
       try {
-        const me = await getMe();
+        let me = await refreshProfile().catch(() => null);
+        if (!me) {
+          await new Promise((r) => setTimeout(r, 400));
+          me = await getMe();
+        }
+
         if (isMunicipalRole(me.role)) {
           // A technician/officer logged in through the farmer portal — send
           // them to their own area instead.
@@ -158,12 +163,23 @@ export const FarmerLoginPage: React.FC = () => {
           description: "Matagumpay na nakapasok sa Tarabay-Mais Sakahan.",
         });
         navigate("/farmer", { replace: true });
-      } catch {
-        // Authenticated but no profile yet → finish registration.
-        toast.info("Kailangan ng Rehistro", {
-          description: "Kumpletuhin muna ang inyong profile.",
-        });
-        navigate("/onboarding", { replace: true });
+      } catch (profileErr: unknown) {
+        const errObj = profileErr as Record<string, unknown> | undefined;
+        const isNotRegistered =
+          errObj?.status === 401 ||
+          (errObj?.response as Record<string, unknown> | undefined)?.status === 401 ||
+          (typeof errObj?.message === "string" &&
+            errObj.message.includes("Profile not synchronized"));
+
+        if (isNotRegistered) {
+          // Authenticated but no profile yet → finish registration.
+          toast.info("Kailangan ng Rehistro", {
+            description: "Kumpletuhin muna ang inyong profile.",
+          });
+          navigate("/onboarding", { replace: true });
+        } else {
+          navigate("/farmer", { replace: true });
+        }
       }
     } catch (err) {
       console.error(err);

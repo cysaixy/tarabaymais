@@ -36,9 +36,21 @@ export const authenticate = async (
     const decodedToken = await auth.verifyIdToken(token);
     req.firebaseUser = decodedToken;
 
-    // Attach DB user record if one exists for this UID
-    const user = await prisma.user.findUnique({
-      where: { id: decodedToken.uid },
+    // Attach DB user record if one exists for this UID or verified phone number
+    const phone = decodedToken.phone_number;
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: decodedToken.uid },
+          ...(phone
+            ? [
+                { phone },
+                { phone: phone.replace("+63", "0") },
+                { phone: phone.replace("+63", "") },
+              ]
+            : []),
+        ],
+      },
       include: { farmerProfile: true },
     });
 
