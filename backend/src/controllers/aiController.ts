@@ -13,7 +13,8 @@ function getAiClient(): GoogleGenAI {
   return new GoogleGenAI({ apiKey });
 }
 
-const modelName = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+const rawModel = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+const modelName = rawModel.includes("gemini-2.0") ? "gemini-3.8-flash" : rawModel;
 
 // ── Diagnosis prompt ──────────────────────────────────────────────────────────
 const DIAGNOSIS_PROMPT = `
