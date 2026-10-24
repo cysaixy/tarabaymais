@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -32,6 +32,10 @@ import { ApiError } from "../../lib/api";
 import { LoadingState } from "../../components/LoadingState";
 import { ErrorState } from "../../components/ErrorState";
 import { useFarmSelection } from "../../context/farmSelectionContext";
+import {
+  CAGAYAN_LOCATION_DATA,
+  CAGAYAN_MUNICIPALITIES,
+} from "../../data/cagayanLocations";
 
 interface FieldErrors {
   [key: string]: string[] | undefined;
@@ -101,6 +105,14 @@ const FarmDetailsPage = () => {
   const [areaHectares, setAreaHectares] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
+  const availableBarangays = useMemo(() => {
+    const list = municipality ? [...(CAGAYAN_LOCATION_DATA[municipality] || [])] : [];
+    if (barangay && !list.includes(barangay)) {
+      list.unshift(barangay);
+    }
+    return list;
+  }, [municipality, barangay]);
 
   const fieldErr = (f: string) => fieldErrors[f]?.[0];
 
@@ -384,12 +396,24 @@ const FarmDetailsPage = () => {
               </div>
               <div>
                 <label className={labelClass}>Munisipyo</label>
-                <input
+                <select
                   className={inputClass}
                   value={municipality}
-                  onChange={(e) => setMunicipality(e.target.value)}
+                  onChange={(e) => {
+                    setMunicipality(e.target.value);
+                    setBarangay("");
+                  }}
                   required
-                />
+                >
+                  <option value="" disabled>
+                    Pumili ng Munisipyo
+                  </option>
+                  {CAGAYAN_MUNICIPALITIES.map((mun) => (
+                    <option key={mun} value={mun}>
+                      {mun}
+                    </option>
+                  ))}
+                </select>
                 {fieldErr("municipality") && (
                   <p className="mt-1 text-sm font-semibold text-red-600">
                     {fieldErr("municipality")}
@@ -398,12 +422,24 @@ const FarmDetailsPage = () => {
               </div>
               <div>
                 <label className={labelClass}>Barangay</label>
-                <input
+                <select
                   className={inputClass}
                   value={barangay}
                   onChange={(e) => setBarangay(e.target.value)}
                   required
-                />
+                  disabled={!municipality}
+                >
+                  <option value="" disabled>
+                    {municipality
+                      ? "Pumili ng Barangay"
+                      : "Pumili muna ng Munisipyo"}
+                  </option>
+                  {availableBarangays.map((bg) => (
+                    <option key={bg} value={bg}>
+                      {bg}
+                    </option>
+                  ))}
+                </select>
                 {fieldErr("barangay") && (
                   <p className="mt-1 text-sm font-semibold text-red-600">
                     {fieldErr("barangay")}

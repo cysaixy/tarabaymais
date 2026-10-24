@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ChevronLeft, Save } from "lucide-react";
 import { ApiError } from "../../lib/api";
 import { createFarm } from "../../services/farm.service";
+import {
+  CAGAYAN_LOCATION_DATA,
+  CAGAYAN_MUNICIPALITIES,
+} from "../../data/cagayanLocations";
 
 interface FieldErrors {
   [key: string]: string[] | undefined;
@@ -23,6 +27,10 @@ const AddFarmPage = () => {
   const [municipality, setMunicipality] = useState("");
   const [barangay, setBarangay] = useState("");
   const [areaHectares, setAreaHectares] = useState("");
+
+  const availableBarangays = useMemo(() => {
+    return municipality ? CAGAYAN_LOCATION_DATA[municipality] || [] : [];
+  }, [municipality]);
 
   const err = (field: string) => fieldErrors[field]?.[0];
 
@@ -101,13 +109,24 @@ const AddFarmPage = () => {
 
           <div>
             <label className={labelClass}>Munisipyo</label>
-            <input
+            <select
               className={inputClass}
               value={municipality}
-              onChange={(e) => setMunicipality(e.target.value)}
+              onChange={(e) => {
+                setMunicipality(e.target.value);
+                setBarangay("");
+              }}
               required
-              placeholder="Hal. Solana"
-            />
+            >
+              <option value="" disabled>
+                Pumili ng Munisipyo
+              </option>
+              {CAGAYAN_MUNICIPALITIES.map((mun) => (
+                <option key={mun} value={mun}>
+                  {mun}
+                </option>
+              ))}
+            </select>
             {err("municipality") && (
               <p className="mt-1 text-sm font-semibold text-red-600">
                 {err("municipality")}
@@ -117,13 +136,24 @@ const AddFarmPage = () => {
 
           <div>
             <label className={labelClass}>Barangay</label>
-            <input
+            <select
               className={inputClass}
               value={barangay}
               onChange={(e) => setBarangay(e.target.value)}
               required
-              placeholder="Hal. Centro"
-            />
+              disabled={!municipality}
+            >
+              <option value="" disabled>
+                {municipality
+                  ? "Pumili ng Barangay"
+                  : "Pumili muna ng Munisipyo"}
+              </option>
+              {availableBarangays.map((bg) => (
+                <option key={bg} value={bg}>
+                  {bg}
+                </option>
+              ))}
+            </select>
             {err("barangay") && (
               <p className="mt-1 text-sm font-semibold text-red-600">
                 {err("barangay")}
