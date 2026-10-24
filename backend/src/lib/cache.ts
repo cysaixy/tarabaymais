@@ -1,14 +1,17 @@
-import Redis from 'ioredis';
-import { createHash } from 'crypto';
+import Redis from "ioredis";
+import { createHash } from "crypto";
 
-const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
+const cachingEnabled =
+  Boolean(process.env.REDIS_URL) && process.env.CACHE_ENABLED !== "false";
+const redisUrl = process.env.REDIS_URL;
 
 let redisInstance: Redis | null = null;
 let isRedisAvailable = false;
 let hasLoggedRedisError = false;
+let connectPromise: Promise<boolean> | undefined;
 
-try {
-  redisInstance = new Redis(redisUrl, {
+if (cachingEnabled) {
+  redisInstance = new Redis(redisUrl!, {
     maxRetriesPerRequest: 1,
     retryStrategy: () => null, // Stop reconnect loop when Redis server is down
     lazyConnect: true,
@@ -17,15 +20,16 @@ try {
     enableOfflineQueue: false,
   });
 
-  redisInstance.on('error', (err) => {
+  redisInstance.on("error", (err) => {
     isRedisAvailable = false;
     if (!hasLoggedRedisError) {
-      console.warn('[Cache] Redis is not reachable, caching disabled. Falling back to DB:', err.message);
+      console.warn(
+        "[Cache] Redis is not reachable, caching disabled. Falling back to DB:",
+        err.message,
+      );
       hasLoggedRedisError = true;
     }
   });
-} catch {
-  redisInstance = null;
 }
 
 export const redis = redisInstance;
@@ -33,26 +37,34 @@ export const redis = redisInstance;
 /** Connect lazily on first use */
 async function ensureConnected(): Promise<boolean> {
   if (!redisInstance) return false;
-  if (isRedisAvailable) return true;
-  if (hasLoggedRedisError) return false;
+  if (isRedisAvailable && redisInstance.status === "ready") return true;
 
-  try {
-    await redisInstance.connect();
-    isRedisAvailable = true;
-    return true;
-  } catch (err) {
-    isRedisAvailable = false;
-    if (!hasLoggedRedisError) {
-      console.warn('[Cache] Redis connection failed, continuing without cache.');
-      hasLoggedRedisError = true;
-    }
-    return false;
+  if (!connectPromise) {
+    connectPromise = redisInstance
+      .connect()
+      .then(() => {
+        isRedisAvailable = true;
+        return true;
+      })
+      .catch(() => {
+        isRedisAvailable = false;
+        if (!hasLoggedRedisError) {
+          console.warn("[Cache] Redis connection failed, continuing without cache.");
+          hasLoggedRedisError = true;
+        }
+        return false;
+      })
+      .finally(() => {
+        connectPromise = undefined;
+      });
   }
+
+  return connectPromise;
 }
 
 /** Hash a string to a short hex for cache keys */
 export function hashKey(input: string, length = 16): string {
-  return createHash('sha256').update(input).digest('hex').slice(0, length);
+  return createHash("sha256").update(input).digest("hex").slice(0, length);
 }
 
 /** Cache-aside with optional lock to prevent stampede. Falls back to DB on Redis error (not fetchFn error). */
@@ -60,8 +72,10 @@ export async function getOrSet<T>(
   key: string,
   ttlSec: number,
   fetchFn: () => Promise<T>,
-  options?: { lockMs?: number; jitterSec?: number }
+  options?: { lockMs?: number; jitterSec?: number },
 ): Promise<T> {
+  if (!redis) return fetchFn();
+
   let fetchFnCalled = false;
   try {
     const ready = await ensureConnected();
@@ -77,7 +91,7 @@ export async function getOrSet<T>(
 
     const lockMs = options?.lockMs ?? 100;
     const lockKey = `lock:${key}`;
-    const gotLock = await redisInstance.set(lockKey, '1', 'PX', lockMs, 'NX');
+    const gotLock = await redisInstance.set(lockKey, "1", "PX", lockMs, "NX");
 
     if (!gotLock) {
       await new Promise((r) => setTimeout(r, 20));
@@ -88,8 +102,15 @@ export async function getOrSet<T>(
     try {
       const fresh = await fetchFn();
       fetchFnCalled = true;
-      const jitter = options?.jitterSec ? Math.floor(Math.random() * options.jitterSec) : 0;
-      await redisInstance.set(key, JSON.stringify(fresh), 'EX', ttlSec + jitter);
+      const jitter = options?.jitterSec
+        ? Math.floor(Math.random() * options.jitterSec)
+        : 0;
+      await redisInstance.set(
+        key,
+        JSON.stringify(fresh),
+        "EX",
+        ttlSec + jitter,
+      );
       return fresh;
     } finally {
       if (gotLock) await redisInstance.del(lockKey);
@@ -119,29 +140,37 @@ export async function invalidatePrefix(prefix: string): Promise<void> {
   try {
     const ready = await ensureConnected();
     if (!ready || !redisInstance) return;
-    let cursor = '0';
+    let cursor = "0";
     do {
-      const [nextCursor, keys] = await redisInstance.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 100);
+      const [nextCursor, keys] = await redisInstance.scan(
+        cursor,
+        "MATCH",
+        `${prefix}*`,
+        "COUNT",
+        100,
+      );
       cursor = nextCursor;
       if (keys.length) await redisInstance.del(...keys);
-    } while (cursor !== '0');
+    } while (cursor !== "0");
   } catch {
     /* safely ignore */
   }
 }
 
 /** Versioned namespace for bulk invalidation (e.g., rag:chunks:v3:...) */
-export function versionedKey(namespace: string, version: string | number, ...parts: string[]): string {
-  return `${namespace}:v${version}:${parts.join(':')}`;
+export function versionedKey(
+  namespace: string,
+  version: string | number,
+  ...parts: string[]
+): string {
+  return `${namespace}:v${version}:${parts.join(":")}`;
 }
 
 /** Close connection (for graceful shutdown) */
 export async function closeCache(): Promise<void> {
-  try {
-    if (isRedisAvailable && redisInstance) {
-      await redisInstance.quit();
-    }
-  } catch {
-    /* safely ignore */
-  }
+  if (!redisInstance) return;
+
+  // Disconnect immediately so shutdown never waits for an unavailable Redis server.
+  redisInstance.disconnect();
+  isRedisAvailable = false;
 }
