@@ -7,18 +7,20 @@ import { ApiError } from "../utils/ApiError";
 import { z } from "zod";
 
 // ── AI client initialization ──────────────────────────────────────────────────
-const apiKey = process.env.GEMINI_API_KEY_RAG;
-if (!apiKey) {
-  throw new Error(
-    "[RAG] GEMINI_API_KEY_RAG environment variable is not configured",
-  );
+function getAiClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY_RAG || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "[RAG] GEMINI_API_KEY environment variable is not configured",
+    );
+  }
+  return new GoogleGenAI({ apiKey });
 }
-
-const ai = new GoogleGenAI({ apiKey });
 
 // Single source of truth for the chat model, shared with the scan controller
 // via the GEMINI_MODEL env var so there is only one place to update.
-const modelName = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+const modelName = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+
 
 // ── Input schema ──────────────────────────────────────────────────────────────
 
@@ -90,6 +92,7 @@ FARMER QUESTION:
 ${prompt}`;
 
     // 4. Call Gemini
+    const ai = getAiClient();
     const aiResponse = await ai.models.generateContent({
       model: modelName,
       contents: systemPrompt,

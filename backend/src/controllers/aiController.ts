@@ -5,14 +5,15 @@ import { sendSuccess } from "../utils/apiResponse";
 import { ApiError } from "../utils/ApiError";
 
 // ── AI client initialization ──────────────────────────────────────────────────
-// Validated at startup so we fail fast rather than at request time.
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-  throw new Error("[AI] GEMINI_API_KEY environment variable is not configured");
+function getAiClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY_RAG || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("[AI] GEMINI_API_KEY environment variable is not configured");
+  }
+  return new GoogleGenAI({ apiKey });
 }
 
-const ai = new GoogleGenAI({ apiKey });
-const modelName = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+const modelName = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
 
 // ── Diagnosis prompt ──────────────────────────────────────────────────────────
 const DIAGNOSIS_PROMPT = `
@@ -47,10 +48,12 @@ export const scanCropHealth = asyncHandler(
       },
     };
 
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
       model: modelName,
       contents: [DIAGNOSIS_PROMPT, imagePart],
     });
+
 
     const rawText = response.text?.replace(/```json|```/g, "").trim();
 
