@@ -90,7 +90,7 @@ export const FarmerOnboardingPage: React.FC = () => {
   // ── Step 1 State: Farmer Profile ──────────────────────────────────────────
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("0917 000 0000");
+  const [phone, setPhone] = useState("");
   const [rsbsaNumber, setRsbsaNumber] = useState("");
   const [municipality, setMunicipality] = useState("Solana");
   const [barangay, setBarangay] = useState("");
@@ -118,9 +118,14 @@ export const FarmerOnboardingPage: React.FC = () => {
   const [variety, setVariety] = useState(CORN_VARIETIES[0]);
   const [plantingDate, setPlantingDate] = useState("2026-08-04");
 
-  // ── Phone formatting ──────────────────────────────────────────────────────
+  // ── Phone formatting supporting 09XX XXX XXXX as well as +639XX... ──────────
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/\D/g, "").slice(0, 11);
+    let raw = e.target.value.replace(/\D/g, "");
+    if (raw.startsWith("63") && raw.length > 2) {
+      raw = "0" + raw.slice(2);
+    }
+    raw = raw.slice(0, 11);
+
     if (raw.length <= 4) {
       setPhone(raw);
     } else if (raw.length <= 7) {
@@ -199,6 +204,8 @@ export const FarmerOnboardingPage: React.FC = () => {
 
     setSubmitting(true);
     try {
+      // Clear any prior / errored recaptcha verifier so retries work seamlessly
+      clearRecaptchaVerifier();
       const verifier = getRecaptchaVerifier();
       const result = await sendOtp(phone, verifier);
       setConfirmation(result);

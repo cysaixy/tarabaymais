@@ -71,25 +71,43 @@ export const getRecaptchaVerifier = (
     __tarabayRecaptcha?: RecaptchaVerifier;
   };
 
-  if (!w.__tarabayRecaptcha) {
-    w.__tarabayRecaptcha = new RecaptchaVerifier(auth, containerId, {
-      size: "invisible",
-    });
+  if (w.__tarabayRecaptcha) {
+    return w.__tarabayRecaptcha;
   }
+
+  const el = document.getElementById(containerId);
+  if (el) {
+    el.innerHTML = "";
+  }
+
+  w.__tarabayRecaptcha = new RecaptchaVerifier(auth, containerId, {
+    size: "invisible",
+  });
 
   return w.__tarabayRecaptcha;
 };
 
 /**
- * Tears down the cached reCAPTCHA verifier. Call this after a successful
- * confirmation (or on unmount) so the next auth attempt starts clean.
+ * Tears down the cached reCAPTCHA verifier and empties the DOM anchor.
+ * Call this after a successful confirmation, on error retry, or on unmount
+ * so the next auth attempt starts clean without widget collisions.
  */
-export const clearRecaptchaVerifier = (): void => {
+export const clearRecaptchaVerifier = (
+  containerId = "recaptcha-container",
+): void => {
   const w = window as typeof window & {
     __tarabayRecaptcha?: RecaptchaVerifier;
   };
   if (w.__tarabayRecaptcha) {
-    w.__tarabayRecaptcha.clear();
+    try {
+      w.__tarabayRecaptcha.clear();
+    } catch {
+      /* ignore */
+    }
     w.__tarabayRecaptcha = undefined;
+  }
+  const el = document.getElementById(containerId);
+  if (el) {
+    el.innerHTML = "";
   }
 };

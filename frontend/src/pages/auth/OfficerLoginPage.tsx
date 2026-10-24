@@ -65,7 +65,7 @@ export const OfficerLoginPage: React.FC = () => {
   }, [authLoading, user, profile, role, navigate]);
 
   const [step, setStep] = useState<Step>("phone");
-  const [phone, setPhone] = useState("+639170000002");
+  const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(
     null,
@@ -86,6 +86,8 @@ export const OfficerLoginPage: React.FC = () => {
 
     setLoading(true);
     try {
+      // Clear any prior / errored recaptcha verifier so retries work seamlessly
+      clearRecaptchaVerifier();
       const verifier = getRecaptchaVerifier();
       const result = await sendOtp(phone, verifier);
       setConfirmation(result);
