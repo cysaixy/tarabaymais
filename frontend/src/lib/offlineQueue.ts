@@ -80,6 +80,22 @@ export async function idbClearQueue(): Promise<void> {
   });
 }
 
+/** Remove only actions that were successfully accepted by the server. */
+export async function idbRemoveItems(clientRefIds: string[]): Promise<void> {
+  if (clientRefIds.length === 0) return;
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    for (const clientRefId of clientRefIds) {
+      store.delete(clientRefId);
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
 /** Dispatch a window event so React hooks (useSyncQueue) re-read the queue instantly. */
 export function notifyQueueUpdated(): void {
   if (typeof window !== "undefined") {

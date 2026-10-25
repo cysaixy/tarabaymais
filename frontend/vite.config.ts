@@ -1,14 +1,27 @@
+/// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 // https://vite.dev/config/
 export default defineConfig({
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: ["./src/__tests__/setup.ts"],
+    include: ["src/__tests__/**/*.{test,spec}.{ts,tsx}"],
+  },
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
+      // Serve the manifest and service worker in dev mode so the browser
+      // doesn't report a "manifest syntax error" (which is really a 404).
+      devOptions: {
+        enabled: true,
+        type: "module",
+      },
       includeAssets: ["favicon.ico", "apple-touch-icon.png"],
       manifest: {
         id: "/",

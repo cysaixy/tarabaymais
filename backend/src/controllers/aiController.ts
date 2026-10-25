@@ -3,6 +3,10 @@ import { GoogleGenAI } from "@google/genai";
 import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccess } from "../utils/apiResponse";
 import { ApiError } from "../utils/ApiError";
+import prisma from "../config/prisma";
+import { Prisma, SeverityLevel } from "@prisma/client";
+import { invalidateAnalyticsCache } from "./analyticsController";
+import { computeScanVerdict } from "../lib/scanVerdict";
 
 // ── AI client initialization ──────────────────────────────────────────────────
 function getAiClient(): GoogleGenAI {
@@ -66,6 +70,42 @@ export const scanCropHealth = asyncHandler(
       );
     }
 
-    return sendSuccess(res, 200, { data: { diagnosis } });
+    const d = diagnosis as {
+      diseaseDetected?: string;
+      confidence?: number;
+      severity?: string;
+      description?: string;
+      recommendedAction?: string;
+      isCornPlant?: boolean;
+    };
+
+    // Persist every scan in PlantScan so the officer dashboard can use it.
+    // Verdict computed via shared computeScanVerdict (see src/lib/scanVerdict.ts).
+    const verdict = computeScanVerdict({
+      diagnosis: d.diseaseDetected ?? null,
+      severity: d.severity ?? null,
+    });
+    const severityVal = verdict === "FLAGGED" ? ((d.severity ?? "LOW") as SeverityLevel) : SeverityLevel.LOW;
+
+    const scan = await prisma.plantScan.create({
+      data: {
+        farmerId: req.user!.id,
+        cropCycleId: null,
+        rawResult: diagnosis as Prisma.InputJsonValue,
+        diagnosis: d.diseaseDetected ?? null,
+        confidence: d.confidence != null ? d.confidence : null,
+        severity: severityVal,
+        verdict: verdict as any,
+      },
+    });
+
+    await invalidateAnalyticsCache();
+
+    return sendSuccess(res, 200, {
+      data: {
+        diagnosis: d,
+        scanId: scan.id,
+      },
+    });
   },
 );

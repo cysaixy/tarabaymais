@@ -57,6 +57,13 @@ enum CaseStatus {
   @@map("case_status")
 }
 
+enum ScanVerdict {
+  HEALTHY  @map("healthy")
+  FLAGGED  @map("flagged")
+
+  @@map("scan_verdict")
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -74,6 +81,7 @@ model User {
   observations      Observation[]
   assignedCases     ExpertRequest[]  @relation("TechnicianCases")
   verifiedDisasters DisasterReport[] @relation("VerifiedDisasters")
+  plantScans        PlantScan[]
 
   @@map("users")
 }
@@ -125,6 +133,7 @@ model CropCycle {
   farm         Farm           @relation(fields: [farmId], references: [id], onDelete: Cascade)
   activities   CropActivity[]
   observations Observation[]
+  plantScans   PlantScan[]
 
   @@index([farmId, plantingDate(sort: Desc)], map: "idx_crop_cycles_farm_id_planting_date_desc")
   @@index([farmId, status], map: "idx_crop_cycles_farm_id_status")
@@ -155,15 +164,19 @@ model Observation {
   imageUrl       String?       @map("image_url") @db.VarChar(500)
   aiDiagnosis    Json?         @map("ai_diagnosis")
   severity       SeverityLevel @default(LOW)
+  scanId         String?       @map("scan_id") @db.VarChar(64) @unique
   idempotencyKey String?       @map("idempotency_key") @db.VarChar(128) @unique
   createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
 
   cropCycle     CropCycle      @relation(fields: [cropCycleId], references: [id], onDelete: Cascade)
   farmer        User           @relation(fields: [farmerId], references: [id], onDelete: Cascade)
   expertRequest ExpertRequest?
+  plantScan     PlantScan?     @relation(fields: [scanId], references: [id], onDelete: SetNull)
 
   @@index([cropCycleId, createdAt(sort: Desc)], map: "idx_observations_crop_cycle_id_created_at_desc")
   @@index([farmerId], map: "idx_observations_farmer_id")
+  @@index([scanId], map: "idx_observations_scan_id")
+  @@index([severity, createdAt(sort: Desc)], map: "idx_observations_severity_created_at_desc")
   @@map("observations")
 }
 
@@ -172,8 +185,9 @@ model ExpertRequest {
   observationId        String     @unique @map("observation_id") @db.VarChar(64)
   assignedTechnicianId String?    @map("assigned_technician_id") @db.VarChar(128)
   status               CaseStatus @default(SUBMITTED)
-  recommendation       String?    @db.Text
+  firstResponseAt      DateTime?  @map("first_response_at") @db.Timestamptz
   resolvedAt           DateTime?  @map("resolved_at") @db.Timestamptz
+  recommendation       String?    @db.Text
   createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -181,6 +195,8 @@ model ExpertRequest {
   assignedTechnician User?       @relation("TechnicianCases", fields: [assignedTechnicianId], references: [id])
 
   @@index([createdAt(sort: Desc)], map: "idx_expert_requests_created_at_desc")
+  @@index([status, createdAt(sort: Desc)], map: "idx_expert_requests_status_created_at_desc")
+  @@index([firstResponseAt], map: "idx_expert_requests_first_response_at")
   @@map("expert_requests")
 }
 
@@ -202,6 +218,30 @@ model DisasterReport {
   @@index([createdAt(sort: Desc)], map: "idx_disaster_reports_created_at_desc")
   @@index([farmId], map: "idx_disaster_reports_farm_id")
   @@map("disaster_reports")
+}
+
+model PlantScan {
+  id            String        @id @default(uuid()) @db.VarChar(64)
+  cropCycleId   String?       @map("crop_cycle_id") @db.VarChar(64)
+  farmerId      String        @map("farmer_id") @db.VarChar(128)
+  rawResult     Json          @map("raw_result")
+  diagnosis     String?       @map("diagnosis") @db.VarChar(255)
+  confidence    Decimal?      @map("confidence") @db.Decimal(5, 4)
+  severity      SeverityLevel? @map("severity")
+  verdict       ScanVerdict   @default(FLAGGED) @map("verdict")
+  scanId        String?       @unique @map("scan_id") @db.VarChar(64)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  cropCycle   CropCycle? @relation(fields: [cropCycleId], references: [id], onDelete: Cascade)
+  farmer      User       @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  observation Observation?
+
+  @@index([createdAt(sort: Desc)], map: "idx_plant_scans_created_at_desc")
+  @@index([farmerId], map: "idx_plant_scans_farmer_id")
+  @@index([cropCycleId], map: "idx_plant_scans_crop_cycle_id")
+  @@index([verdict, createdAt(sort: Desc)], map: "idx_plant_scans_verdict_created_at_desc")
+  @@map("plant_scans")
 }
 
 model KnowledgeChunk {

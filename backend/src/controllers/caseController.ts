@@ -7,6 +7,7 @@ import { sendSuccess } from "../utils/apiResponse";
 import { ApiError } from "../utils/ApiError";
 import { z } from "zod";
 import { invalidateAnalyticsCache } from "./analyticsController";
+import { invalidateOfficerAnalyticsCache } from "./officerAnalyticsController";
 
 // ── Input schemas (Zod v4 compatible) ─────────────────────────────────────────
 
@@ -104,6 +105,20 @@ export const updateCaseStatus = asyncHandler(
       parseResult.data;
 
     if (caseType === "EXPERT_REQUEST") {
+      const existing = await prisma.expertRequest.findUnique({
+        where: { id: caseId },
+        select: { status: true, firstResponseAt: true, assignedTechnicianId: true },
+      });
+
+      if (!existing) {
+        throw ApiError.notFound("Case not found");
+      }
+
+      const isFirstResponse =
+        existing.status === CaseStatus.SUBMITTED && status !== CaseStatus.SUBMITTED;
+      const isFirstAssignment =
+        !existing.assignedTechnicianId && !!assignedTechnicianId;
+
       const updated = await prisma.expertRequest.update({
         where: { id: caseId },
         data: {
@@ -113,9 +128,13 @@ export const updateCaseStatus = asyncHandler(
             assignedTechnician: { connect: { id: assignedTechnicianId } },
           }),
           ...(status === CaseStatus.RESOLVED && { resolvedAt: new Date() }),
+          ...((isFirstResponse || isFirstAssignment) && {
+            firstResponseAt: new Date(),
+          }),
         },
       });
       await invalidateAnalyticsCache();
+      await invalidateOfficerAnalyticsCache();
       return sendSuccess(res, 200, { data: { updatedCase: updated } });
     }
 
@@ -125,6 +144,7 @@ export const updateCaseStatus = asyncHandler(
       data: { status, verifiedById: req.user!.id },
     });
     await invalidateAnalyticsCache();
+    await invalidateOfficerAnalyticsCache();
     return sendSuccess(res, 200, { data: { updatedCase: updated } });
   },
 );
@@ -165,6 +185,7 @@ export const createDisasterReport = asyncHandler(
     });
 
     await invalidateAnalyticsCache();
+    await invalidateOfficerAnalyticsCache();
 
     return sendSuccess(res, 201, { data: { disasterReport: report } });
   },
@@ -185,6 +206,15 @@ export const resolveExpertCase = asyncHandler(
 
     const { recommendation, status } = parseResult.data;
 
+    const existing = await prisma.expertRequest.findUnique({
+      where: { id: caseId },
+      select: { firstResponseAt: true, assignedTechnicianId: true },
+    });
+
+    if (!existing) {
+      throw ApiError.notFound("Case not found");
+    }
+
     const updatedCase = await prisma.expertRequest.update({
       where: { id: caseId },
       data: {
@@ -192,6 +222,7 @@ export const resolveExpertCase = asyncHandler(
         status,
         assignedTechnicianId: req.user!.id,
         resolvedAt: status === CaseStatus.RESOLVED ? new Date() : null,
+        ...(!existing.firstResponseAt && { firstResponseAt: new Date() }),
       },
       include: {
         observation: { include: { farmer: true, cropCycle: true } },

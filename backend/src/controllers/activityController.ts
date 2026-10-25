@@ -33,6 +33,7 @@ const createObservationSchema = z.object({
     Object.values(SeverityLevel) as [SeverityLevel, ...SeverityLevel[]],
   ),
   aiDiagnosis: z.unknown().optional(),
+  scanId: z.string().optional(),
 });
 
 // ── Controllers ───────────────────────────────────────────────────────────────
@@ -91,7 +92,8 @@ export const createObservation = asyncHandler(
       );
     }
 
-    const { title, description, severity, aiDiagnosis } = parseResult.data;
+    const { title, description, severity, aiDiagnosis, scanId } =
+      parseResult.data;
 
     const cycle = await prisma.cropCycle.findFirst({
       where: {
@@ -143,6 +145,7 @@ export const createObservation = asyncHandler(
         imageUrl,
         aiDiagnosis: parsedDiagnosis,
         severity,
+        ...(scanId ? { scanId } : {}),
       },
     });
 
@@ -169,9 +172,9 @@ export const createObservation = asyncHandler(
           type: "EXPERT_DISPATCH",
         },
       );
-
-      await invalidateAnalyticsCache();
     }
+
+    await invalidateAnalyticsCache();
 
     return sendSuccess(res, 201, { data: { observation, autoEscalatedCase } });
   },

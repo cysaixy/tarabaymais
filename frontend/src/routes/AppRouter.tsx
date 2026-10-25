@@ -2,6 +2,7 @@ import React from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { FarmSelectionProvider } from "../context/FarmSelectionProvider";
+import { GlobalFilterProvider } from "../context/filterContext";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { isMunicipalRole, useAuth } from "../context/authContext";
 
@@ -23,7 +24,6 @@ import FarmerSyncQueuePage from "../pages/farmer/FarmerSyncQueuePage";
 import MyFarmsPage from "../pages/farmer/MyFarmsPage";
 import AddFarmPage from "../pages/farmer/AddFarmPage";
 import FarmDetailsPage from "../pages/farmer/FarmDetailsPage";
-import TechnicianDashboardPage from "../pages/technician/TechnicianDashboardPage";
 import OfficerDashboardPage from "../pages/officer/OfficerDashboardPage";
 
 /**
@@ -95,8 +95,15 @@ const farmerRoutes = (
 const municipalRoutes = (
   <>
     <Route path="/officer/dashboard" element={<OfficerDashboardPage />} />
-    <Route path="/officer/cases" element={<TechnicianDashboardPage />} />
-    <Route path="/officer/exports" element={<TechnicianDashboardPage />} />
+    {/* Legacy municipal URLs now resolve to the single officer dashboard. */}
+    <Route
+      path="/officer/cases"
+      element={<Navigate to="/officer/dashboard" replace />}
+    />
+    <Route
+      path="/officer/exports"
+      element={<Navigate to="/officer/dashboard" replace />}
+    />
     {/* Backwards-compatible alias for the previous /technician entry point. */}
     <Route
       path="/technician"
@@ -134,7 +141,9 @@ export const AppRouter: React.FC = () => {
         <Route
           element={
             <ErrorBoundary area="Officer Portal">
-              <Outlet />
+              <GlobalFilterProvider>
+                <Outlet />
+              </GlobalFilterProvider>
             </ErrorBoundary>
           }
         >

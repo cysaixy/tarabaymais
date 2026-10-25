@@ -7,13 +7,15 @@ import {
 import { FcmService } from "./fcm.service";
 import prisma from "../config/prisma";
 import { invalidateAnalyticsCache } from "../controllers/analyticsController";
+import { invalidateOfficerAnalyticsCache } from "../controllers/officerAnalyticsController";
 
 export interface SyncAction {
   clientRefId: string;
   actionType:
     | "CREATE_OBSERVATION"
     | "CREATE_CROP_ACTIVITY"
-    | "CREATE_DISASTER_REPORT";
+    | "CREATE_DISASTER_REPORT"
+    | "CREATE_FARM";
   payload: any;
   clientTimestamp?: string;
 }
@@ -106,9 +108,10 @@ export class SyncService {
                 `New ${observation.severity} observation synced: "${observation.title}"`,
                 { caseId: expertRequest.id, observationId: observation.id },
               );
-
-              await invalidateAnalyticsCache();
             }
+
+            await invalidateAnalyticsCache();
+            await invalidateOfficerAnalyticsCache();
             results.push({
               clientRefId: action.clientRefId,
               serverId: observation.id,
@@ -191,10 +194,43 @@ export class SyncService {
             });
 
             await invalidateAnalyticsCache();
+            await invalidateOfficerAnalyticsCache();
 
             results.push({
               clientRefId: action.clientRefId,
               serverId: report.id,
+              status: "SUCCESS",
+            });
+            break;
+            //
+          }
+          case "CREATE_FARM": {
+            const {
+              name,
+              municipality,
+              barangay,
+              areaHectares,
+              latitude,
+              longitude,
+            } = action.payload;
+
+            const farm = await prisma.farm.create({
+              data: {
+                name,
+                municipality,
+                barangay,
+                areaHectares: Number(areaHectares),
+                latitude: latitude ? Number(latitude) : null,
+                longitude: longitude ? Number(longitude) : null,
+                farmerId: userId,
+              },
+            });
+
+            await invalidateAnalyticsCache();
+
+            results.push({
+              clientRefId: action.clientRefId,
+              serverId: farm.id,
               status: "SUCCESS",
             });
             break;

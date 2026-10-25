@@ -1,16 +1,22 @@
 import { api } from "../lib/api";
-import { createObservation } from "./observation.service";
+import {
+  createObservation,
+  type SeverityLevel,
+} from "./observation.service";
+import { createFarm } from "./farm.service";
 import {
   idbAddItem,
   idbClearQueue,
   idbGetQueue,
+  idbRemoveItems,
   notifyQueueUpdated,
 } from "../lib/offlineQueue";
 
 export type SyncActionType =
   | "CREATE_OBSERVATION"
   | "CREATE_CROP_ACTIVITY"
-  | "CREATE_DISASTER_REPORT";
+  | "CREATE_DISASTER_REPORT"
+  | "CREATE_FARM";
 
 export interface SyncActionItem<T = Record<string, unknown>> {
   clientRefId: string;
@@ -33,6 +39,30 @@ export interface BatchSyncResponse {
   processed: number;
   failed: number;
   results: SyncResultItem[];
+}
+
+const SEVERITY_LEVELS: readonly SeverityLevel[] = [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "CRITICAL",
+];
+
+function isSeverityLevel(value: unknown): value is SeverityLevel {
+  return (
+    typeof value === "string" &&
+    SEVERITY_LEVELS.includes(value as SeverityLevel)
+  );
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 /** Reads queued actions from IndexedDB. */
@@ -120,7 +150,8 @@ export const sendBatchSync = async (
       typeof (a.payload as Record<string, unknown>).imageBase64 === "string",
   );
   const plainActions = actions.filter(
-    (a) => !(imageActions.includes(a)),
+    (a) =>
+      !(imageActions.includes(a)) && a.actionType !== "CREATE_FARM",
   );
 
   // 1. Upload image observations individually via multipart FormData
@@ -137,9 +168,11 @@ export const sendBatchSync = async (
         cropCycleId: payload.cropCycleId as string,
         title: payload.title as string,
         description: payload.description as string,
-        severity: (payload.severity as any) || "LOW",
+        severity: isSeverityLevel(payload.severity)
+          ? payload.severity
+          : "LOW",
         image: file,
-        aiDiagnosis: (payload.aiDiagnosis as any) || null,
+        aiDiagnosis: asRecord(payload.aiDiagnosis),
         idempotencyKey: action.idempotencyKey,
       });
 
@@ -147,11 +180,11 @@ export const sendBatchSync = async (
         clientRefId: action.clientRefId,
         status: "SUCCESS",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       results.push({
         clientRefId: action.clientRefId,
         status: "FAILED",
-        error: err?.message || "Image upload failed",
+        error: getErrorMessage(err, "Image upload failed"),
       });
     }
   }
@@ -163,10 +196,58 @@ export const sendBatchSync = async (
     results.push(...batchResult.results);
   }
 
+  // 3. Handle CREATE_FARM individually (no image, but needs direct API call)
+  const farmActions = actions.filter(
+    (a) => a.actionType === "CREATE_FARM",
+  );
+  for (const action of farmActions) {
+    const payload = action.payload as Record<string, unknown>;
+    try {
+      await createFarm({
+        name: payload.name as string,
+        municipality: payload.municipality as string,
+        barangay: payload.barangay as string,
+        areaHectares: Number(payload.areaHectares),
+        latitude: payload.latitude as number | null,
+        longitude: payload.longitude as number | null,
+      });
+      results.push({
+        clientRefId: action.clientRefId,
+        status: "SUCCESS",
+      });
+    } catch (err: unknown) {
+      results.push({
+        clientRefId: action.clientRefId,
+        status: "FAILED",
+        error: getErrorMessage(err, "Farm creation failed"),
+      });
+    }
+  }
+
   return {
     total: actions.length,
     processed: results.filter((r) => r.status === "SUCCESS").length,
     failed: results.filter((r) => r.status !== "SUCCESS").length,
     results,
   };
+};
+
+/**
+ * Syncs all locally queued actions and removes only successful actions.
+ * Failed actions remain queued so they can be retried instead of being lost.
+ */
+export const syncPendingOfflineActions = async (): Promise<BatchSyncResponse> => {
+  const actions = await getOfflineQueue();
+  if (actions.length === 0) {
+    return { total: 0, processed: 0, failed: 0, results: [] };
+  }
+
+  const response = await sendBatchSync(actions);
+  const successfulIds = response.results
+    .filter((result) => result.status === "SUCCESS")
+    .map((result) => result.clientRefId);
+
+  await idbRemoveItems(successfulIds);
+  notifyQueueUpdated();
+  return response;
 };

@@ -56,8 +56,7 @@ import { createDisasterReport } from "../../services/case.service";
 import {
   getOfflineQueue,
   queueOfflineAction,
-  clearOfflineQueue,
-  sendBatchSync,
+  syncPendingOfflineActions,
   type SyncActionItem,
 } from "../../services/sync.service";
 import { useAuth } from "../../context/authContext";
@@ -636,18 +635,22 @@ export const FarmerDashboardPage: React.FC = () => {
   // ── Sync ─────────────────────────────────────────────────────────────────
   const handleSyncNow = async () => {
     setSyncing(true);
-    const queue = await getOfflineQueue();
-
     try {
-      if (queue.length > 0) {
-        await sendBatchSync(queue);
+      const result = await syncPendingOfflineActions();
+      if (result.total === 0) {
+        toast.info("Walang nakapilang ulat.");
+      } else if (result.failed > 0) {
+        setQueueCount(result.failed);
+        toast.warning("Bahagi lamang ng ulat ang na-sync.", {
+          description: `${result.processed} naipadala; ${result.failed} mananatili sa queue para sa retry.`,
+        });
+      } else {
+        setQueueCount(0);
+        toast.success("Matagumpay na Na-sync!", {
+          description:
+            "Lahat ng nakatagong ulat ay naipadala na sa PostgreSQL database.",
+        });
       }
-      await clearOfflineQueue();
-      setQueueCount(0);
-      toast.success("Matagumpay na Na-sync!", {
-        description:
-          "Lahat ng nakatagong ulat ay naipadala na sa PostgreSQL database.",
-      });
     } catch {
       toast.error("Hindi natapos ang pag-sync.", {
         description: "Subukan muli kapag may koneksyon.",
@@ -656,6 +659,21 @@ export const FarmerDashboardPage: React.FC = () => {
       setSyncing(false);
     }
   };
+
+  useEffect(() => {
+    const syncWhenOnline = async () => {
+      if (!navigator.onLine) return;
+      try {
+        const result = await syncPendingOfflineActions();
+        if (result.total > 0) setQueueCount(result.failed);
+      } catch {
+        // Keep failed actions in IndexedDB for the next retry.
+      }
+    };
+    void syncWhenOnline();
+    window.addEventListener("online", syncWhenOnline);
+    return () => window.removeEventListener("online", syncWhenOnline);
+  }, []);
 
   // ── 1. Activity Modal ─────────────────────────────────────────────────────
   const [actType, setActType] = useState<ActivityType>("FERTILIZER");

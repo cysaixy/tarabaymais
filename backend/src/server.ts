@@ -14,6 +14,7 @@ import analyticsRoutes from "./routes/analyticsRoutes";
 import activityRoutes from "./routes/activityRoutes";
 import userRoutes from "./routes/user.routes";
 import syncRoutes from "./routes/sync.routes";
+import officerRoutes from "./routes/officerRoutes";
 
 import { errorMiddleware } from "./middlewares/error.middleware";
 import { closeCache } from "./lib/cache";
@@ -98,6 +99,7 @@ app.use("/api/v1/farm", generalRateLimiter, farmRoutes);
 app.use("/api/v1/crop-cycles", generalRateLimiter, cropCycleRoutes);
 app.use("/api/v1/case", generalRateLimiter, caseRoutes);
 app.use("/api/v1/analytics", generalRateLimiter, analyticsRoutes);
+app.use("/api/v1/officer", generalRateLimiter, officerRoutes);
 app.use("/api/v1/", generalRateLimiter, activityRoutes);
 app.use("/api/v1/register", generalRateLimiter, userRoutes);
 app.use("/api/v1/sync", generalRateLimiter, syncRoutes);

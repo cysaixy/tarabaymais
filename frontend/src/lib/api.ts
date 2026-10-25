@@ -77,7 +77,7 @@ api.interceptors.request.use(async (config) => {
     try {
       const token = await currentUser.getIdToken();
       config.headers.set("Authorization", `Bearer ${token}`);
-    } catch (err) {
+    } catch {
       // Offline: getIdToken() may fail. Don't attach token - request will fail
       // with proper network error in response interceptor.
       console.warn("[API] Offline: could not get ID token, proceeding without auth header");
