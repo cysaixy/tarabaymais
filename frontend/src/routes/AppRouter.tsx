@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { FarmSelectionProvider } from "../context/FarmSelectionProvider";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { isMunicipalRole, useAuth } from "../context/authContext";
 
 import FarmerLoginPage from "../pages/auth/FarmerLoginPage";
 import FarmerOnboardingPage from "../pages/auth/FarmerOnboardingPage";
@@ -23,6 +24,26 @@ import MyFarmsPage from "../pages/farmer/MyFarmsPage";
 import AddFarmPage from "../pages/farmer/AddFarmPage";
 import FarmDetailsPage from "../pages/farmer/FarmDetailsPage";
 import TechnicianDashboardPage from "../pages/technician/TechnicianDashboardPage";
+import OfficerDashboardPage from "../pages/officer/OfficerDashboardPage";
+
+/**
+ * PWA launches always begin at the manifest's `start_url` (`/`). Resolve that
+ * launch from the restored Firebase session instead of unconditionally sending
+ * a returning farmer to the phone-login screen. AuthProvider waits for both
+ * Firebase persistence and the UID-scoped cached profile before this renders.
+ */
+const SessionHomeRedirect: React.FC = () => {
+  const { user, profile, role } = useAuth();
+
+  if (!user) return <Navigate to="/login" replace />;
+  if (!profile || !role) return <Navigate to="/onboarding" replace />;
+  return (
+    <Navigate
+      to={isMunicipalRole(role) ? "/officer/dashboard" : "/farmer"}
+      replace
+    />
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Public routes (no authentication required)
@@ -73,7 +94,7 @@ const farmerRoutes = (
 // ---------------------------------------------------------------------------
 const municipalRoutes = (
   <>
-    <Route path="/officer/dashboard" element={<TechnicianDashboardPage />} />
+    <Route path="/officer/dashboard" element={<OfficerDashboardPage />} />
     <Route path="/officer/cases" element={<TechnicianDashboardPage />} />
     <Route path="/officer/exports" element={<TechnicianDashboardPage />} />
     {/* Backwards-compatible alias for the previous /technician entry point. */}
@@ -87,6 +108,8 @@ const municipalRoutes = (
 export const AppRouter: React.FC = () => {
   return (
     <Routes>
+      {/* The PWA manifest starts the app at `/`; restore the correct home. */}
+      <Route path="/" element={<SessionHomeRedirect />} />
       {publicRoutes}
 
       {/* Farmer-only area, wrapped in the shared farm/cycle selection context. */}
@@ -119,8 +142,8 @@ export const AppRouter: React.FC = () => {
         </Route>
       </Route>
 
-      {/* Unknown paths fall back to the farmer login screen. */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      {/* A stale saved route should recover to the current user's home. */}
+      <Route path="*" element={<SessionHomeRedirect />} />
     </Routes>
   );
 };
