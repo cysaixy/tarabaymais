@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FirebaseError } from "firebase/app";
 import type { ConfirmationResult } from "firebase/auth";
@@ -27,7 +27,7 @@ import {
   clearRecaptchaVerifier,
   auth,
 } from "../../firebase";
-import { isMunicipalRole } from "../../context/authContext";
+import { useAuth, isMunicipalRole } from "../../context/authContext";
 import { OtpInput } from "../../components/OtpInput";
 
 type Step = "phone" | "otp";
@@ -54,18 +54,34 @@ const friendlyAuthError = (err: unknown): string => {
 
 export const FarmerLoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, profile, role, loading: authLoading, refreshProfile } = useAuth();
+
+  // If already authenticated with a valid profile, skip login screen immediately
+  useEffect(() => {
+    if (!authLoading && user && profile && role) {
+      navigate(isMunicipalRole(role) ? "/officer/dashboard" : "/farmer", {
+        replace: true,
+      });
+    }
+  }, [authLoading, user, profile, role, navigate]);
 
   const [step, setStep] = useState<Step>("phone");
-  const [phone, setPhone] = useState("0917 000 0000");
+  const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(
     null,
   );
   const [loading, setLoading] = useState(false);
 
-  // Visual phone formatting (0917 000 0000)
+
+  // Visual phone formatting supporting 09XX XXX XXXX as well as pasted +639XX...
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/\D/g, "").slice(0, 11);
+    let raw = e.target.value.replace(/\D/g, "");
+    if (raw.startsWith("63") && raw.length > 2) {
+      raw = "0" + raw.slice(2);
+    }
+    raw = raw.slice(0, 11);
+
     if (raw.length <= 4) {
       setPhone(raw);
     } else if (raw.length <= 7) {
@@ -88,6 +104,8 @@ export const FarmerLoginPage: React.FC = () => {
 
     setLoading(true);
     try {
+      // Clear any prior / errored recaptcha verifier so retries work seamlessly
+      clearRecaptchaVerifier();
       const verifier = getRecaptchaVerifier();
       const result = await sendOtp(phone, verifier);
       setConfirmation(result);
@@ -133,7 +151,12 @@ export const FarmerLoginPage: React.FC = () => {
 
       // Confirm the backend profile exists and inspect the role.
       try {
-        const me = await getMe();
+        let me = await refreshProfile().catch(() => null);
+        if (!me) {
+          await new Promise((r) => setTimeout(r, 400));
+          me = await getMe();
+        }
+
         if (isMunicipalRole(me.role)) {
           // A technician/officer logged in through the farmer portal — send
           // them to their own area instead.
@@ -143,16 +166,34 @@ export const FarmerLoginPage: React.FC = () => {
           navigate("/officer/dashboard", { replace: true });
           return;
         }
+        if (!me.farmerProfile) {
+          toast.info("Kailangan ng Rehistro", {
+            description: "Kumpletuhin muna ang inyong farmer profile.",
+          });
+          navigate("/onboarding", { replace: true });
+          return;
+        }
         toast.success("Maligayang Pagbabalik, Magsasaka!", {
           description: "Matagumpay na nakapasok sa Tarabay-Mais Sakahan.",
         });
         navigate("/farmer", { replace: true });
-      } catch {
-        // Authenticated but no profile yet → finish registration.
-        toast.info("Kailangan ng Rehistro", {
-          description: "Kumpletuhin muna ang inyong profile.",
-        });
-        navigate("/onboarding", { replace: true });
+      } catch (profileErr: unknown) {
+        const errObj = profileErr as Record<string, unknown> | undefined;
+        const isNotRegistered =
+          errObj?.status === 401 ||
+          (errObj?.response as Record<string, unknown> | undefined)?.status === 401 ||
+          (typeof errObj?.message === "string" &&
+            errObj.message.includes("Profile not synchronized"));
+
+        if (isNotRegistered) {
+          // Authenticated but no profile yet → finish registration.
+          toast.info("Kailangan ng Rehistro", {
+            description: "Kumpletuhin muna ang inyong profile.",
+          });
+          navigate("/onboarding", { replace: true });
+        } else {
+          navigate("/farmer", { replace: true });
+        }
       }
     } catch (err) {
       console.error(err);

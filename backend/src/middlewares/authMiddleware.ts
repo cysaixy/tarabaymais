@@ -1,7 +1,18 @@
 import { Request, Response, NextFunction } from "express";
+import { Role } from "@prisma/client";
 import { auth } from "../config/firebase";
 import prisma from "../config/prisma";
 import { sendError } from "../utils/apiResponse";
+import {
+  isDesignatedFarmerPhone,
+  normalizePhilippinePhone,
+} from "../utils/phone";
+
+const TECHNICIAN_NUMBERS = new Set([
+  "+639170000004",
+  "09170000004",
+  "639170000004",
+]);
 
 /**
  * `authenticate` — verifies the Firebase Bearer token in every incoming request.
@@ -36,11 +47,73 @@ export const authenticate = async (
     const decodedToken = await auth.verifyIdToken(token);
     req.firebaseUser = decodedToken;
 
-    // Attach DB user record if one exists for this UID
-    const user = await prisma.user.findUnique({
-      where: { id: decodedToken.uid },
+    // Attach DB user record if one exists for this UID or verified phone number
+    const phone = decodedToken.phone_number;
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: decodedToken.uid },
+          ...(phone
+            ? [
+                { phone },
+                { phone: phone.replace("+63", "0") },
+                { phone: phone.replace("+63", "") },
+              ]
+            : []),
+        ],
+      },
       include: { farmerProfile: true },
     });
+
+    const normalizedPhone = phone ? normalizePhilippinePhone(phone) : null;
+
+    // These Firebase test accounts are farmer registrations, not technician accounts.
+    if (user && isDesignatedFarmerPhone(phone)) {
+      if (user.role !== Role.FARMER) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { role: Role.FARMER },
+          include: { farmerProfile: true },
+        });
+      }
+
+      if (decodedToken.role !== "farmer") {
+        auth
+          .setCustomUserClaims(decodedToken.uid, { role: "farmer" })
+          .catch((error: unknown) => {
+            console.warn("[Auth] Could not update farmer role claim:", error);
+          });
+      }
+    }
+
+    // Auto-provision or promote the designated technician account.
+    if (normalizedPhone && TECHNICIAN_NUMBERS.has(normalizedPhone)) {
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            id: decodedToken.uid,
+            firstName: "DA Field",
+            lastName: "Technician",
+            phone: normalizedPhone,
+            role: Role.TECHNICIAN,
+          },
+          include: { farmerProfile: true },
+        });
+      } else if (user.role !== Role.TECHNICIAN) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { role: Role.TECHNICIAN },
+          include: { farmerProfile: true },
+        });
+      }
+
+      // Sync custom claims to Firebase token in background
+      auth
+        .setCustomUserClaims(decodedToken.uid, { role: "technician" })
+        .catch((error: unknown) => {
+          console.warn("[Auth] Could not update technician role claim:", error);
+        });
+    }
 
     if (user) {
       req.user = user;

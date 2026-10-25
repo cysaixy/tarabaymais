@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FirebaseError } from "firebase/app";
 import type { ConfirmationResult } from "firebase/auth";
@@ -26,7 +26,7 @@ import {
   clearRecaptchaVerifier,
   auth,
 } from "../../firebase";
-import { isMunicipalRole } from "../../context/authContext";
+import { useAuth, isMunicipalRole } from "../../context/authContext";
 import { OtpInput } from "../../components/OtpInput";
 
 type Step = "phone" | "otp";
@@ -53,14 +53,25 @@ const friendlyAuthError = (err: unknown): string => {
 
 export const OfficerLoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, profile, role, loading: authLoading } = useAuth();
+
+  // If already authenticated with a valid profile, skip login screen immediately
+  useEffect(() => {
+    if (!authLoading && user && profile && role) {
+      navigate(isMunicipalRole(role) ? "/officer/dashboard" : "/farmer", {
+        replace: true,
+      });
+    }
+  }, [authLoading, user, profile, role, navigate]);
 
   const [step, setStep] = useState<Step>("phone");
-  const [phone, setPhone] = useState("+639170000002");
+  const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(
     null,
   );
   const [loading, setLoading] = useState(false);
+
 
   // ── Step 1: send OTP ──────────────────────────────────────────────────────
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -75,6 +86,8 @@ export const OfficerLoginPage: React.FC = () => {
 
     setLoading(true);
     try {
+      // Clear any prior / errored recaptcha verifier so retries work seamlessly
+      clearRecaptchaVerifier();
       const verifier = getRecaptchaVerifier();
       const result = await sendOtp(phone, verifier);
       setConfirmation(result);

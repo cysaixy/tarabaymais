@@ -45,11 +45,37 @@ const SessionHomeRedirect: React.FC = () => {
   );
 };
 
+import { useAuth, isMunicipalRole } from "../context/authContext";
+
+const RootRedirect: React.FC = () => {
+  const { user, profile, role, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-400">
+        <div className="flex flex-col items-center gap-2">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-700 border-t-teal-500" />
+          <p className="text-xs tracking-wide">Kinukuha ang sesyon...</p>
+        </div>
+      </div>
+    );
+  }
+  if (user && profile && role) {
+    return (
+      <Navigate
+        to={isMunicipalRole(role) ? "/officer/dashboard" : "/farmer"}
+        replace
+      />
+    );
+  }
+  return <Navigate to="/login" replace />;
+};
+
 // ---------------------------------------------------------------------------
 // Public routes (no authentication required)
 // ---------------------------------------------------------------------------
 const publicRoutes = (
   <>
+    <Route path="/" element={<RootRedirect />} />
     <Route path="/login" element={<FarmerLoginPage />} />
     <Route path="/officer/login" element={<OfficerLoginPage />} />
     {/* Onboarding handles its own Firebase phone auth before registering. */}
