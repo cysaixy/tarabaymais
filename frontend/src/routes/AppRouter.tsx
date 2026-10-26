@@ -45,8 +45,6 @@ const SessionHomeRedirect: React.FC = () => {
   );
 };
 
-import { useAuth, isMunicipalRole } from "../context/authContext";
-
 const RootRedirect: React.FC = () => {
   const { user, profile, role, loading } = useAuth();
   if (loading) {
