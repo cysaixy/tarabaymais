@@ -45,27 +45,14 @@ import {
   type AccountMenuItem,
 } from "../../components/AccountSheet";
 import { NotificationBell } from "../../components/NotificationBell";
-import {
-  clearReadNotifications,
-} from "../../lib/notificationReadTracking";
+import { clearReadNotifications } from "../../lib/notificationReadTracking";
 
 // ─── Tab Keys ─────────────────────────────────────────────────────────────────
 export type TabKey = "BUOD" | "PINSALA" | "KONSULTASYON" | "ULAT";
-
-// ─── Damage Filter Groups (Matching PDF Page 2 & 5) ───────────────────────────
 type DamageFilter = "LAHAT" | "BAGO" | "SINUSURI" | "NA_VERIFY" | "APRUBADO";
-
-// ─── Consultation Filter Groups (Matching PDF Page 3 & 6) ─────────────────────
 type ConsultFilter = "BAGO" | "SINAGOT" | "LAHAT";
-
-// ─── Map Layer Filter ─────────────────────────────────────────────────────────
 type MapLayer = "TANIMAN" | "PINSALA" | "KONSULTASYON";
 
-function formatHa(value: number): string {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
-}
-
-// ─── Cagayan/Solana Sample Data Fallbacks ──────────────────────────────────────
 interface MockDisasterItem {
   id: string;
   code: string;
@@ -93,7 +80,7 @@ interface MockConsultItem {
 const INITIAL_MOCK_DISASTERS: MockDisasterItem[] = [
   {
     id: "claim-001",
-    code: "Blg. 1",
+    code: "[Blg. 1]",
     farmerName: "Juan Dela Cruz",
     barangay: "Centro Norte (Pob.)",
     disasterType: "Bagyo (Typhoon)",
@@ -104,7 +91,7 @@ const INITIAL_MOCK_DISASTERS: MockDisasterItem[] = [
   },
   {
     id: "claim-002",
-    code: "Blg. 2",
+    code: "[Blg. 2]",
     farmerName: "Pedro Santos",
     barangay: "Centro Norte (Pob.)",
     disasterType: "Fall Armyworm",
@@ -115,7 +102,7 @@ const INITIAL_MOCK_DISASTERS: MockDisasterItem[] = [
   },
   {
     id: "claim-003",
-    code: "Blg. 3",
+    code: "[Blg. 3]",
     farmerName: "Maria Reyes",
     barangay: "Centro Norte (Pob.)",
     disasterType: "Baha (Flash Flood)",
@@ -136,7 +123,7 @@ const INITIAL_MOCK_CONSULTS: MockConsultItem[] = [
     answer: "",
     status: "Bago",
     date: "Ngayon, 9:15 AM",
-    suggestedAnswer: "Batay sa yugto ng paglago ng iyong mais, mainam na gumamit ng Bacillus thuringiensis (Bt) o Chlorantraniliprole sa hapon. Siguraduhing maabot ang gitnang usbong (whorl) kung saan nagtatago ang fall armyworm.",
+    suggestedAnswer: "Batay sa yugto ng paglago ng iyong mais, mainam na gumamit ng Bacillus thuringiensis (Bt) o Chlorantraniliprole sa hapon. Siguraduhing maabot ang gitnang usbong kung saan nagtatago ang fall armyworm.",
   },
   {
     id: "consult-002",
@@ -159,75 +146,6 @@ const INITIAL_MOCK_CONSULTS: MockConsultItem[] = [
     status: "Sinagot",
     date: "Oktubre 23",
     suggestedAnswer: "Tiyakin ang tamang drainage sa paligid ng taniman upang maibsan ang sobrang moisture.",
-  },
-];
-
-// Solana barangay polygons for the interactive SVG map
-interface BarangayPolygon {
-  name: string;
-  d: string;
-  hasFarms: boolean;
-  farmsCount: number;
-  hectares: number;
-  center: { x: number; y: number };
-}
-
-const SOLANA_BARANGAYS: BarangayPolygon[] = [
-  {
-    name: "Centro Norte (Pob.)",
-    d: "M 130 50 L 210 50 L 250 100 L 220 170 L 140 160 L 110 90 Z",
-    hasFarms: true,
-    farmsCount: 1,
-    hectares: 7.0,
-    center: { x: 180, y: 105 },
-  },
-  {
-    name: "Centro Sur (Pob.)",
-    d: "M 140 160 L 220 170 L 200 235 L 120 225 L 105 180 Z",
-    hasFarms: false,
-    farmsCount: 0,
-    hectares: 0,
-    center: { x: 160, y: 195 },
-  },
-  {
-    name: "Bangag",
-    d: "M 40 60 L 110 90 L 140 160 L 105 180 L 30 140 Z",
-    hasFarms: false,
-    farmsCount: 0,
-    hectares: 0,
-    center: { x: 80, y: 125 },
-  },
-  {
-    name: "Bauan East",
-    d: "M 210 50 L 290 60 L 330 120 L 250 100 Z",
-    hasFarms: false,
-    farmsCount: 0,
-    hectares: 0,
-    center: { x: 270, y: 80 },
-  },
-  {
-    name: "Bauan West",
-    d: "M 250 100 L 330 120 L 320 200 L 220 170 Z",
-    hasFarms: false,
-    farmsCount: 0,
-    hectares: 0,
-    center: { x: 280, y: 150 },
-  },
-  {
-    name: "Dassun",
-    d: "M 120 225 L 200 235 L 180 290 L 90 280 Z",
-    hasFarms: false,
-    farmsCount: 0,
-    hectares: 0,
-    center: { x: 145, y: 260 },
-  },
-  {
-    name: "Iraga",
-    d: "M 200 235 L 320 200 L 290 285 L 180 290 Z",
-    hasFarms: false,
-    farmsCount: 0,
-    hectares: 0,
-    center: { x: 250, y: 250 },
   },
 ];
 
@@ -302,7 +220,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       setDisasterReports(data.disasterCases ?? []);
       setExpertCases(data.expertCases ?? []);
     } catch {
-      // Non-fatal, local fallback data remains available
+      // Local fallback data remains active
     }
   }, []);
 
@@ -314,7 +232,7 @@ export const TechnicianDashboardPage: React.FC = () => {
         Math.round(Number(summary.totalActiveHectares) * 10) / 10
       );
     } catch {
-      // Non-fatal, fallback to 1 farm / 7 ha from mockup
+      // Fallback to 1 farm / 7 ha from mockup
     }
   }, []);
 
@@ -360,17 +278,14 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   // Selected barangay metadata
   const selectedBarangayData = useMemo(() => {
-    const foundInPolygon = SOLANA_BARANGAYS.find(
-      (b) => b.name.toLowerCase() === selectedBarangayName.toLowerCase()
-    );
     const foundInBackend = barangays.find(
       (b) => b.barangay.toLowerCase() === selectedBarangayName.toLowerCase()
     );
 
     return {
       name: selectedBarangayName,
-      farms: foundInBackend?.farmCount ?? foundInPolygon?.farmsCount ?? (selectedBarangayName.includes("Centro Norte") ? 1 : 0),
-      hectares: foundInBackend?.totalHectares ?? foundInPolygon?.hectares ?? (selectedBarangayName.includes("Centro Norte") ? 7.0 : 0),
+      farms: foundInBackend?.farmCount ?? (selectedBarangayName.includes("Centro Norte") ? 1 : 0),
+      hectares: foundInBackend?.totalHectares ?? (selectedBarangayName.includes("Centro Norte") ? 7 : 0),
     };
   }, [selectedBarangayName, barangays]);
 
@@ -423,7 +338,6 @@ export const TechnicianDashboardPage: React.FC = () => {
     }
   };
 
-  // Update Damage Case Status
   const handleVerifyField = (itemId: string) => {
     setLocalDisasters((prev) =>
       prev.map((item) =>
@@ -442,7 +356,6 @@ export const TechnicianDashboardPage: React.FC = () => {
     toast.info("Nagpadala ng abiso sa magsasaka para sa karagdagang litrato o dokumento.");
   };
 
-  // Send Consultation Reply
   const handleSendReply = () => {
     if (!chatReplyInput.trim()) {
       toast.error("Mangyaring isulat muna ang iyong sagot o payo.");
@@ -466,7 +379,6 @@ export const TechnicianDashboardPage: React.FC = () => {
     toast.success("Naipadala ang sagot at payo sa magsasaka.");
   };
 
-  // Add Damage Case
   const handleAddDamageSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDamageForm.farmerName.trim()) {
@@ -475,7 +387,7 @@ export const TechnicianDashboardPage: React.FC = () => {
     }
     const newCase: MockDisasterItem = {
       id: `claim-${Date.now()}`,
-      code: `Blg. ${localDisasters.length + 1}`,
+      code: `[Blg. ${localDisasters.length + 1}]`,
       farmerName: newDamageForm.farmerName.trim(),
       barangay: newDamageForm.barangay,
       disasterType: newDamageForm.disasterType,
@@ -497,7 +409,6 @@ export const TechnicianDashboardPage: React.FC = () => {
     toast.success("Matagumpay na naidagdag ang bagong kaso ng pinsala.");
   };
 
-  // Add Consultation
   const handleAddConsultSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newConsultForm.farmerName.trim() || !newConsultForm.topic.trim()) {
@@ -532,20 +443,6 @@ export const TechnicianDashboardPage: React.FC = () => {
     : "DA Field Technician";
 
   const technicianInitials = "DF";
-
-  const formattedDate = useMemo(() => {
-    try {
-      return new Intl.DateTimeFormat("fil-PH", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-      })
-        .format(new Date())
-        .toLocaleUpperCase("fil-PH");
-    } catch {
-      return "LUNES, OKTUBRE 26";
-    }
-  }, []);
 
   const accountMenuItems: AccountMenuItem[] = useMemo(
     () => [
@@ -583,34 +480,32 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased flex flex-col">
-      {/* ── TOP HEADER (Dark Navy matching PDF Page 1) ─────────────────────── */}
-      <header className="sticky top-0 z-30 bg-[#0B2545] text-white shadow-md">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20 pt-1">
-            {/* Left: Yellow Brand Icon + TarabayMais title + subtext */}
+      {/* ── TOP NAV BAR (Exact Navy Header matching the uploaded screenshot) ── */}
+      <header className="sticky top-0 z-30 bg-[#0B2347] text-white shadow-md">
+        <div className="mx-auto max-w-[1240px] px-4 sm:px-6">
+          <div className="flex items-center justify-between h-18">
+            {/* Left: Yellow Square with sprout/leaf icon + TarabayMais title */}
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-[#FBBF24] shadow-sm">
-                <Sprout className="h-6 w-6 text-[#0B2545]" strokeWidth={2.5} />
+              <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-[#FBBF24] shadow-xs">
+                <Sprout className="h-6 w-6 text-[#0B2347]" strokeWidth={2.5} />
               </div>
               <div className="min-w-0">
-                <div className="flex items-baseline gap-2">
-                  <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                    TarabayMais
-                  </h1>
-                </div>
-                <p className="text-xs sm:text-sm text-slate-300 font-medium tracking-wide">
+                <h1 className="text-lg sm:text-xl font-black tracking-tight text-white leading-tight">
+                  TarabayMais
+                </h1>
+                <p className="text-[11px] sm:text-xs text-slate-300 font-normal">
                   DA Region II &middot; Cagayan Valley
                 </p>
               </div>
             </div>
 
-            {/* Right: I-download ang Ulat + Bell + Avatar */}
-            <div className="flex items-center gap-3 sm:gap-4">
-              {/* Desktop Download Button */}
+            {/* Right: I-download ang Ulat + Bell + Avatar Pill */}
+            <div className="flex items-center gap-3">
+              {/* I-download ang Ulat button */}
               <button
                 type="button"
                 onClick={() => setActiveTab("ULAT")}
-                className="hidden md:inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 px-4 py-2 text-sm font-semibold text-white transition active:scale-95 cursor-pointer"
+                className="hidden md:inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/5 hover:bg-white/10 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-white transition cursor-pointer"
               >
                 <Download className="h-4 w-4" />
                 <span>I-download ang Ulat</span>
@@ -627,7 +522,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 onOpenChange={setIsNotifOpen}
               />
 
-              {/* Profile Avatar Pill */}
+              {/* Avatar: Yellow Circle DF + Text */}
               <button
                 ref={profileTriggerRef}
                 type="button"
@@ -635,16 +530,16 @@ export const TechnicianDashboardPage: React.FC = () => {
                   activeTriggerRef.current = profileTriggerRef.current;
                   setIsAccountOpen(true);
                 }}
-                className="flex items-center gap-2.5 p-1 rounded-full hover:bg-white/10 transition cursor-pointer"
+                className="flex items-center gap-2 p-1 rounded-full hover:bg-white/10 transition cursor-pointer"
               >
-                <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-[#FBBF24] text-base font-extrabold text-[#0B2545] shadow-sm">
+                <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-[#FBBF24] text-sm font-black text-[#0B2347] shadow-xs">
                   {technicianInitials}
                 </div>
-                <div className="hidden lg:block text-left pr-2">
-                  <p className="text-sm font-bold text-white leading-tight">
+                <div className="hidden lg:block text-left pr-1">
+                  <p className="text-xs sm:text-sm font-bold text-white leading-tight">
                     {technicianDisplayName}
                   </p>
-                  <p className="text-xs text-slate-300">
+                  <p className="text-[11px] text-slate-300 leading-tight">
                     Agricultural Technician
                   </p>
                 </div>
@@ -652,21 +547,13 @@ export const TechnicianDashboardPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Desktop Sub-Nav Tabs: Connected directly into the page canvas */}
-          <nav aria-label="Tabs" className="hidden md:flex items-end gap-1 pt-2">
+          {/* Desktop Sub-Nav Tab Bar: Cut out into the white page canvas */}
+          <nav aria-label="Tabs" className="hidden md:flex items-end gap-1">
             {(
               [
                 { key: "BUOD" as TabKey, label: "Buod" },
-                {
-                  key: "PINSALA" as TabKey,
-                  label: "Pinsala",
-                  badge: pendingDisasters,
-                },
-                {
-                  key: "KONSULTASYON" as TabKey,
-                  label: "Konsultasyon",
-                  badge: pendingConsultations,
-                },
+                { key: "PINSALA" as TabKey, label: "Pinsala" },
+                { key: "KONSULTASYON" as TabKey, label: "Konsultasyon" },
                 { key: "ULAT" as TabKey, label: "Ulat" },
               ] as const
             ).map((tab) => {
@@ -676,24 +563,13 @@ export const TechnicianDashboardPage: React.FC = () => {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`relative flex items-center gap-2 px-6 py-2.5 text-sm md:text-base font-bold transition-all rounded-t-xl cursor-pointer ${
+                  className={`relative flex items-center px-6 py-2 text-sm font-bold transition-all rounded-t-xl cursor-pointer ${
                     isActive
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-200 hover:text-white hover:bg-white/10"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-white/80 hover:text-white"
                   }`}
                 >
                   <span>{tab.label}</span>
-                  {"badge" in tab && tab.badge > 0 && (
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                        isActive
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-amber-400 text-slate-950"
-                      }`}
-                    >
-                      {tab.badge}
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -701,103 +577,94 @@ export const TechnicianDashboardPage: React.FC = () => {
         </div>
       </header>
 
-      {/* ── MAIN CONTENT CONTAINER ────────────────────────────────────────── */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6 pb-28 md:pb-12">
+      {/* ── MAIN BODY CONTENT ─────────────────────────────────────────────── */}
+      <main className="flex-1 mx-auto w-full max-w-[1240px] px-4 sm:px-6 py-5 sm:py-6 space-y-5 pb-24 md:pb-12">
         {/* ════════════════════════════════════════════════════════════════════
-            TAB 1: BUOD (Summary) - Matches PDF Page 1 & Page 4
+            TAB 1: BUOD (Matches the exact screenshot uploaded by user)
         ════════════════════════════════════════════════════════════════════ */}
         {activeTab === "BUOD" && (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {/* Top Greeting Row */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <p className="text-xs font-bold tracking-widest text-slate-500 uppercase">
-                  {formattedDate}
+                <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+                  LUNES, OKTUBRE 26
                 </p>
-                <h2 className="mt-1 text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="mt-0.5 text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                   Mabuhay, DA Field!
                 </h2>
               </div>
 
-              {/* Status Pill matching mockup: "✓ Wala nang nakabinbin · Lahat ng kaso ay na-aasikaso na" */}
-              {totalPending === 0 ? (
-                <div className="inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] border border-emerald-300 px-4 py-2 text-xs sm:text-sm font-semibold text-[#065F46] shadow-xs self-start sm:self-auto">
-                  <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
-                  <span>Wala nang nakabinbin &middot; Lahat ng kaso ay na-aasikaso na</span>
-                </div>
-              ) : (
-                <div className="inline-flex items-center gap-2 rounded-full bg-[#FFFBEB] border border-amber-300 px-4 py-2 text-xs sm:text-sm font-semibold text-[#92400E] shadow-xs self-start sm:self-auto">
-                  <Clock className="h-4 w-4 text-amber-600" />
-                  <span>
-                    May {totalPending} nakabinbin &middot; Nangangailangan ng aksyon
-                  </span>
-                </div>
-              )}
+              {/* Status Pill Badge: ✓ Wala nang nakabinbin · Lahat ng kaso ay na-aasikaso na */}
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#E8F8EE] border border-[#A5E7BA] px-4 py-1.5 text-xs sm:text-sm font-semibold text-[#137A3B] shadow-2xs self-start sm:self-auto">
+                <Check className="h-4 w-4 text-[#137A3B] stroke-[3]" />
+                <span>Wala nang nakabinbin &middot; Lahat ng kaso ay na-aasikaso na</span>
+              </div>
             </div>
 
-            {/* 3 KPI Metric Cards in 1 Row */}
+            {/* 3 Metric KPI Cards in 1 Row */}
             <section
-              aria-label="Buod ng Sakahan at Kaso"
-              className="grid grid-cols-3 gap-3 sm:gap-5"
+              aria-label="Mga Istatistika"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4"
             >
-              {/* Card 1: Rehistradong Sakahan */}
-              <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
-                <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                  <MapPin className="h-5 w-5 sm:h-6 sm:w-6" />
+              {/* Card 1: 1 Rehistradong Sakahan */}
+              <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#D1FAE5] text-[#059669]">
+                  <MapPin className="h-5 w-5" />
                 </div>
-                <div className="mt-4">
-                  <p className="text-2xl sm:text-4xl font-black text-emerald-700 leading-none">
+                <div>
+                  <p className="text-3xl font-black text-slate-900 leading-none">
                     {totalFarms !== null ? totalFarms : 1}
                   </p>
-                  <p className="mt-1 text-xs sm:text-sm font-medium text-slate-600">
+                  <p className="mt-1 text-xs text-slate-500 font-medium">
                     Rehistradong Sakahan
                   </p>
                 </div>
               </div>
 
-              {/* Card 2: Aktibong Taniman ng Mais */}
-              <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
-                <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-                  <Sprout className="h-5 w-5 sm:h-6 sm:w-6" />
+              {/* Card 2: 7 ha Aktibong Taniman ng Mais */}
+              <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#DBEAFE] text-[#2563EB]">
+                  <Sprout className="h-5 w-5" />
                 </div>
-                <div className="mt-4">
-                  <p className="text-2xl sm:text-4xl font-black text-blue-700 leading-none">
-                    {totalActiveHectares !== null ? formatHa(totalActiveHectares) : "7"}
-                    <span className="text-base sm:text-xl font-bold ml-1">ha</span>
+                <div>
+                  <p className="text-3xl font-black text-[#1D4ED8] leading-none">
+                    {totalActiveHectares !== null ? totalActiveHectares : 7}
+                    <span className="text-lg font-bold ml-1 text-[#1D4ED8]">ha</span>
                   </p>
-                  <p className="mt-1 text-xs sm:text-sm font-medium text-slate-600">
+                  <p className="mt-1 text-xs text-slate-500 font-medium">
                     Aktibong Taniman ng Mais
                   </p>
                 </div>
               </div>
 
-              {/* Card 3: Kabuuang Nakabinbin */}
-              <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
-                <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
-                  <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
+              {/* Card 3: 0 Kabuuang Nakabinbin */}
+              <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FEF3C7] text-[#D97706]">
+                  <Clock className="h-5 w-5" />
                 </div>
-                <div className="mt-4">
-                  <p className="text-2xl sm:text-4xl font-black text-amber-700 leading-none">
+                <div>
+                  <p className="text-3xl font-black text-slate-900 leading-none">
                     {totalPending}
                   </p>
-                  <p className="mt-1 text-xs sm:text-sm font-medium text-slate-600">
+                  <p className="mt-1 text-xs text-slate-500 font-medium">
                     Kabuuang Nakabinbin
                   </p>
                 </div>
               </div>
             </section>
 
-            {/* Middle Section: 2 Columns (Map on Left, Info + Maisy on Right) */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left Column: Mapa ng mga Barangay (7 cols) */}
-              <div className="lg:col-span-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                  <h3 className="text-lg sm:text-xl font-bold text-slate-900">
+            {/* Middle Section: 2 Columns */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* Left Column: Mapa ng mga Barangay (8 cols) */}
+              <div className="lg:col-span-8 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <h3 className="text-lg font-bold text-slate-900">
                     Mapa ng mga Barangay
                   </h3>
 
-                  {/* Segmented control: Taniman | Pinsala | Konsultasyon */}
-                  <div className="inline-flex rounded-xl bg-slate-100 p-1 self-start sm:self-auto">
+                  {/* Segmented Control [Taniman | Pinsala | Konsultasyon] */}
+                  <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-white self-start sm:self-auto">
                     {(["TANIMAN", "PINSALA", "KONSULTASYON"] as MapLayer[]).map((layer) => {
                       const isActive = mapLayer === layer;
                       const label =
@@ -811,9 +678,9 @@ export const TechnicianDashboardPage: React.FC = () => {
                           key={layer}
                           type="button"
                           onClick={() => setMapLayer(layer)}
-                          className={`px-3 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition cursor-pointer ${
+                          className={`px-3.5 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
                             isActive
-                              ? "bg-[#0B2545] text-white shadow-xs"
+                              ? "bg-[#0B2347] text-white shadow-2xs"
                               : "text-slate-600 hover:text-slate-900"
                           }`}
                         >
@@ -824,110 +691,150 @@ export const TechnicianDashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* SVG Polygon Map of Solana Barangays */}
-                <div className="relative w-full rounded-xl bg-[#F4F1EA] border border-stone-200 p-4 sm:p-6 overflow-hidden flex flex-col items-center justify-center min-h-[300px]">
+                {/* SVG Polygon Map matching the screenshot visual geometry */}
+                <div className="relative w-full rounded-xl bg-[#EDF3EC] border border-slate-200/80 p-3 sm:p-5 overflow-hidden flex flex-col items-center justify-center min-h-[320px]">
                   <svg
-                    viewBox="0 0 360 320"
-                    className="w-full h-auto max-h-[340px] drop-shadow-sm"
+                    viewBox="0 0 540 340"
+                    className="w-full h-auto max-h-[340px] drop-shadow-xs select-none"
                   >
-                    {/* Render barangay polygons */}
-                    {SOLANA_BARANGAYS.map((b) => {
-                      const isSelected =
-                        b.name.toLowerCase() === selectedBarangayName.toLowerCase();
-                      const isCentroNorte = b.name.includes("Centro Norte");
+                    {/* Surrounding background polygons (pale grayish green) */}
+                    {/* West Polygon */}
+                    <polygon
+                      points="60,80 160,50 250,170 150,250 70,210"
+                      fill="#DFE5DC"
+                      stroke="#CBD3C8"
+                      strokeWidth="1.5"
+                    />
+                    {/* South West Polygon */}
+                    <polygon
+                      points="150,250 250,170 230,310 130,300"
+                      fill="#DFE5DC"
+                      stroke="#CBD3C8"
+                      strokeWidth="1.5"
+                    />
+                    {/* South Center Polygon */}
+                    <polygon
+                      points="250,170 330,210 310,320 230,310"
+                      fill="#DFE5DC"
+                      stroke="#CBD3C8"
+                      strokeWidth="1.5"
+                    />
+                    {/* North East Polygon */}
+                    <polygon
+                      points="340,50 460,70 510,160 380,100"
+                      fill="#DFE5DC"
+                      stroke="#CBD3C8"
+                      strokeWidth="1.5"
+                    />
+                    {/* East Polygon */}
+                    <polygon
+                      points="380,100 510,160 450,240 330,210"
+                      fill="#DFE5DC"
+                      stroke="#CBD3C8"
+                      strokeWidth="1.5"
+                    />
+                    {/* South East Polygon */}
+                    <polygon
+                      points="330,210 450,240 430,310 310,320"
+                      fill="#DFE5DC"
+                      stroke="#CBD3C8"
+                      strokeWidth="1.5"
+                    />
 
-                      return (
-                        <g
-                          key={b.name}
-                          onClick={() => setSelectedBarangayName(b.name)}
-                          className="cursor-pointer transition hover:opacity-90 group"
-                        >
-                          <path
-                            d={b.d}
-                            fill={
-                              isSelected
-                                ? "#059669" // Vibrant emerald green for selected
-                                : isCentroNorte
-                                ? "#10B981"
-                                : "#EAE6DF" // Light stone/tan for unselected
-                            }
-                            stroke={isSelected ? "#047857" : "#CBD5E1"}
-                            strokeWidth={isSelected ? "2.5" : "1.5"}
-                            strokeLinejoin="round"
-                            className="transition-colors duration-200"
-                          />
+                    {/* ACTIVE SELECTED POLYGON: Centro Norte (Pob.) in Green */}
+                    <g
+                      onClick={() => setSelectedBarangayName("Centro Norte (Pob.)")}
+                      className="cursor-pointer"
+                    >
+                      {/* Dashed boundary frame around active parcel */}
+                      <rect
+                        x="185"
+                        y="42"
+                        width="165"
+                        height="148"
+                        fill="none"
+                        stroke="#FFFFFF"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 4"
+                        opacity="0.75"
+                        rx="8"
+                      />
 
-                          {/* Marker on Centro Norte */}
-                          {isCentroNorte && (
-                            <circle
-                              cx={b.center.x}
-                              cy={b.center.y}
-                              r={8}
-                              fill="#FBBF24"
-                              stroke="#0B2545"
-                              strokeWidth={3}
-                            />
-                          )}
+                      {/* Main green parcel */}
+                      <polygon
+                        points="160,50 340,50 380,100 330,210 250,170"
+                        fill="#26854C"
+                        stroke="#1E6B3C"
+                        strokeWidth="2.5"
+                      />
 
-                          {/* Barangay Label */}
-                          <text
-                            x={b.center.x}
-                            y={isCentroNorte ? b.center.y - 14 : b.center.y}
-                            textAnchor="middle"
-                            fill={isSelected ? "#FFFFFF" : "#64748B"}
-                            fontSize={isSelected ? "11" : "10"}
-                            fontWeight={isSelected ? "800" : "600"}
-                            className="pointer-events-none select-none"
-                          >
-                            {b.name}
-                          </text>
-                        </g>
-                      );
-                    })}
+                      {/* Yellow Circular Pin with dark border */}
+                      <circle
+                        cx="245"
+                        cy="130"
+                        r="8"
+                        fill="#FBBF24"
+                        stroke="#0B2347"
+                        strokeWidth="3.5"
+                      />
+
+                      {/* Text Label Centro Norte (Pob.) */}
+                      <text
+                        x="310"
+                        y="80"
+                        textAnchor="middle"
+                        fill="#FFFFFF"
+                        fontSize="12.5"
+                        fontWeight="700"
+                        className="pointer-events-none drop-shadow-xs"
+                      >
+                        Centro Norte (Pob.)
+                      </text>
+                    </g>
                   </svg>
 
-                  {/* Floating Action Banner at bottom of map */}
-                  <div className="mt-3 inline-flex items-center rounded-full bg-white/95 px-4 py-1.5 shadow-sm border border-stone-200 text-xs sm:text-sm font-medium text-slate-800 backdrop-blur-xs">
-                    Pindutin ang {selectedBarangayName} para makita ang sakahan
+                  {/* Floating Action Banner at bottom left of map */}
+                  <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 inline-flex items-center rounded-full bg-white/95 px-3.5 py-1 shadow-2xs border border-slate-200 text-xs font-medium text-slate-700 backdrop-blur-xs">
+                    Pindutin ang Centro Norte para makita ang sakahan
                   </div>
                 </div>
 
-                {/* Legend below map */}
-                <div className="mt-4 flex items-center gap-6 text-xs sm:text-sm text-slate-600">
+                {/* Legend */}
+                <div className="flex items-center gap-5 text-xs text-slate-600 pt-1">
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-[#059669]" />
+                    <span className="h-3 w-3 rounded-xs bg-[#26854C]" />
                     <span>May taniman</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-md bg-[#EAE6DF] border border-stone-300" />
+                    <span className="h-3 w-3 rounded-xs bg-[#DFE5DC] border border-slate-300" />
                     <span>Wala pang rehistro</span>
                   </div>
                 </div>
               </div>
 
-              {/* Right Column: NAPILI Card + Maisy Assistant (4 cols) */}
-              <div className="lg:col-span-4 space-y-5">
+              {/* Right Column: NAPILI Card + Maisy Box (4 cols) */}
+              <div className="lg:col-span-4 space-y-4">
                 {/* NAPILI Card */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs space-y-4">
                   <div>
-                    <p className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+                    <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
                       NAPILI
                     </p>
-                    <h4 className="mt-0.5 text-xl font-extrabold text-slate-900">
+                    <h4 className="mt-0.5 text-lg font-black text-slate-900">
                       {selectedBarangayData.name}
                     </h4>
                   </div>
 
                   {/* 2 Stats side-by-side: 1 sakahan | 7 ha taniman */}
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-[#F1F5F9] p-3">
                       <p className="text-2xl font-black text-slate-900 leading-tight">
                         {selectedBarangayData.farms}
                       </p>
                       <p className="text-xs font-medium text-slate-500">sakahan</p>
                     </div>
-                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
-                      <p className="text-2xl font-black text-blue-700 leading-tight">
+                    <div className="rounded-xl bg-[#F1F5F9] p-3">
+                      <p className="text-2xl font-black text-[#1D4ED8] leading-tight">
                         {selectedBarangayData.hectares} ha
                       </p>
                       <p className="text-xs font-medium text-slate-500">taniman</p>
@@ -939,36 +846,24 @@ export const TechnicianDashboardPage: React.FC = () => {
                     onClick={() => {
                       toast.info(`Ipinapakita ang sakahan sa ${selectedBarangayData.name}.`);
                     }}
-                    className="w-full rounded-xl border border-slate-300 bg-white hover:bg-slate-50 py-3 text-sm font-bold text-slate-800 shadow-xs transition active:scale-98 cursor-pointer"
+                    className="w-full rounded-xl border border-[#1E3A8A] text-[#1E3A8A] hover:bg-blue-50 py-2.5 text-xs sm:text-sm font-bold shadow-2xs transition active:scale-98 cursor-pointer"
                   >
                     Ipakita ang sakahan sa mapa
                   </button>
                 </div>
 
-                {/* Maisy Assistant Card — Keeping Maisy's real mascot design as requested! */}
-                <div className="flex w-full items-center gap-3.5 rounded-2xl bg-[#DBEAFE] p-4.5 shadow-xs border border-blue-200/60">
-                  <img
-                    src="/assets/mascot-maisy.png"
-                    alt="Maisy, ang iyong DA farming assistant"
-                    className="h-20 sm:h-22 w-auto shrink-0 object-contain drop-shadow-sm"
-                    style={{ imageRendering: "pixelated" }}
-                  />
-                  <div className="relative min-w-0 flex-1 rounded-2xl bg-white p-3.5 text-slate-900 shadow-xs">
-                    {/* Speech bubble tail */}
-                    <span
-                      aria-hidden="true"
-                      className="absolute -left-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-45 bg-white"
-                    />
-                    <div className="relative">
-                      <p className="text-sm font-extrabold leading-tight text-[#1D4ED8]">
-                        Maisy
-                      </p>
-                      <p className="mt-1 text-xs sm:text-sm font-medium leading-relaxed text-slate-800">
-                        {totalPending === 0
-                          ? "Magandang araw, DA Field! Walang nakabinbin ngayon. Tingnan ang yugto ng mga taniman sa ibaba."
-                          : `Magandang araw, DA Field! May ${totalPending} kasong nangangailangan ng iyong aksyon ngayon.`}
-                      </p>
-                    </div>
+                {/* Maisy Box — Preserving Maisy's friendly identity as requested! */}
+                <div className="rounded-2xl border border-[#FDE047] bg-[#FEFCE8] p-4 shadow-2xs flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FBBF24] text-xs font-black text-[#0B2347]">
+                    M
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-[#854D0E]">
+                      Maisy
+                    </p>
+                    <p className="mt-0.5 text-xs text-[#713F12] leading-relaxed">
+                      Magandang araw, DA Field! Walang nakabinbin ngayon. Tingnan ang yugto ng mga taniman sa ibaba.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -977,55 +872,55 @@ export const TechnicianDashboardPage: React.FC = () => {
             {/* Bottom Section: Panahon ng Mais (4 Stages Grid) */}
             <section
               aria-label="Panahon ng Mais"
-              className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4"
+              className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs space-y-4"
             >
               <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1">
-                <h3 className="text-xl font-bold text-slate-900">
+                <h3 className="text-lg font-bold text-slate-900">
                   Panahon ng Mais
                 </h3>
-                <p className="text-sm text-slate-500 font-medium">
+                <p className="text-xs text-slate-500 font-medium">
                   7 ha ang aktibo &middot; i-set ang yugto ng bawat taniman
                 </p>
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {/* 1 · PAGTATANIM */}
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold text-slate-500 tracking-wider">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                  <p className="text-[11px] font-bold text-slate-500 tracking-wider">
                     1 &middot; PAGTATANIM
                   </p>
-                  <p className="mt-2 text-2xl font-black text-slate-800">
-                    &mdash; <span className="text-sm font-semibold text-slate-500">ha</span>
+                  <p className="mt-1.5 text-2xl font-black text-slate-900">
+                    &mdash; <span className="text-xs font-semibold text-slate-500">ha</span>
                   </p>
                 </div>
 
-                {/* 2 · PAGLAGO (Soft Green highlight matching mockup) */}
-                <div className="rounded-xl border border-emerald-300 bg-[#ECFDF5] p-4">
-                  <p className="text-xs font-bold text-emerald-800 tracking-wider">
+                {/* 2 · PAGLAGO (Soft Green highlight) */}
+                <div className="rounded-xl border border-emerald-300 bg-[#DCFCE7] p-3.5">
+                  <p className="text-[11px] font-bold text-[#15803D] tracking-wider">
                     2 &middot; PAGLAGO
                   </p>
-                  <p className="mt-2 text-2xl font-black text-emerald-900">
-                    &mdash; <span className="text-sm font-semibold text-emerald-700">ha</span>
+                  <p className="mt-1.5 text-2xl font-black text-[#15803D]">
+                    &mdash; <span className="text-xs font-semibold text-[#15803D]">ha</span>
                   </p>
                 </div>
 
-                {/* 3 · PAGBUBUNGA (Soft Orange highlight matching mockup) */}
-                <div className="rounded-xl border border-amber-300 bg-[#FFFBEB] p-4">
-                  <p className="text-xs font-bold text-amber-800 tracking-wider">
+                {/* 3 · PAGBUBUNGA (Soft Orange highlight) */}
+                <div className="rounded-xl border border-amber-300 bg-[#FEF3C7] p-3.5">
+                  <p className="text-[11px] font-bold text-[#B45309] tracking-wider">
                     3 &middot; PAGBUBUNGA
                   </p>
-                  <p className="mt-2 text-2xl font-black text-amber-900">
-                    &mdash; <span className="text-sm font-semibold text-amber-700">ha</span>
+                  <p className="mt-1.5 text-2xl font-black text-[#B45309]">
+                    &mdash; <span className="text-xs font-semibold text-[#B45309]">ha</span>
                   </p>
                 </div>
 
-                {/* 4 · PAG-ANI (Soft Yellow highlight matching mockup) */}
-                <div className="rounded-xl border border-yellow-300 bg-[#FEFCE8] p-4">
-                  <p className="text-xs font-bold text-yellow-800 tracking-wider">
+                {/* 4 · PAG-ANI (Soft Yellow highlight) */}
+                <div className="rounded-xl border border-yellow-300 bg-[#FEF9C3] p-3.5">
+                  <p className="text-[11px] font-bold text-[#A16207] tracking-wider">
                     4 &middot; PAG-ANI
                   </p>
-                  <p className="mt-2 text-2xl font-black text-yellow-900">
-                    &mdash; <span className="text-sm font-semibold text-yellow-700">ha</span>
+                  <p className="mt-1.5 text-2xl font-black text-[#A16207]">
+                    &mdash; <span className="text-xs font-semibold text-[#A16207]">ha</span>
                   </p>
                 </div>
               </div>
@@ -1034,26 +929,25 @@ export const TechnicianDashboardPage: React.FC = () => {
         )}
 
         {/* ════════════════════════════════════════════════════════════════════
-            TAB 2: PINSALA (Damage Claims) - Matches PDF Page 2 & Page 5
+            TAB 2: PINSALA (Damage Claims)
         ════════════════════════════════════════════════════════════════════ */}
         {activeTab === "PINSALA" && (
           <div className="space-y-5">
-            {/* Header + Action Button */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">
                 Mga Kaso ng Pinsala
               </h2>
               <button
                 type="button"
                 onClick={() => setIsAddDamageOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-5 py-2.5 text-sm sm:text-base font-bold text-white shadow-xs transition active:scale-95 cursor-pointer self-start sm:self-auto"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-5 py-2 text-sm font-bold text-white shadow-2xs transition active:scale-95 cursor-pointer self-start sm:self-auto"
               >
-                <Plus className="h-5 w-5" />
+                <Plus className="h-4 w-4" />
                 <span>Magdagdag ng Kaso</span>
               </button>
             </div>
 
-            {/* Filter Pills matching PDF: [Lahat] [Bago] [Sinusuri] [Na-verify] [Aprubado] */}
+            {/* Filter Pills */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
               {(
                 [
@@ -1070,9 +964,9 @@ export const TechnicianDashboardPage: React.FC = () => {
                     key={f.key}
                     type="button"
                     onClick={() => setDamageFilter(f.key)}
-                    className={`rounded-full px-5 py-2 text-sm font-bold transition shrink-0 cursor-pointer ${
+                    className={`rounded-full px-5 py-1.5 text-xs sm:text-sm font-bold transition shrink-0 cursor-pointer ${
                       isActive
-                        ? "bg-[#0B2545] text-white shadow-xs"
+                        ? "bg-[#0B2347] text-white shadow-2xs"
                         : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
                     }`}
                   >
@@ -1082,21 +976,20 @@ export const TechnicianDashboardPage: React.FC = () => {
               })}
             </div>
 
-            {/* Desktop 2-Column Layout / Mobile Stacked Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left Column: Table of Cases (7 cols on desktop) */}
-              <div className="lg:col-span-8 rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs">
-                {/* Desktop Table View */}
+            {/* Desktop Table / Right Detail Pane */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* Left Column Table (8 cols) */}
+              <div className="lg:col-span-8 rounded-2xl border border-slate-200/90 bg-white overflow-hidden shadow-2xs">
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-sm text-slate-700">
-                    <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                    <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
                       <tr>
-                        <th className="px-5 py-3.5">Kaso</th>
-                        <th className="px-5 py-3.5">Magsasaka</th>
-                        <th className="px-5 py-3.5">Barangay</th>
-                        <th className="px-5 py-3.5">Pinsala</th>
-                        <th className="px-5 py-3.5">HA</th>
-                        <th className="px-5 py-3.5">Katayuan</th>
+                        <th className="px-5 py-3">Kaso</th>
+                        <th className="px-5 py-3">Magsasaka</th>
+                        <th className="px-5 py-3">Barangay</th>
+                        <th className="px-5 py-3">Pinsala</th>
+                        <th className="px-5 py-3">HA</th>
+                        <th className="px-5 py-3">Katayuan</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1107,27 +1000,27 @@ export const TechnicianDashboardPage: React.FC = () => {
                             key={item.id}
                             onClick={() => setSelectedDisasterItem(item)}
                             className={`cursor-pointer transition hover:bg-slate-50 ${
-                              isSelected ? "bg-blue-50/60 font-semibold" : ""
+                              isSelected ? "bg-blue-50/70 font-semibold" : ""
                             }`}
                           >
-                            <td className="px-5 py-4 font-bold text-slate-900">
+                            <td className="px-5 py-3.5 font-bold text-slate-900">
                               {item.code}
                             </td>
-                            <td className="px-5 py-4 text-slate-800">
+                            <td className="px-5 py-3.5 text-slate-800">
                               {item.farmerName}
                             </td>
-                            <td className="px-5 py-4 text-slate-600">
+                            <td className="px-5 py-3.5 text-slate-600">
                               {item.barangay}
                             </td>
-                            <td className="px-5 py-4 text-slate-800 font-medium">
+                            <td className="px-5 py-3.5 text-slate-800 font-medium">
                               {item.disasterType}
                             </td>
-                            <td className="px-5 py-4 text-slate-600">
+                            <td className="px-5 py-3.5 text-slate-600">
                               {item.hectares} ha
                             </td>
-                            <td className="px-5 py-4">
+                            <td className="px-5 py-3.5">
                               <span
-                                className={`inline-flex rounded-full px-3 py-0.5 text-xs font-bold ${
+                                className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${
                                   item.status === "Bago"
                                     ? "bg-blue-100 text-blue-800"
                                     : item.status === "Sinusuri"
@@ -1155,16 +1048,16 @@ export const TechnicianDashboardPage: React.FC = () => {
                       <div
                         key={item.id}
                         onClick={() => setSelectedDisasterItem(item)}
-                        className={`p-4 rounded-xl cursor-pointer transition ${
+                        className={`p-3.5 rounded-xl cursor-pointer transition ${
                           isSelected ? "bg-blue-50/80 border border-blue-200" : "hover:bg-slate-50"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="font-bold text-slate-900 text-base">
+                          <p className="font-bold text-slate-900 text-sm">
                             {item.code} &middot; {item.farmerName}
                           </p>
                           <span
-                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold shrink-0 ${
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold shrink-0 ${
                               item.status === "Bago"
                                 ? "bg-blue-100 text-blue-800"
                                 : item.status === "Sinusuri"
@@ -1187,21 +1080,21 @@ export const TechnicianDashboardPage: React.FC = () => {
               </div>
 
               {/* Right Column: Selected Case Details + Stepper (4 cols) */}
-              <div className="lg:col-span-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-6">
+              <div className="lg:col-span-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs space-y-5">
                 <div>
-                  <p className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+                  <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
                     NAPILING KASO
                   </p>
-                  <h3 className="mt-1 text-xl font-extrabold text-slate-900">
+                  <h3 className="mt-1 text-lg font-black text-slate-900">
                     {selectedDisasterItem.code} &middot; {selectedDisasterItem.disasterType}
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                  <p className="text-xs text-slate-500 font-medium">
                     {selectedDisasterItem.farmerName} &middot; {selectedDisasterItem.barangay}
                   </p>
                 </div>
 
-                {/* 4-Step Vertical Stepper matching PDF Page 2 */}
-                <div className="space-y-4 py-2">
+                {/* 4-Step Vertical Stepper */}
+                <div className="space-y-3.5 py-1">
                   {[
                     { step: 1, label: "Naisumite" },
                     { step: 2, label: "Sinusuri" },
@@ -1222,9 +1115,9 @@ export const TechnicianDashboardPage: React.FC = () => {
                     const isCurrent = step === statusStep;
 
                     return (
-                      <div key={step} className="flex items-center gap-3.5">
+                      <div key={step} className="flex items-center gap-3">
                         <div
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold transition ${
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition ${
                             isDone
                               ? "bg-emerald-600 text-white"
                               : isCurrent
@@ -1232,12 +1125,12 @@ export const TechnicianDashboardPage: React.FC = () => {
                               : "border-2 border-slate-300 text-slate-400 bg-white"
                           }`}
                         >
-                          {isDone ? <Check className="h-4 w-4 stroke-[3]" /> : step}
+                          {isDone ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : step}
                         </div>
                         <span
-                          className={`text-sm font-bold ${
+                          className={`text-xs sm:text-sm font-bold ${
                             isCurrent
-                              ? "text-slate-900 font-extrabold"
+                              ? "text-slate-900 font-black"
                               : isDone
                               ? "text-slate-800"
                               : "text-slate-400"
@@ -1250,20 +1143,12 @@ export const TechnicianDashboardPage: React.FC = () => {
                   })}
                 </div>
 
-                {/* Case Notes / Summary */}
-                {selectedDisasterItem.notes && (
-                  <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100 text-xs sm:text-sm text-slate-700 leading-relaxed">
-                    <p className="font-bold text-slate-900 mb-1">Tala sa Sakahan:</p>
-                    {selectedDisasterItem.notes}
-                  </div>
-                )}
-
-                {/* Action Buttons: I-verify sa Bukid & Humingi ng Dokumento */}
-                <div className="space-y-3 pt-2">
+                {/* Action Buttons */}
+                <div className="space-y-2.5 pt-1">
                   <button
                     type="button"
                     onClick={() => handleVerifyField(selectedDisasterItem.id)}
-                    className="w-full rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-sm sm:text-base font-bold text-white shadow-xs transition active:scale-98 cursor-pointer"
+                    className="w-full rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-sm font-bold text-white shadow-2xs transition active:scale-98 cursor-pointer"
                   >
                     I-verify sa Bukid
                   </button>
@@ -1271,7 +1156,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleRequestDoc(selectedDisasterItem.id)}
-                    className="w-full rounded-xl border border-slate-800 bg-white hover:bg-slate-50 py-3 text-sm sm:text-base font-bold text-slate-800 shadow-xs transition active:scale-98 cursor-pointer"
+                    className="w-full rounded-xl border border-slate-800 bg-white hover:bg-slate-50 py-3 text-sm font-bold text-slate-800 shadow-2xs transition active:scale-98 cursor-pointer"
                   >
                     Humingi ng Dokumento
                   </button>
@@ -1282,26 +1167,25 @@ export const TechnicianDashboardPage: React.FC = () => {
         )}
 
         {/* ════════════════════════════════════════════════════════════════════
-            TAB 3: KONSULTASYON (Consultations) - Matches PDF Page 3 & Page 6
+            TAB 3: KONSULTASYON
         ════════════════════════════════════════════════════════════════════ */}
         {activeTab === "KONSULTASYON" && (
           <div className="space-y-5">
-            {/* Header + Action Button */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">
                 Mga Konsultasyon
               </h2>
               <button
                 type="button"
                 onClick={() => setIsAddConsultOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-5 py-2.5 text-sm sm:text-base font-bold text-white shadow-xs transition active:scale-95 cursor-pointer self-start sm:self-auto"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-5 py-2 text-sm font-bold text-white shadow-2xs transition active:scale-95 cursor-pointer self-start sm:self-auto"
               >
-                <Plus className="h-5 w-5" />
+                <Plus className="h-4 w-4" />
                 <span>Bagong Tala</span>
               </button>
             </div>
 
-            {/* Filter Pills matching PDF: [Bago] [Sinagot] [Lahat] */}
+            {/* Filter Pills */}
             <div className="flex items-center gap-2">
               {(
                 [
@@ -1316,9 +1200,9 @@ export const TechnicianDashboardPage: React.FC = () => {
                     key={f.key}
                     type="button"
                     onClick={() => setConsultFilter(f.key)}
-                    className={`rounded-full px-5 py-2 text-sm font-bold transition cursor-pointer ${
+                    className={`rounded-full px-5 py-1.5 text-xs sm:text-sm font-bold transition cursor-pointer ${
                       isActive
-                        ? "bg-[#0B2545] text-white shadow-xs"
+                        ? "bg-[#0B2347] text-white shadow-2xs"
                         : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
                     }`}
                   >
@@ -1328,9 +1212,9 @@ export const TechnicianDashboardPage: React.FC = () => {
               })}
             </div>
 
-            {/* Desktop 2-Column Chat Layout / Mobile List & Chat */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left Column: Consultation Cards List (5 cols) */}
+            {/* 2-Column Chat Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* Left Column (5 cols) */}
               <div className="lg:col-span-5 space-y-3">
                 {filteredConsultList.map((c) => {
                   const isSelected = selectedConsultItem.id === c.id;
@@ -1338,14 +1222,14 @@ export const TechnicianDashboardPage: React.FC = () => {
                     <div
                       key={c.id}
                       onClick={() => setSelectedConsultItem(c)}
-                      className={`p-4 rounded-2xl border transition cursor-pointer shadow-xs ${
+                      className={`p-4 rounded-2xl border transition cursor-pointer shadow-2xs ${
                         isSelected
                           ? "bg-white border-blue-500 ring-2 ring-blue-500/20"
                           : "bg-white border-slate-200 hover:border-slate-300"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <p className="font-extrabold text-slate-900 text-base">
+                        <p className="font-extrabold text-slate-900 text-sm sm:text-base">
                           {c.farmerName}
                         </p>
                         <span
@@ -1358,49 +1242,44 @@ export const TechnicianDashboardPage: React.FC = () => {
                           {c.status}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm font-medium text-slate-600 line-clamp-1">
+                      <p className="mt-1 text-xs sm:text-sm font-medium text-slate-600 line-clamp-1">
                         {c.topic}
-                      </p>
-                      <p className="mt-2 text-xs text-slate-400 font-medium">
-                        {c.date}
                       </p>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Right Column: Active Conversation Pane (7 cols) */}
-              <div className="lg:col-span-7 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col justify-between min-h-[460px] space-y-5">
+              {/* Right Column: Chat View (7 cols) */}
+              <div className="lg:col-span-7 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs flex flex-col justify-between min-h-[460px] space-y-4">
                 <div>
-                  {/* Chat Header: Topic | Barangay */}
                   <div className="flex items-baseline justify-between border-b border-slate-100 pb-3 mb-4">
-                    <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">
+                    <h3 className="text-base sm:text-lg font-black text-slate-900">
                       {selectedConsultItem.topic}
                     </h3>
-                    <span className="text-xs sm:text-sm text-slate-500 font-medium">
+                    <span className="text-xs text-slate-500 font-medium">
                       {selectedConsultItem.barangay}
                     </span>
                   </div>
 
-                  {/* Message Bubbles */}
                   <div className="space-y-4">
-                    {/* Farmer Inquiry Bubble (Left, gray) */}
+                    {/* Farmer message */}
                     <div className="flex flex-col items-start max-w-[85%]">
                       <span className="text-xs font-bold text-slate-400 mb-1">
-                        {selectedConsultItem.farmerName}
+                        Magsasaka
                       </span>
-                      <div className="rounded-2xl rounded-tl-xs bg-slate-100 p-4 text-sm sm:text-base text-slate-800 leading-relaxed">
+                      <div className="rounded-2xl rounded-tl-xs bg-slate-100 p-3.5 text-xs sm:text-sm text-slate-800 leading-relaxed">
                         {selectedConsultItem.question}
                       </div>
                     </div>
 
-                    {/* Technician Answer Bubble (Right, navy) */}
+                    {/* Technician reply */}
                     {selectedConsultItem.answer && (
                       <div className="flex flex-col items-end max-w-[85%] ml-auto">
                         <span className="text-xs font-bold text-slate-400 mb-1">
-                          Ikaw (Technician)
+                          Ikaw
                         </span>
-                        <div className="rounded-2xl rounded-tr-xs bg-[#0B2545] p-4 text-sm sm:text-base text-white leading-relaxed">
+                        <div className="rounded-2xl rounded-tr-xs bg-[#0B2347] p-3.5 text-xs sm:text-sm text-white leading-relaxed">
                           {selectedConsultItem.answer}
                         </div>
                       </div>
@@ -1408,21 +1287,18 @@ export const TechnicianDashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Maisy AI Recommendation Box & Reply Input */}
-                <div className="space-y-3 pt-4 border-t border-slate-100">
-                  {/* Mungkahi ni Maisy Card — Preserving real Maisy mascot design as requested! */}
-                  <div className="rounded-2xl border border-amber-300 bg-[#FFFBEB] p-4 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <img
-                        src="/assets/mascot-maisy.png"
-                        alt="Maisy mascot"
-                        className="h-10 w-auto shrink-0 object-contain drop-shadow-xs"
-                      />
+                {/* Maisy AI Box & Input */}
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <div className="rounded-2xl border border-amber-300 bg-[#FFFBEB] p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FBBF24] text-xs font-black text-[#0B2347]">
+                        M
+                      </div>
                       <div>
-                        <p className="text-xs sm:text-sm font-extrabold text-amber-900">
+                        <p className="text-xs font-bold text-amber-900">
                           Mungkahi ni Maisy
                         </p>
-                        <p className="mt-0.5 text-xs sm:text-sm text-amber-800 leading-snug">
+                        <p className="text-xs text-amber-800 leading-snug">
                           {selectedConsultItem.suggestedAnswer}
                         </p>
                       </div>
@@ -1431,14 +1307,13 @@ export const TechnicianDashboardPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setChatReplyInput(selectedConsultItem.suggestedAnswer)}
-                      className="rounded-xl border border-amber-400 bg-white hover:bg-amber-50 px-4 py-2 text-xs sm:text-sm font-bold text-amber-900 shadow-xs transition active:scale-95 shrink-0 self-start sm:self-auto cursor-pointer"
+                      className="rounded-xl border border-amber-400 bg-white hover:bg-amber-50 px-3.5 py-1.5 text-xs font-bold text-amber-900 shadow-2xs transition active:scale-95 shrink-0 self-start sm:self-auto cursor-pointer"
                     >
                       Gamitin
                     </button>
                   </div>
 
-                  {/* Input Box + Ipadala Button */}
-                  <div className="flex items-center gap-2 pt-1">
+                  <div className="flex items-center gap-2">
                     <input
                       type="text"
                       value={chatReplyInput}
@@ -1447,15 +1322,15 @@ export const TechnicianDashboardPage: React.FC = () => {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleSendReply();
                       }}
-                      className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                      className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                     />
                     <button
                       type="button"
                       onClick={handleSendReply}
-                      className="inline-flex items-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-6 py-3 text-sm sm:text-base font-bold text-white shadow-xs transition active:scale-95 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-2xs transition active:scale-95 cursor-pointer"
                     >
                       <span>Ipadala</span>
-                      <Send className="h-4 w-4" />
+                      <Send className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
@@ -1465,34 +1340,29 @@ export const TechnicianDashboardPage: React.FC = () => {
         )}
 
         {/* ════════════════════════════════════════════════════════════════════
-            TAB 4: ULAT (Reports Export)
+            TAB 4: ULAT
         ════════════════════════════════════════════════════════════════════ */}
         {activeTab === "ULAT" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Download Export Panel (6 cols) */}
-            <div className="lg:col-span-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-5">
-              <div className="flex items-center gap-2.5">
-                <FileSpreadsheet className="h-6 w-6 text-slate-600" />
-                <h3 className="text-xl font-bold text-slate-900">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            <div className="lg:col-span-6 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-2xs space-y-4">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 text-slate-600" />
+                <h3 className="text-lg font-bold text-slate-900">
                   I-download ang Ulat
                 </h3>
               </div>
-              <p className="text-sm text-slate-500">
+              <p className="text-xs sm:text-sm text-slate-500">
                 Pumili ng uri ng ulat para sa disaster claims o buod ng mga sakahan ng Cagayan Valley.
               </p>
 
-              <div className="space-y-2">
-                <label
-                  htmlFor="report-type"
-                  className="block text-sm font-semibold text-slate-700"
-                >
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
                   Uri ng Ulat
                 </label>
                 <select
-                  id="report-type"
                   value={exportType}
                   onChange={(e) => setExportType(e.target.value as ExportType)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-600"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-600"
                 >
                   <option value="disaster-claims">Disaster Claims (Pinsala sa Taniman)</option>
                   <option value="barangay-summary">Buod ng mga Sakahan sa Barangay</option>
@@ -1504,12 +1374,12 @@ export const TechnicianDashboardPage: React.FC = () => {
                   type="button"
                   onClick={() => handleExport("xlsx")}
                   disabled={exporting}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3.5 text-sm sm:text-base font-bold text-white shadow-xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-xs sm:text-sm font-bold text-white shadow-2xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
                 >
                   {exporting && exportFormat === "xlsx" ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Download className="h-5 w-5" />
+                    <Download className="h-4 w-4" />
                   )}
                   Excel (.xlsx)
                 </button>
@@ -1518,23 +1388,22 @@ export const TechnicianDashboardPage: React.FC = () => {
                   type="button"
                   onClick={() => handleExport("csv")}
                   disabled={exporting}
-                  className="flex items-center justify-center gap-2 rounded-xl border-2 border-[#065F46] hover:bg-emerald-50 py-3.5 text-sm sm:text-base font-bold text-[#065F46] shadow-xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-[#065F46] hover:bg-emerald-50 py-3 text-xs sm:text-sm font-bold text-[#065F46] shadow-2xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
                 >
                   {exporting && exportFormat === "csv" ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Download className="h-5 w-5" />
+                    <Download className="h-4 w-4" />
                   )}
                   CSV
                 </button>
               </div>
             </div>
 
-            {/* Barangay Distribution Summary (6 cols) */}
-            <div className="lg:col-span-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
-              <div className="flex items-center gap-2.5">
-                <BarChart3 className="h-6 w-6 text-slate-600" />
-                <h3 className="text-xl font-bold text-slate-900">
+            <div className="lg:col-span-6 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-2xs space-y-4">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-slate-600" />
+                <h3 className="text-lg font-bold text-slate-900">
                   Distribusyon ng Sakahan sa Solana
                 </h3>
               </div>
@@ -1543,14 +1412,14 @@ export const TechnicianDashboardPage: React.FC = () => {
                 <LoadingState label="Kinukuha ang tala ng mga barangay..." />
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {SOLANA_BARANGAYS.map((b) => (
+                  {barangays.map((b) => (
                     <li
-                      key={b.name}
-                      className="py-3 flex items-center justify-between text-sm"
+                      key={b.barangay}
+                      className="py-2.5 flex items-center justify-between text-xs sm:text-sm"
                     >
-                      <span className="font-bold text-slate-800">{b.name}</span>
+                      <span className="font-bold text-slate-800">{b.barangay}</span>
                       <span className="text-slate-500 font-medium">
-                        {b.farmsCount} sakahan &middot; {b.hectares} ha
+                        {b.farmCount} sakahan &middot; {b.totalHectares} ha
                       </span>
                     </li>
                   ))}
@@ -1564,7 +1433,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       {/* ── MOBILE BOTTOM NAVIGATION (Pages 4, 5, 6) ────────────────────────── */}
       <nav
         aria-label="Mobile Navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-md"
       >
         <div className="grid grid-cols-4 h-16">
           {(
@@ -1593,11 +1462,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => setActiveTab(t.key)}
                 className={`relative flex flex-col items-center justify-center gap-1 transition ${
-                  isActive ? "text-[#0B2545]" : "text-slate-500"
+                  isActive ? "text-[#0B2347]" : "text-slate-500"
                 }`}
               >
                 {isActive && (
-                  <span className="absolute top-0 inset-x-4 h-1 rounded-b-full bg-[#0B2545]" />
+                  <span className="absolute top-0 inset-x-4 h-1 rounded-b-full bg-[#0B2347]" />
                 )}
                 <div className="relative">
                   <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
@@ -1619,7 +1488,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       {/* ── MODAL: MAGDAGDAG NG KASO NG PINSALA ─────────────────────────────── */}
       {isAddDamageOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4"
           role="dialog"
           aria-modal="true"
         >
@@ -1631,13 +1500,13 @@ export const TechnicianDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsAddDamageOpen(false)}
-                className="h-9 w-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition"
+                className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition cursor-pointer"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddDamageSubmit} className="space-y-4">
+            <form onSubmit={handleAddDamageSubmit} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   Pangalan ng Magsasaka
@@ -1650,7 +1519,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     setNewDamageForm({ ...newDamageForm, farmerName: e.target.value })
                   }
                   placeholder="Hal. Juan Dela Cruz"
-                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                 />
               </div>
 
@@ -1659,19 +1528,14 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                     Barangay
                   </label>
-                  <select
+                  <input
+                    type="text"
                     value={newDamageForm.barangay}
                     onChange={(e) =>
                       setNewDamageForm({ ...newDamageForm, barangay: e.target.value })
                     }
-                    className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
-                  >
-                    {SOLANA_BARANGAYS.map((b) => (
-                      <option key={b.name} value={b.name}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  />
                 </div>
 
                 <div>
@@ -1686,13 +1550,12 @@ export const TechnicianDashboardPage: React.FC = () => {
                         disasterType: e.target.value,
                       })
                     }
-                    className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                   >
                     <option value="Bagyo (Typhoon)">Bagyo (Typhoon)</option>
                     <option value="Baha (Flash Flood)">Baha (Flash Flood)</option>
                     <option value="Fall Armyworm">Fall Armyworm</option>
                     <option value="Tagtuyot (Drought)">Tagtuyot (Drought)</option>
-                    <option value="Corn Borer">Corn Borer</option>
                   </select>
                 </div>
               </div>
@@ -1710,7 +1573,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     setNewDamageForm({ ...newDamageForm, hectares: e.target.value })
                   }
                   placeholder="Hal. 2.5"
-                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                 />
               </div>
 
@@ -1725,7 +1588,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     setNewDamageForm({ ...newDamageForm, notes: e.target.value })
                   }
                   placeholder="Deskripsyon ng pinsala sa mais..."
-                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                 />
               </div>
 
@@ -1733,13 +1596,13 @@ export const TechnicianDashboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddDamageOpen(false)}
-                  className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                  className="flex-1 rounded-xl border border-slate-300 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                 >
                   Kanselahin
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-sm font-bold text-white transition cursor-pointer"
+                  className="flex-1 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-2.5 text-xs sm:text-sm font-bold text-white transition cursor-pointer"
                 >
                   I-save ang Kaso
                 </button>
@@ -1752,7 +1615,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       {/* ── MODAL: BAGONG TALA NG KONSULTASYON ──────────────────────────────── */}
       {isAddConsultOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4"
           role="dialog"
           aria-modal="true"
         >
@@ -1764,13 +1627,13 @@ export const TechnicianDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsAddConsultOpen(false)}
-                className="h-9 w-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition"
+                className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition cursor-pointer"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddConsultSubmit} className="space-y-4">
+            <form onSubmit={handleAddConsultSubmit} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   Pangalan ng Magsasaka
@@ -1786,30 +1649,8 @@ export const TechnicianDashboardPage: React.FC = () => {
                     })
                   }
                   placeholder="Hal. Pedro Santos"
-                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Barangay
-                </label>
-                <select
-                  value={newConsultForm.barangay}
-                  onChange={(e) =>
-                    setNewConsultForm({
-                      ...newConsultForm,
-                      barangay: e.target.value,
-                    })
-                  }
-                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
-                >
-                  {SOLANA_BARANGAYS.map((b) => (
-                    <option key={b.name} value={b.name}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div>
@@ -1824,7 +1665,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     setNewConsultForm({ ...newConsultForm, topic: e.target.value })
                   }
                   placeholder="Hal. Tamang timpla ng pestisidyo"
-                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                 />
               </div>
 
@@ -1841,8 +1682,8 @@ export const TechnicianDashboardPage: React.FC = () => {
                       question: e.target.value,
                     })
                   }
-                  placeholder="Ilagay ang katanungan o obserbasyon ng magsasaka..."
-                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  placeholder="Ilagay ang katanungan ng magsasaka..."
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                 />
               </div>
 
@@ -1850,13 +1691,13 @@ export const TechnicianDashboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddConsultOpen(false)}
-                  className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                  className="flex-1 rounded-xl border border-slate-300 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                 >
                   Kanselahin
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-sm font-bold text-white transition cursor-pointer"
+                  className="flex-1 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-2.5 text-xs sm:text-sm font-bold text-white transition cursor-pointer"
                 >
                   I-tala ang Konsultasyon
                 </button>
@@ -1866,7 +1707,7 @@ export const TechnicianDashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── ACCOUNT DRAWER / SHEET ─────────────────────────────────────────── */}
+      {/* ── ACCOUNT SHEET ──────────────────────────────────────────────────── */}
       <AccountSheet
         isOpen={isAccountOpen}
         onClose={() => setIsAccountOpen(false)}
@@ -1877,10 +1718,10 @@ export const TechnicianDashboardPage: React.FC = () => {
         triggerRef={activeTriggerRef}
       />
 
-      {/* ── LOGOUT CONFIRMATION MODAL ──────────────────────────────────────── */}
+      {/* ── LOGOUT MODAL ───────────────────────────────────────────────────── */}
       {confirmLogout && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4"
           role="dialog"
           aria-modal="true"
         >
@@ -1888,14 +1729,14 @@ export const TechnicianDashboardPage: React.FC = () => {
             <h3 className="text-xl font-bold text-slate-900">
               Sigurado ka bang nais mong mag-logout?
             </h3>
-            <p className="text-sm text-slate-500">
+            <p className="text-xs sm:text-sm text-slate-500">
               Kakailanganin mong mag-login muli gamit ang iyong municipal account.
             </p>
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setConfirmLogout(false)}
-                className="rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
+                className="rounded-xl border border-slate-300 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
               >
                 Bumalik
               </button>
@@ -1903,7 +1744,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 type="button"
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="rounded-xl bg-red-600 hover:bg-red-700 py-3 text-sm font-bold text-white transition disabled:opacity-60 flex items-center justify-center gap-1.5"
+                className="rounded-xl bg-red-600 hover:bg-red-700 py-2.5 text-xs sm:text-sm font-bold text-white transition disabled:opacity-60 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 {loggingOut ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
