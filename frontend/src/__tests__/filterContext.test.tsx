@@ -195,9 +195,11 @@ describe("useFilter — inside GlobalFilterProvider", () => {
       .toISOString()
       .slice(0, 10);
 
-    // Allow ±1 day tolerance for timezone differences
-    expect(received!.apiTo!).toBe(today);
-    expect(received!.apiFrom! <= today).toBe(true);
+    // Allow ±1 day tolerance for timezone differences between UTC and local time
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    expect([yesterday, today, tomorrow]).toContain(received!.apiTo!);
+    expect(received!.apiFrom! <= (received!.apiTo!)).toBe(true);
     expect(received!.apiFrom! >= thirtyDaysAgo).toBe(true);
   });
 });
