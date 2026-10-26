@@ -25,6 +25,7 @@ import MyFarmsPage from "../pages/farmer/MyFarmsPage";
 import AddFarmPage from "../pages/farmer/AddFarmPage";
 import FarmDetailsPage from "../pages/farmer/FarmDetailsPage";
 import OfficerDashboardPage from "../pages/officer/OfficerDashboardPage";
+import TechnicianDashboardPage from "../pages/technician/TechnicianDashboardPage";
 
 /**
  * PWA launches always begin at the manifest's `start_url` (`/`). Resolve that
@@ -39,7 +40,13 @@ const SessionHomeRedirect: React.FC = () => {
   if (!profile || !role) return <Navigate to="/onboarding" replace />;
   return (
     <Navigate
-      to={isMunicipalRole(role) ? "/officer/dashboard" : "/farmer"}
+      to={
+        role === "TECHNICIAN"
+          ? "/technician"
+          : isMunicipalRole(role)
+          ? "/officer/dashboard"
+          : "/farmer"
+      }
       replace
     />
   );
@@ -60,7 +67,13 @@ const RootRedirect: React.FC = () => {
   if (user && profile && role) {
     return (
       <Navigate
-        to={isMunicipalRole(role) ? "/officer/dashboard" : "/farmer"}
+        to={
+          role === "TECHNICIAN"
+            ? "/technician"
+            : isMunicipalRole(role)
+            ? "/officer/dashboard"
+            : "/farmer"
+        }
         replace
       />
     );
@@ -118,19 +131,19 @@ const farmerRoutes = (
 // ---------------------------------------------------------------------------
 const municipalRoutes = (
   <>
+    <Route path="/technician" element={<TechnicianDashboardPage />} />
+    <Route
+      path="/technician/dashboard"
+      element={<Navigate to="/technician" replace />}
+    />
     <Route path="/officer/dashboard" element={<OfficerDashboardPage />} />
-    {/* Legacy municipal URLs now resolve to the single officer dashboard. */}
+    {/* Legacy municipal URLs */}
     <Route
       path="/officer/cases"
       element={<Navigate to="/officer/dashboard" replace />}
     />
     <Route
       path="/officer/exports"
-      element={<Navigate to="/officer/dashboard" replace />}
-    />
-    {/* Backwards-compatible alias for the previous /technician entry point. */}
-    <Route
-      path="/technician"
       element={<Navigate to="/officer/dashboard" replace />}
     />
   </>

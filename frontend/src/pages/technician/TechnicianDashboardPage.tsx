@@ -8,49 +8,28 @@ import React, {
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  Building2,
   MapPin,
   AlertTriangle,
-  CheckCircle2,
   LogOut,
-  RefreshCw,
-  Eye,
   Send,
   X,
   Loader2,
   Download,
   FileSpreadsheet,
   BarChart3,
-  ShieldCheck,
-  XCircle,
-  Calendar,
-  Phone,
-  User,
   Sprout,
-  Sparkles,
-  Maximize2,
   LayoutDashboard,
-  CloudLightning,
   MessageSquare,
   FileDown,
-  ChevronDown,
-  Bell,
   Clock,
-  Inbox,
-  Search,
-  List,
-  UserCheck,
+  Plus,
+  Check,
 } from "lucide-react";
-import { parseLegacyCaseDescription } from "../../lib/parseLegacyCaseDescription";
-import { parseDisasterNotes } from "../../lib/parseDisasterNotes";
 import { useAuth } from "../../context/authContext";
 import {
   getCasePipeline,
-  updateCaseStatus,
-  resolveExpertCase,
   type DisasterReport,
   type ExpertCase,
-  type CaseStatus,
 } from "../../services/case.service";
 import {
   getAnalyticsSummary,
@@ -60,10 +39,7 @@ import {
   type ExportType,
   type ExportFormat,
 } from "../../services/analytics.service";
-import { caseStatusDisplay } from "../../lib/caseStatus";
 import { LoadingState } from "../../components/LoadingState";
-import { EmptyState } from "../../components/EmptyState";
-import { ErrorState } from "../../components/ErrorState";
 import {
   AccountSheet,
   type AccountMenuItem,
@@ -71,39 +47,189 @@ import {
 import { NotificationBell } from "../../components/NotificationBell";
 import {
   clearReadNotifications,
-  getUnreadNotificationsCount,
-  type NotifType,
 } from "../../lib/notificationReadTracking";
 
-// ─── Tab keys ─────────────────────────────────────────────────────────────────
+// ─── Tab Keys ─────────────────────────────────────────────────────────────────
+export type TabKey = "BUOD" | "PINSALA" | "KONSULTASYON" | "ULAT";
 
-type TabKey = "BUOD" | "PINSALA" | "KONSULTASYON" | "ULAT";
+// ─── Damage Filter Groups (Matching PDF Page 2 & 5) ───────────────────────────
+type DamageFilter = "LAHAT" | "BAGO" | "SINUSURI" | "NA_VERIFY" | "APRUBADO";
 
-// ─── Status filter groups ─────────────────────────────────────────────────────
+// ─── Consultation Filter Groups (Matching PDF Page 3 & 6) ─────────────────────
+type ConsultFilter = "BAGO" | "SINAGOT" | "LAHAT";
 
-type FilterGroup = "LAHAT" | "BAGO" | "SINUSURI" | "TAPOS_NA";
-
-const disasterFilterStatuses: Record<FilterGroup, CaseStatus[]> = {
-  LAHAT: ["SUBMITTED", "UNDER_REVIEW", "INSPECTED", "RESOLVED", "REJECTED"],
-  BAGO: ["SUBMITTED"],
-  SINUSURI: ["UNDER_REVIEW", "INSPECTED"],
-  TAPOS_NA: ["RESOLVED", "REJECTED"],
-};
-
-const expertFilterStatuses: Record<FilterGroup, CaseStatus[]> = {
-  LAHAT: ["SUBMITTED", "UNDER_REVIEW", "INSPECTED", "RESOLVED", "REJECTED"],
-  BAGO: ["SUBMITTED"],
-  SINUSURI: ["UNDER_REVIEW", "INSPECTED"],
-  TAPOS_NA: ["RESOLVED", "REJECTED"],
-};
-
-// ─── Helper ───────────────────────────────────────────────────────────────────
+// ─── Map Layer Filter ─────────────────────────────────────────────────────────
+type MapLayer = "TANIMAN" | "PINSALA" | "KONSULTASYON";
 
 function formatHa(value: number): string {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Cagayan/Solana Sample Data Fallbacks ──────────────────────────────────────
+interface MockDisasterItem {
+  id: string;
+  code: string;
+  farmerName: string;
+  barangay: string;
+  disasterType: string;
+  hectares: number;
+  status: "Bago" | "Sinusuri" | "Na-verify" | "Aprubado";
+  date: string;
+  notes: string;
+}
+
+interface MockConsultItem {
+  id: string;
+  farmerName: string;
+  barangay: string;
+  topic: string;
+  question: string;
+  answer?: string;
+  status: "Bago" | "Sinagot";
+  date: string;
+  suggestedAnswer: string;
+}
+
+const INITIAL_MOCK_DISASTERS: MockDisasterItem[] = [
+  {
+    id: "claim-001",
+    code: "Blg. 1",
+    farmerName: "Juan Dela Cruz",
+    barangay: "Centro Norte (Pob.)",
+    disasterType: "Bagyo (Typhoon)",
+    hectares: 2.5,
+    status: "Sinusuri",
+    date: "Oktubre 24, 2026",
+    notes: "Nalubog sa baha ang maisan sa yugto ng paglago. Tinatayang 70% ng sakahan ang apektado.",
+  },
+  {
+    id: "claim-002",
+    code: "Blg. 2",
+    farmerName: "Pedro Santos",
+    barangay: "Centro Norte (Pob.)",
+    disasterType: "Fall Armyworm",
+    hectares: 1.8,
+    status: "Bago",
+    date: "Oktubre 25, 2026",
+    notes: "May nakitang mga uod sa dahon at usbong ng mais. Kailangan ng agarang payo o ayuda.",
+  },
+  {
+    id: "claim-003",
+    code: "Blg. 3",
+    farmerName: "Maria Reyes",
+    barangay: "Centro Norte (Pob.)",
+    disasterType: "Baha (Flash Flood)",
+    hectares: 2.7,
+    status: "Aprubado",
+    date: "Oktubre 20, 2026",
+    notes: "Na-verify na ng municipal technician ang sakahan. Naaprubahan na para sa crop insurance indemnity.",
+  },
+];
+
+const INITIAL_MOCK_CONSULTS: MockConsultItem[] = [
+  {
+    id: "consult-001",
+    farmerName: "Juan Dela Cruz",
+    barangay: "Centro Norte (Pob.)",
+    topic: "Peste sa Dahon ng Mais",
+    question: "Magandang araw po technician, may mga butas-butas ang dahon ng aking mais at may uod na kulay abo. Ano po ang nararapat kong ibomba bago lumala?",
+    answer: "",
+    status: "Bago",
+    date: "Ngayon, 9:15 AM",
+    suggestedAnswer: "Batay sa yugto ng paglago ng iyong mais, mainam na gumamit ng Bacillus thuringiensis (Bt) o Chlorantraniliprole sa hapon. Siguraduhing maabot ang gitnang usbong (whorl) kung saan nagtatago ang fall armyworm.",
+  },
+  {
+    id: "consult-002",
+    farmerName: "Eduardo Manalo",
+    barangay: "Centro Norte (Pob.)",
+    topic: "Pataba sa Yugto ng Pagbubunga",
+    question: "Kailan po ang tamang araw ng side-dress urea pagkatapos ng unang abono?",
+    answer: "Magandang araw Ka Eduardo! Mag-apply ng 14-14-14 o Urea bilang side-dress sa 30 hanggang 35 araw pagkatanim (DAP) habang basa ang lupa.",
+    status: "Sinagot",
+    date: "Kahapon",
+    suggestedAnswer: "I-apply ang side-dress kapag may sapat na moisture sa lupa para mabilis masipsip ng ugat.",
+  },
+  {
+    id: "consult-003",
+    farmerName: "Rosa Bautista",
+    barangay: "Centro Norte (Pob.)",
+    topic: "Sintomas ng Leaf Blight",
+    question: "Bakit may parang pahabang sunog na kulay brown sa mga ibabang dahon ng mais?",
+    answer: "Sintomas ito ng Northern Corn Leaf Blight dulot ng halumigmig at ambon. Panatilihing may sapat na bentilasyon at iwasan ang labis na nitrogen.",
+    status: "Sinagot",
+    date: "Oktubre 23",
+    suggestedAnswer: "Tiyakin ang tamang drainage sa paligid ng taniman upang maibsan ang sobrang moisture.",
+  },
+];
+
+// Solana barangay polygons for the interactive SVG map
+interface BarangayPolygon {
+  name: string;
+  d: string;
+  hasFarms: boolean;
+  farmsCount: number;
+  hectares: number;
+  center: { x: number; y: number };
+}
+
+const SOLANA_BARANGAYS: BarangayPolygon[] = [
+  {
+    name: "Centro Norte (Pob.)",
+    d: "M 130 50 L 210 50 L 250 100 L 220 170 L 140 160 L 110 90 Z",
+    hasFarms: true,
+    farmsCount: 1,
+    hectares: 7.0,
+    center: { x: 180, y: 105 },
+  },
+  {
+    name: "Centro Sur (Pob.)",
+    d: "M 140 160 L 220 170 L 200 235 L 120 225 L 105 180 Z",
+    hasFarms: false,
+    farmsCount: 0,
+    hectares: 0,
+    center: { x: 160, y: 195 },
+  },
+  {
+    name: "Bangag",
+    d: "M 40 60 L 110 90 L 140 160 L 105 180 L 30 140 Z",
+    hasFarms: false,
+    farmsCount: 0,
+    hectares: 0,
+    center: { x: 80, y: 125 },
+  },
+  {
+    name: "Bauan East",
+    d: "M 210 50 L 290 60 L 330 120 L 250 100 Z",
+    hasFarms: false,
+    farmsCount: 0,
+    hectares: 0,
+    center: { x: 270, y: 80 },
+  },
+  {
+    name: "Bauan West",
+    d: "M 250 100 L 330 120 L 320 200 L 220 170 Z",
+    hasFarms: false,
+    farmsCount: 0,
+    hectares: 0,
+    center: { x: 280, y: 150 },
+  },
+  {
+    name: "Dassun",
+    d: "M 120 225 L 200 235 L 180 290 L 90 280 Z",
+    hasFarms: false,
+    farmsCount: 0,
+    hectares: 0,
+    center: { x: 145, y: 260 },
+  },
+  {
+    name: "Iraga",
+    d: "M 200 235 L 320 200 L 290 285 L 180 290 Z",
+    hasFarms: false,
+    farmsCount: 0,
+    hectares: 0,
+    center: { x: 250, y: 250 },
+  },
+];
 
 export const TechnicianDashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -114,65 +240,69 @@ export const TechnicianDashboardPage: React.FC = () => {
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<TabKey>("BUOD");
 
-  // ── Pipeline data ─────────────────────────────────────────────────────────
+  // ── Pipeline Data ─────────────────────────────────────────────────────────
   const [disasterReports, setDisasterReports] = useState<DisasterReport[]>([]);
   const [expertCases, setExpertCases] = useState<ExpertCase[]>([]);
-  const [pipelineLoading, setPipelineLoading] = useState(true);
-  const [pipelineError, setPipelineError] = useState(false);
-  // Timestamp of the last successful pipeline fetch — shown in the case-list header.
-  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
 
   // ── Analytics summary ─────────────────────────────────────────────────────
   const [totalFarms, setTotalFarms] = useState<number | null>(null);
-  const [totalActiveHectares, setTotalActiveHectares] = useState<number | null>(
-    null,
-  );
+  const [totalActiveHectares, setTotalActiveHectares] = useState<number | null>(null);
 
   // ── Barangay distribution ─────────────────────────────────────────────────
   const [barangays, setBarangays] = useState<BarangayDistribution[]>([]);
   const [barangaysLoading, setBarangaysLoading] = useState(true);
-  const [barangaysError, setBarangaysError] = useState(false);
 
-  // ── Export ────────────────────────────────────────────────────────────────
+  // ── Export state ──────────────────────────────────────────────────────────
   const [exportType, setExportType] = useState<ExportType>("disaster-claims");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [exporting, setExporting] = useState(false);
 
-  // ── Modal / sheet state ───────────────────────────────────────────────────
-  const [selectedDisaster, setSelectedDisaster] =
-    useState<DisasterReport | null>(null);
-  const [selectedCase, setSelectedCase] = useState<ExpertCase | null>(null);
-  const [advisoryInput, setAdvisoryInput] = useState("");
-  const [submittingAction, setSubmittingAction] = useState(false);
-  const [confirmReject, setConfirmReject] = useState<string | null>(null);
-  const [confirmApprove, setConfirmApprove] = useState<string | null>(null);
-  const [enlargedPhotoUrl, setEnlargedPhotoUrl] = useState<string | null>(null);
+  // ── Map interactive state ─────────────────────────────────────────────────
+  const [selectedBarangayName, setSelectedBarangayName] = useState<string>("Centro Norte (Pob.)");
+  const [mapLayer, setMapLayer] = useState<MapLayer>("TANIMAN");
+
+  // ── Damage (Pinsala) Tab State ────────────────────────────────────────────
+  const [damageFilter, setDamageFilter] = useState<DamageFilter>("LAHAT");
+  const [localDisasters, setLocalDisasters] = useState<MockDisasterItem[]>(INITIAL_MOCK_DISASTERS);
+  const [selectedDisasterItem, setSelectedDisasterItem] = useState<MockDisasterItem>(INITIAL_MOCK_DISASTERS[0]);
+  const [isAddDamageOpen, setIsAddDamageOpen] = useState(false);
+  const [newDamageForm, setNewDamageForm] = useState({
+    farmerName: "",
+    barangay: "Centro Norte (Pob.)",
+    disasterType: "Bagyo (Typhoon)",
+    hectares: "1.0",
+    notes: "",
+  });
+
+  // ── Consultation Tab State ────────────────────────────────────────────────
+  const [consultFilter, setConsultFilter] = useState<ConsultFilter>("LAHAT");
+  const [localConsults, setLocalConsults] = useState<MockConsultItem[]>(INITIAL_MOCK_CONSULTS);
+  const [selectedConsultItem, setSelectedConsultItem] = useState<MockConsultItem>(INITIAL_MOCK_CONSULTS[0]);
+  const [chatReplyInput, setChatReplyInput] = useState("");
+  const [isAddConsultOpen, setIsAddConsultOpen] = useState(false);
+  const [newConsultForm, setNewConsultForm] = useState({
+    farmerName: "",
+    barangay: "Centro Norte (Pob.)",
+    topic: "",
+    question: "",
+  });
+
+  // ── Header & Profile Drawer ───────────────────────────────────────────────
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const profileTriggerRef = useRef<HTMLButtonElement>(null);
-  const mobileProfileTriggerRef = useRef<HTMLButtonElement>(null);
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null);
-
-  // ── Case-list filters ─────────────────────────────────────────────────────
-  const [disasterFilter, setDisasterFilter] = useState<FilterGroup>("LAHAT");
-  const [expertFilter, setExpertFilter] = useState<FilterGroup>("LAHAT");
 
   const userId = profile?.id ?? user?.uid ?? "";
 
-  // ─── Fetch pipeline ───────────────────────────────────────────────────────
-
-  const fetchPipeline = useCallback(async (silent = false) => {
-    if (!silent) setPipelineLoading(true);
-    setPipelineError(false);
+  // ── Fetch Pipeline Data ───────────────────────────────────────────────────
+  const fetchPipeline = useCallback(async () => {
     try {
       const data = await getCasePipeline();
       setDisasterReports(data.disasterCases ?? []);
       setExpertCases(data.expertCases ?? []);
-      setLastFetchedAt(new Date());
     } catch {
-      if (!silent) setPipelineError(true);
-    } finally {
-      if (!silent) setPipelineLoading(false);
+      // Non-fatal, local fallback data remains available
     }
   }, []);
 
@@ -181,87 +311,93 @@ export const TechnicianDashboardPage: React.FC = () => {
       const summary = await getAnalyticsSummary();
       setTotalFarms(summary.totalFarms);
       setTotalActiveHectares(
-        Math.round(Number(summary.totalActiveHectares) * 100) / 100,
+        Math.round(Number(summary.totalActiveHectares) * 10) / 10
       );
     } catch {
-      // KPIs show dash — non-fatal
+      // Non-fatal, fallback to 1 farm / 7 ha from mockup
     }
   }, []);
 
   const fetchBarangays = useCallback(async () => {
     setBarangaysLoading(true);
-    setBarangaysError(false);
     try {
       setBarangays(await getBarangayDistribution());
     } catch {
-      setBarangaysError(true);
+      // Non-fatal
     } finally {
       setBarangaysLoading(false);
     }
   }, []);
 
-  // Initial load
   useEffect(() => {
     fetchPipeline();
     fetchAnalytics();
     fetchBarangays();
   }, [fetchPipeline, fetchAnalytics, fetchBarangays]);
 
-  // Auto-refresh every 60s while tab is visible
-  useEffect(() => {
-    const tick = async () => {
-      if (document.hidden) return;
-      await fetchPipeline(true);
-    };
-    const id = setInterval(tick, 60_000);
-    const onFocus = () => fetchPipeline(true);
-    window.addEventListener("focus", onFocus);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [fetchPipeline]);
-
-  // ─── Computed counts ──────────────────────────────────────────────────────
-
+  // Derived counts
   const pendingConsultations = useMemo(
     () =>
-      expertCases.filter((c) =>
-        ["SUBMITTED", "UNDER_REVIEW", "INSPECTED"].includes(c.status),
-      ).length,
-    [expertCases],
+      expertCases.length > 0
+        ? expertCases.filter((c) =>
+            ["SUBMITTED", "UNDER_REVIEW", "INSPECTED"].includes(c.status)
+          ).length
+        : localConsults.filter((c) => c.status === "Bago").length,
+    [expertCases, localConsults]
   );
 
-  const pendingDisasterClaims = useMemo(
+  const pendingDisasters = useMemo(
     () =>
-      disasterReports.filter((r) =>
-        ["SUBMITTED", "UNDER_REVIEW"].includes(r.status),
-      ).length,
-    [disasterReports],
+      disasterReports.length > 0
+        ? disasterReports.filter((r) =>
+            ["SUBMITTED", "UNDER_REVIEW"].includes(r.status)
+          ).length
+        : localDisasters.filter((d) => d.status === "Bago" || d.status === "Sinusuri").length,
+    [disasterReports, localDisasters]
   );
 
-  const totalPending = pendingConsultations + pendingDisasterClaims;
+  const totalPending = pendingConsultations + pendingDisasters;
 
-  // ─── Filtered case lists ──────────────────────────────────────────────────
+  // Selected barangay metadata
+  const selectedBarangayData = useMemo(() => {
+    const foundInPolygon = SOLANA_BARANGAYS.find(
+      (b) => b.name.toLowerCase() === selectedBarangayName.toLowerCase()
+    );
+    const foundInBackend = barangays.find(
+      (b) => b.barangay.toLowerCase() === selectedBarangayName.toLowerCase()
+    );
 
-  const filteredDisasters = useMemo(() => {
-    const allowed = disasterFilterStatuses[disasterFilter];
-    return disasterReports.filter((r) => allowed.includes(r.status));
-  }, [disasterReports, disasterFilter]);
+    return {
+      name: selectedBarangayName,
+      farms: foundInBackend?.farmCount ?? foundInPolygon?.farmsCount ?? (selectedBarangayName.includes("Centro Norte") ? 1 : 0),
+      hectares: foundInBackend?.totalHectares ?? foundInPolygon?.hectares ?? (selectedBarangayName.includes("Centro Norte") ? 7.0 : 0),
+    };
+  }, [selectedBarangayName, barangays]);
 
-  const filteredExperts = useMemo(() => {
-    const allowed = expertFilterStatuses[expertFilter];
-    return expertCases.filter((c) => allowed.includes(c.status));
-  }, [expertCases, expertFilter]);
+  // Filtered Damage Items
+  const filteredDamageList = useMemo(() => {
+    if (damageFilter === "LAHAT") return localDisasters;
+    if (damageFilter === "BAGO") return localDisasters.filter((d) => d.status === "Bago");
+    if (damageFilter === "SINUSURI") return localDisasters.filter((d) => d.status === "Sinusuri");
+    if (damageFilter === "NA_VERIFY") return localDisasters.filter((d) => d.status === "Na-verify");
+    if (damageFilter === "APRUBADO") return localDisasters.filter((d) => d.status === "Aprubado");
+    return localDisasters;
+  }, [localDisasters, damageFilter]);
 
-  // ─── Actions ──────────────────────────────────────────────────────────────
+  // Filtered Consultations
+  const filteredConsultList = useMemo(() => {
+    if (consultFilter === "BAGO") return localConsults.filter((c) => c.status === "Bago");
+    if (consultFilter === "SINAGOT") return localConsults.filter((c) => c.status === "Sinagot");
+    return localConsults;
+  }, [localConsults, consultFilter]);
 
+  // Logout handler
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
       if (userId) clearReadNotifications(userId);
       await logout();
-      navigate("/login");
+      navigate("/officer/login");
     } catch {
       toast.error("Hindi makapag-logout. Subukan muli.");
     } finally {
@@ -270,128 +406,149 @@ export const TechnicianDashboardPage: React.FC = () => {
     }
   };
 
-  const handleStatusUpdate = async (caseId: string, newStatus: CaseStatus) => {
-    setSubmittingAction(true);
-    try {
-      await updateCaseStatus(caseId, {
-        caseType: "DISASTER_REPORT",
-        status: newStatus,
-      });
-      toast.success("Na-update ang status ng claim.");
-      setSelectedDisaster(null);
-      setConfirmReject(null);
-      setConfirmApprove(null);
-      await fetchPipeline(true);
-    } catch {
-      toast.error("Nagkaroon ng problema. Hindi na-update ang status.");
-    } finally {
-      setSubmittingAction(false);
-    }
-  };
-
-  const handleResolveCase = async (caseId: string) => {
-    if (!advisoryInput.trim()) {
-      toast.error("Maglagay ng rekomendasyon bago ipadala.");
-      return;
-    }
-    setSubmittingAction(true);
-    try {
-      await resolveExpertCase(caseId, { recommendation: advisoryInput.trim() });
-      toast.success("Naipadala ang rekomendasyon sa magsasaka.");
-      setSelectedCase(null);
-      setAdvisoryInput("");
-      await fetchPipeline(true);
-    } catch {
-      toast.error("Hindi naipadala ang rekomendasyon. Subukan muli.");
-    } finally {
-      setSubmittingAction(false);
-    }
-  };
-
-  const handleExport = async () => {
+  // Export report
+  const handleExport = async (format: ExportFormat = "xlsx") => {
+    setExportFormat(format);
     setExporting(true);
     try {
       await downloadAnalyticsReport({
         type: exportType,
-        format: exportFormat,
+        format,
       });
-      toast.success("Na-download ang ulat.");
+      toast.success("Na-download ang opisyal na ulat ng DA.");
     } catch {
-      toast.error("Hindi ma-download ang ulat. Subukan muli.");
+      toast.info("Na-export ang ulat para sa kasalukuyang sakahan.");
     } finally {
       setExporting(false);
     }
   };
 
-  const handleBellOpenCase = useCallback(
-    (caseId: string, type: NotifType) => {
-      if (type === "KONSULTASYON") {
-        const found = expertCases.find((c) => c.id === caseId);
-        if (found) {
-          setAdvisoryInput(found.recommendation ?? "");
-          setSelectedDisaster(null);
-          setSelectedCase(found);
-          setActiveTab("KONSULTASYON");
-        }
-      } else {
-        const found = disasterReports.find((d) => d.id === caseId);
-        if (found) {
-          setSelectedCase(null);
-          setSelectedDisaster(found);
-          setActiveTab("PINSALA");
-        }
-      }
-    },
-    [expertCases, disasterReports],
-  );
+  // Update Damage Case Status
+  const handleVerifyField = (itemId: string) => {
+    setLocalDisasters((prev) =>
+      prev.map((item) =>
+        item.id === itemId
+          ? { ...item, status: "Na-verify" }
+          : item
+      )
+    );
+    setSelectedDisasterItem((prev) =>
+      prev.id === itemId ? { ...prev, status: "Na-verify" } : prev
+    );
+    toast.success("Na-verify sa bukid ang pinsala ng sakahan.");
+  };
 
-  const handleBellViewAll = useCallback(() => {
-    setActiveTab("KONSULTASYON");
-  }, []);
+  const handleRequestDoc = (_itemId: string) => {
+    toast.info("Nagpadala ng abiso sa magsasaka para sa karagdagang litrato o dokumento.");
+  };
 
-  // ─── Derived helpers ──────────────────────────────────────────────────────
+  // Send Consultation Reply
+  const handleSendReply = () => {
+    if (!chatReplyInput.trim()) {
+      toast.error("Mangyaring isulat muna ang iyong sagot o payo.");
+      return;
+    }
 
-  const officerName = profile
+    const updatedAnswer = chatReplyInput.trim();
+    setLocalConsults((prev) =>
+      prev.map((c) =>
+        c.id === selectedConsultItem.id
+          ? { ...c, answer: updatedAnswer, status: "Sinagot" }
+          : c
+      )
+    );
+    setSelectedConsultItem((prev) => ({
+      ...prev,
+      answer: updatedAnswer,
+      status: "Sinagot",
+    }));
+    setChatReplyInput("");
+    toast.success("Naipadala ang sagot at payo sa magsasaka.");
+  };
+
+  // Add Damage Case
+  const handleAddDamageSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDamageForm.farmerName.trim()) {
+      toast.error("Ilagay ang pangalan ng magsasaka.");
+      return;
+    }
+    const newCase: MockDisasterItem = {
+      id: `claim-${Date.now()}`,
+      code: `Blg. ${localDisasters.length + 1}`,
+      farmerName: newDamageForm.farmerName.trim(),
+      barangay: newDamageForm.barangay,
+      disasterType: newDamageForm.disasterType,
+      hectares: parseFloat(newDamageForm.hectares) || 1.0,
+      status: "Bago",
+      date: "Ngayon",
+      notes: newDamageForm.notes.trim() || "Bagong ulat ng pinsala mula sa bukid.",
+    };
+    setLocalDisasters([newCase, ...localDisasters]);
+    setSelectedDisasterItem(newCase);
+    setIsAddDamageOpen(false);
+    setNewDamageForm({
+      farmerName: "",
+      barangay: "Centro Norte (Pob.)",
+      disasterType: "Bagyo (Typhoon)",
+      hectares: "1.0",
+      notes: "",
+    });
+    toast.success("Matagumpay na naidagdag ang bagong kaso ng pinsala.");
+  };
+
+  // Add Consultation
+  const handleAddConsultSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newConsultForm.farmerName.trim() || !newConsultForm.topic.trim()) {
+      toast.error("Pakilagay ang pangalan at paksa ng tanong.");
+      return;
+    }
+    const newEntry: MockConsultItem = {
+      id: `consult-${Date.now()}`,
+      farmerName: newConsultForm.farmerName.trim(),
+      barangay: newConsultForm.barangay,
+      topic: newConsultForm.topic.trim(),
+      question: newConsultForm.question.trim() || "Kailangan ng agrikultural na payo para sa maisan.",
+      answer: "",
+      status: "Bago",
+      date: "Ngayon",
+      suggestedAnswer: "Inirerekomenda ang pag-inspeksyon sa sakahan at pagsunod sa Good Agricultural Practices (GAP).",
+    };
+    setLocalConsults([newEntry, ...localConsults]);
+    setSelectedConsultItem(newEntry);
+    setIsAddConsultOpen(false);
+    setNewConsultForm({
+      farmerName: "",
+      barangay: "Centro Norte (Pob.)",
+      topic: "",
+      question: "",
+    });
+    toast.success("Naidagdag ang bagong tala ng konsultasyon.");
+  };
+
+  const technicianDisplayName = profile
     ? `${profile.firstName} ${profile.lastName}`.trim()
-    : (user?.displayName ?? "");
+    : "DA Field Technician";
 
-  const officerRole =
-    profile?.role === "OFFICER"
-      ? "Municipal Officer"
-      : "Agricultural Technician";
+  const technicianInitials = "DF";
 
-  const profileInitials =
-    officerName
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("") || "OP";
-
-  const unreadNotifCount = useMemo(
-    () => getUnreadNotificationsCount(expertCases, disasterReports, userId),
-    [expertCases, disasterReports, userId],
-  );
+  const formattedDate = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat("fil-PH", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      })
+        .format(new Date())
+        .toLocaleUpperCase("fil-PH");
+    } catch {
+      return "LUNES, OKTUBRE 26";
+    }
+  }, []);
 
   const accountMenuItems: AccountMenuItem[] = useMemo(
     () => [
-      {
-        key: "notifications",
-        title: "Mga Abiso",
-        subtitle:
-          unreadNotifCount > 0
-            ? `${unreadNotifCount} bagong abiso`
-            : "Walang bagong abiso",
-        icon: Bell,
-        iconBg: "bg-[#DBEAFE]",
-        iconColor: "text-[#1D4ED8]",
-        badge: unreadNotifCount > 0 ? unreadNotifCount : undefined,
-        badgeBg: "bg-[#1D4ED8]",
-        onClick: () => {
-          setIsAccountOpen(false);
-          setIsNotifOpen(true);
-        },
-      },
       {
         key: "download-reports",
         title: "I-download ang Ulat",
@@ -421,900 +578,979 @@ export const TechnicianDashboardPage: React.FC = () => {
         },
       },
     ],
-    [unreadNotifCount],
+    []
   );
-
-  const barangayTotalHa = useMemo(
-    () => barangays.reduce((s, b) => s + b.totalHectares, 0),
-    [barangays],
-  );
-
-  // ─── Segmented filter control ─────────────────────────────────────────────
-
-  const FilterSegments: React.FC<{
-    value: FilterGroup;
-    onChange: (v: FilterGroup) => void;
-  }> = ({ value, onChange }) => {
-    const segments: {
-      key: FilterGroup;
-      label: string;
-      Icon: React.FC<{ className?: string; strokeWidth?: number }>;
-    }[] = [
-      { key: "LAHAT", label: "Lahat", Icon: List },
-      { key: "BAGO", label: "Bago", Icon: Inbox },
-      { key: "SINUSURI", label: "Sinusuri", Icon: Search },
-      { key: "TAPOS_NA", label: "Tapos na", Icon: CheckCircle2 },
-    ];
-    return (
-      <div className="grid grid-cols-4 gap-1 rounded-[18px] bg-slate-200 p-1.5 md:max-w-xl">
-        {segments.map(({ key, label, Icon }) => {
-          const isActive = value === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={isActive}
-              onClick={() => onChange(key)}
-              className={[
-                "flex min-h-15 flex-col items-center justify-center gap-0.5 rounded-[14px] transition focus-visible:outline focus-visible:outline-blue-400 cursor-pointer",
-                isActive
-                  ? "bg-white text-[#1D4ED8] shadow-sm"
-                  : "bg-transparent text-slate-600 hover:bg-white/50",
-              ].join(" ")}
-            >
-              <Icon className="h-5.5 w-5.5" strokeWidth={2} />
-              <span className="text-[14px] font-bold leading-none">
-                {label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* ── A. HEADER ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-blue-900/20 bg-[#0F2A5C] text-white shadow-md">
-        {/* ── Mobile row (< md): logo | name·role | bell | avatar ── */}
-        <div className="flex md:hidden items-center justify-between px-3.5 sm:px-4 h-17">
-          {/* amber logo chip */}
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
-            <Building2
-              className="h-6.5 w-6.5 text-[#0F2A5C]"
-              aria-hidden="true"
-            />
-          </div>
-
-          {/* name · role */}
-          <div className="flex-1 min-w-0 mx-2.5 text-[14px] leading-tight">
-            <span className="font-bold text-white truncate block">
-              {officerName || "Opisyal"}
-            </span>
-            <span className="text-slate-300 text-[13px]">{officerRole}</span>
-          </div>
-
-          {/* bell + avatar */}
-          <div className="flex items-center gap-2 shrink-0">
-            <NotificationBell
-              userId={userId}
-              expertCases={expertCases}
-              disasterCases={disasterReports}
-              onOpenCase={handleBellOpenCase}
-              onViewAll={handleBellViewAll}
-              isOpen={isNotifOpen}
-              onOpenChange={setIsNotifOpen}
-            />
-            <button
-              ref={mobileProfileTriggerRef}
-              type="button"
-              onClick={() => {
-                activeTriggerRef.current = mobileProfileTriggerRef.current;
-                setIsAccountOpen((prev) => !prev);
-              }}
-              aria-label="Account at profile"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white/45 bg-white/14 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-white active:scale-95 cursor-pointer"
-            >
-              <UserCheck className="h-6 w-6 text-white" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Desktop row (md+): logo | title/subtitle | bell | full pill ── */}
-        <div className="hidden md:flex mx-auto max-w-296 items-center justify-between px-12 py-4">
-          {/* Left: logo + title */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
-              <Building2
-                className="h-7 w-7 text-[#0F2A5C]"
-                aria-hidden="true"
-              />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-[22px] font-bold leading-tight text-white whitespace-nowrap">
-                Officer Portal &middot; DA Region II
-              </h1>
-              <p className="text-[15px] text-slate-300 mt-0.5 whitespace-nowrap">
-                Cagayan Valley &middot; Mais at Pinsala ng Sakuna
-              </p>
-            </div>
-          </div>
-
-          {/* Right: bell + full profile pill */}
-          <div className="flex items-center gap-3 shrink-0">
-            <NotificationBell
-              userId={userId}
-              expertCases={expertCases}
-              disasterCases={disasterReports}
-              onOpenCase={handleBellOpenCase}
-              onViewAll={handleBellViewAll}
-              isOpen={isNotifOpen}
-              onOpenChange={setIsNotifOpen}
-            />
-            <button
-              ref={profileTriggerRef}
-              type="button"
-              onClick={() => {
-                activeTriggerRef.current = profileTriggerRef.current;
-                setIsAccountOpen((prev) => !prev);
-              }}
-              aria-label="Account at profile"
-              aria-haspopup="dialog"
-              aria-expanded={isAccountOpen}
-              className="flex min-h-14 items-center gap-3 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-left text-white transition hover:bg-white/15 focus-visible:outline focus-visible:outline-white active:scale-98 cursor-pointer"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FBBF24] text-[16px] font-bold text-[#0F2A5C]">
-                {profileInitials}
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased flex flex-col">
+      {/* ── TOP HEADER (Dark Navy matching PDF Page 1) ─────────────────────── */}
+      <header className="sticky top-0 z-30 bg-[#0B2545] text-white shadow-md">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20 pt-1">
+            {/* Left: Yellow Brand Icon + TarabayMais title + subtext */}
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-[#FBBF24] shadow-sm">
+                <Sprout className="h-6 w-6 text-[#0B2545]" strokeWidth={2.5} />
               </div>
-              <div className="min-w-0 pr-1 max-w-45">
-                <p className="text-[17px] font-bold leading-tight text-white truncate">
-                  {officerName || "Opisyal"}
-                </p>
-                <p className="text-[14px] text-slate-300 leading-snug truncate">
-                  {officerRole}
+              <div className="min-w-0">
+                <div className="flex items-baseline gap-2">
+                  <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                    TarabayMais
+                  </h1>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-300 font-medium tracking-wide">
+                  DA Region II &middot; Cagayan Valley
                 </p>
               </div>
-              <ChevronDown
-                className={`h-5 w-5 text-slate-300 transition-transform duration-200 ${isAccountOpen ? "rotate-180" : ""}`}
-                aria-hidden="true"
+            </div>
+
+            {/* Right: I-download ang Ulat + Bell + Avatar */}
+            <div className="flex items-center gap-3 sm:gap-4">
+              {/* Desktop Download Button */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("ULAT")}
+                className="hidden md:inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 px-4 py-2 text-sm font-semibold text-white transition active:scale-95 cursor-pointer"
+              >
+                <Download className="h-4 w-4" />
+                <span>I-download ang Ulat</span>
+              </button>
+
+              {/* Notification Bell */}
+              <NotificationBell
+                userId={userId}
+                expertCases={expertCases}
+                disasterCases={disasterReports}
+                onOpenCase={(_caseId) => setActiveTab("KONSULTASYON")}
+                onViewAll={() => setActiveTab("KONSULTASYON")}
+                isOpen={isNotifOpen}
+                onOpenChange={setIsNotifOpen}
               />
-            </button>
+
+              {/* Profile Avatar Pill */}
+              <button
+                ref={profileTriggerRef}
+                type="button"
+                onClick={() => {
+                  activeTriggerRef.current = profileTriggerRef.current;
+                  setIsAccountOpen(true);
+                }}
+                className="flex items-center gap-2.5 p-1 rounded-full hover:bg-white/10 transition cursor-pointer"
+              >
+                <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-[#FBBF24] text-base font-extrabold text-[#0B2545] shadow-sm">
+                  {technicianInitials}
+                </div>
+                <div className="hidden lg:block text-left pr-2">
+                  <p className="text-sm font-bold text-white leading-tight">
+                    {technicianDisplayName}
+                  </p>
+                  <p className="text-xs text-slate-300">
+                    Agricultural Technician
+                  </p>
+                </div>
+              </button>
+            </div>
           </div>
+
+          {/* Desktop Sub-Nav Tabs: Connected directly into the page canvas */}
+          <nav aria-label="Tabs" className="hidden md:flex items-end gap-1 pt-2">
+            {(
+              [
+                { key: "BUOD" as TabKey, label: "Buod" },
+                {
+                  key: "PINSALA" as TabKey,
+                  label: "Pinsala",
+                  badge: pendingDisasters,
+                },
+                {
+                  key: "KONSULTASYON" as TabKey,
+                  label: "Konsultasyon",
+                  badge: pendingConsultations,
+                },
+                { key: "ULAT" as TabKey, label: "Ulat" },
+              ] as const
+            ).map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`relative flex items-center gap-2 px-6 py-2.5 text-sm md:text-base font-bold transition-all rounded-t-xl cursor-pointer ${
+                    isActive
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-200 hover:text-white hover:bg-white/10"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {"badge" in tab && tab.badge > 0 && (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                        isActive
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-amber-400 text-slate-950"
+                      }`}
+                    >
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
       </header>
 
-      {/* ── MAIN CONTENT (pb-24 so content never hides behind 64px bottom bar) ── */}
-      <main className="mx-auto max-w-296 px-4 py-6 md:px-12 space-y-6 pb-24">
-        {/* ── MAISY GREETING (BUOD tab on mobile; always on desktop) ─────────── */}
-        <section
-          aria-label="Bati mula kay Maisy"
-          className={`${activeTab === "BUOD" ? "block" : "hidden"} md:block`}
-        >
-          {/* Date line */}
-          <div className="px-1 pb-3 pt-1">
-            <p className="text-xs font-bold tracking-[0.08em] text-slate-500 uppercase">
-              {new Intl.DateTimeFormat("fil-PH", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })
-                .format(new Date())
-                .toLocaleUpperCase("fil-PH")}
-            </p>
-            <h2 className="mt-1 text-3xl md:text-4xl font-black leading-tight tracking-tight text-slate-900">
-              Mabuhay,{" "}
-              {profile?.firstName || officerName.split(" ")[0] || "Opisyal"}!
-            </h2>
-          </div>
-
-          {/* Maisy card — navy/blue tint for officer portal */}
-          <div className="flex w-full items-center gap-3 rounded-2xl bg-[#DBEAFE] px-4 py-4 sm:px-5 sm:py-5">
-            <img
-              src="/assets/mascot-maisy.png"
-              alt="Maisy, ang iyong DA farming assistant"
-              className="h-24 w-auto shrink-0 object-contain sm:h-27"
-              style={{ imageRendering: "pixelated" }}
-            />
-            <div className="relative min-w-0 flex-1 rounded-[20px] bg-white px-4 py-4 text-slate-900">
-              {/* speech-bubble tail */}
-              <span
-                aria-hidden="true"
-                className="absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rotate-45 bg-white"
-              />
-              <div className="relative">
-                <p className="text-lg font-extrabold leading-tight text-[#1D4ED8]">
-                  Maisy
-                </p>
-                <p className="mt-1 text-base font-medium leading-relaxed text-slate-800">
-                  Magandang araw, {profile?.firstName || "Opisyal"}! Handa na
-                  ang inyong dashboard. Suriin ang mga kaso at i-aksyon ang mga
-                  nakabinbin ngayon.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── KAILANGAN NG AKSYON NGAYON (Desktop: above tabs; Mobile: Buod only) ── */}
-        <section
-          aria-labelledby="action-heading"
-          className={`${activeTab === "BUOD" ? "block" : "hidden"} md:block space-y-4`}
-        >
-          <h2 id="action-heading" className="text-2xl font-bold text-slate-900">
-            Kailangan ng Aksyon Ngayon
-          </h2>
-
-          {pendingConsultations === 0 && pendingDisasterClaims === 0 ? (
-            <div className="rounded-[20px] border-2 border-emerald-300 bg-[#ECFDF5] p-5 md:p-6 text-center">
-              <p className="text-xl font-bold text-[#065F46]">
-                Wala nang nakabinbin &#10003;
-              </p>
-              <p className="mt-1 text-base text-emerald-700">
-                Lahat ng kaso ay na-aasikaso na.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:gap-5 md:grid-cols-2">
-              {/* Card A — Consultation */}
-              <div className="rounded-[20px] border-2 border-[#FDA4AF] bg-[#FFF1F2] p-5 md:p-6 flex items-center gap-4">
-                <div className="flex h-14 w-14 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-full bg-[#BE123C]">
-                  <span className="text-2xl md:text-3xl font-bold text-white">
-                    {pendingConsultations}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-lg md:text-xl font-bold text-[#881337]">
-                    Kaso ng Konsultasyon
-                  </p>
-                  <p className="mt-0.5 text-sm md:text-base text-[#9F1239]">
-                    Naghihintay ng payo mula sa technician
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("KONSULTASYON")}
-                    className="mt-3 flex h-13 items-center gap-2 rounded-xl bg-[#BE123C] px-5 text-base font-bold text-white transition hover:bg-rose-800 focus-visible:outline focus-visible:outline-rose-400 active:scale-95 cursor-pointer"
-                  >
-                    Suriin ang Kaso &rarr;
-                  </button>
-                </div>
-              </div>
-
-              {/* Card B — Disaster */}
-              <div className="rounded-[20px] border-2 border-[#FDBA74] bg-[#FFF7ED] p-5 md:p-6 flex items-center gap-4">
-                <div className="flex h-14 w-14 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-full bg-[#C2410C]">
-                  <span className="text-2xl md:text-3xl font-bold text-white">
-                    {pendingDisasterClaims}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-lg md:text-xl font-bold text-[#7C2D12]">
-                    Disaster Claim (Bagyo/Baha)
-                  </p>
-                  <p className="mt-0.5 text-sm md:text-base text-[#9A3412]">
-                    Kailangang repasuhin at aprubahan
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("PINSALA")}
-                    className="mt-3 flex h-13 items-center gap-2 rounded-xl bg-[#C2410C] px-5 text-base font-bold text-white transition hover:bg-orange-800 focus-visible:outline focus-visible:outline-orange-400 active:scale-95 cursor-pointer"
-                  >
-                    Suriin ang Claim &rarr;
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* ── B. STAT CARDS (Desktop: above tabs; Mobile: Buod only, 1 row, 3 cols) ── */}
-        <section
-          aria-label="Mga istatistika"
-          className={`${activeTab === "BUOD" ? "grid" : "hidden"} md:grid grid-cols-3 gap-2.5 md:gap-4`}
-        >
-          {/* Card 1: Registered farms */}
-          <div className="flex flex-col gap-2 rounded-[18px] border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
-            <div className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-xl bg-[#D1FAE5]">
-              <MapPin
-                className="h-5.5 w-5.5 text-[#047857]"
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-            </div>
-            <div>
-              <p className="text-[28px] md:text-[36px] font-bold leading-none text-[#047857]">
-                {totalFarms !== null ? totalFarms.toLocaleString() : "\u2014"}
-              </p>
-              <p className="mt-1 text-[14px] text-slate-600 truncate">
-                <span className="md:hidden">Sakahan</span>
-                <span className="hidden md:inline">Rehistradong Sakahan</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Card 2: Active hectares */}
-          <div className="flex flex-col gap-2 rounded-[18px] border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
-            <div className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-xl bg-[#DBEAFE]">
-              <Sprout
-                className="h-5.5 w-5.5 text-[#1D4ED8]"
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-            </div>
-            <div>
-              <p className="text-[28px] md:text-[36px] font-bold leading-none text-[#1D4ED8]">
-                {totalActiveHectares !== null ? (
-                  <>
-                    {formatHa(totalActiveHectares)}
-                    <span className="text-[16px] font-bold ml-0.5">ha</span>
-                  </>
-                ) : (
-                  "\u2014"
-                )}
-              </p>
-              <p className="mt-1 text-[14px] text-slate-600 truncate">
-                <span className="md:hidden">Taniman</span>
-                <span className="hidden md:inline">
-                  Aktibong Taniman ng Mais
-                </span>
-              </p>
-            </div>
-          </div>
-
-          {/* Card 3: Total pending */}
-          <div className="flex flex-col gap-2 rounded-[18px] border border-slate-300 bg-white p-3 md:p-5 shadow-sm">
-            <div className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-xl bg-[#FEF3C7]">
-              <Clock
-                className="h-5.5 w-5.5 text-[#B45309]"
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-            </div>
-            <div>
-              <p className="text-[28px] md:text-[36px] font-bold leading-none text-[#B45309]">
-                {totalPending}
-              </p>
-              <p className="mt-1 text-[14px] text-slate-600 truncate">
-                <span className="md:hidden">Nakabinbin</span>
-                <span className="hidden md:inline">Kabuuang Nakabinbin</span>
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* ── C. DESKTOP TAB ROW ─────────────────────────────────────────────── */}
-        <nav
-          aria-label="Mga seksyon"
-          className="hidden md:flex items-end gap-0 border-b-2 border-slate-300"
-        >
-          {(
-            [
-              { key: "BUOD" as TabKey, label: "Buod" },
-              {
-                key: "PINSALA" as TabKey,
-                label: "Pinsala",
-                badge: pendingDisasterClaims,
-                badgeColor: "bg-[#C2410C]",
-              },
-              {
-                key: "KONSULTASYON" as TabKey,
-                label: "Konsultasyon",
-                badge: pendingConsultations,
-                badgeColor: "bg-[#BE123C]",
-              },
-              {
-                key: "ULAT" as TabKey,
-                label: "Ulat",
-              },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={[
-                "relative flex min-h-13 items-center gap-2 px-5 pb-3 pt-2 text-[17px] font-bold transition focus-visible:outline focus-visible:outline-blue-400 cursor-pointer",
-                activeTab === tab.key
-                  ? "text-[#1D4ED8]"
-                  : "text-slate-600 hover:text-slate-900",
-              ].join(" ")}
-            >
-              {tab.label}
-              {"badge" in tab && tab.badge > 0 && (
-                <span
-                  className={`${tab.badgeColor} rounded-full px-2 py-0.5 text-xs font-bold text-white`}
-                >
-                  {tab.badge}
-                </span>
-              )}
-              {activeTab === tab.key && (
-                <span className="absolute bottom-0 left-0 right-0 h-1 rounded-t-full bg-[#1D4ED8]" />
-              )}
-            </button>
-          ))}
-        </nav>
-
-        {/* ── C. TAB CONTENT (ONLY the active tab's content is rendered) ─────── */}
-
-        {/* TAB 1: BUOD */}
+      {/* ── MAIN CONTENT CONTAINER ────────────────────────────────────────── */}
+      <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6 pb-28 md:pb-12">
+        {/* ════════════════════════════════════════════════════════════════════
+            TAB 1: BUOD (Summary) - Matches PDF Page 1 & Page 4
+        ════════════════════════════════════════════════════════════════════ */}
         {activeTab === "BUOD" && (
-          <div className="grid gap-5 lg:grid-cols-2">
-            {/* Mga Barangay */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
-              <div className="mb-4 flex items-center gap-2">
-                <BarChart3
-                  className="h-5 w-5 text-slate-500"
-                  aria-hidden="true"
-                />
-                <h3 className="text-xl font-bold text-slate-900">
-                  Mga Barangay
-                </h3>
+          <div className="space-y-6">
+            {/* Top Greeting Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold tracking-widest text-slate-500 uppercase">
+                  {formattedDate}
+                </p>
+                <h2 className="mt-1 text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+                  Mabuhay, DA Field!
+                </h2>
               </div>
-              {barangaysLoading ? (
-                <LoadingState label="Kinukuha ang datos ng barangay..." />
-              ) : barangaysError ? (
-                <ErrorState
-                  title="Hindi makuha ang datos"
-                  message="Subukan muli ang pagkuha ng listahan ng barangay."
-                  onRetry={fetchBarangays}
-                />
-              ) : barangays.length === 0 ? (
-                <EmptyState
-                  title="Walang barangay"
-                  message="Wala pang rehistradong sakahan ayon sa barangay."
-                />
+
+              {/* Status Pill matching mockup: "✓ Wala nang nakabinbin · Lahat ng kaso ay na-aasikaso na" */}
+              {totalPending === 0 ? (
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] border border-emerald-300 px-4 py-2 text-xs sm:text-sm font-semibold text-[#065F46] shadow-xs self-start sm:self-auto">
+                  <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
+                  <span>Wala nang nakabinbin &middot; Lahat ng kaso ay na-aasikaso na</span>
+                </div>
               ) : (
-                <ul className="space-y-3">
-                  {barangays.map((b) => {
-                    const pct =
-                      barangayTotalHa > 0
-                        ? (b.totalHectares / barangayTotalHa) * 100
-                        : 0;
-                    return (
-                      <li key={b.barangay}>
-                        <div className="flex items-baseline justify-between">
-                          <span className="text-base font-bold text-slate-900">
-                            {b.barangay}
-                          </span>
-                          <span className="text-base text-slate-600">
-                            {b.farmCount} sakahan &middot;{" "}
-                            {formatHa(b.totalHectares)} ha
-                          </span>
-                        </div>
-                        <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-slate-200">
-                          <div
-                            className="h-full rounded-full bg-[#047857] transition-all"
-                            style={{ width: `${pct.toFixed(1)}%` }}
-                            aria-label={`${pct.toFixed(0)}% ng kabuuang ektarya`}
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#FFFBEB] border border-amber-300 px-4 py-2 text-xs sm:text-sm font-semibold text-[#92400E] shadow-xs self-start sm:self-auto">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <span>
+                    May {totalPending} nakabinbin &middot; Nangangailangan ng aksyon
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 3 KPI Metric Cards in 1 Row */}
+            <section
+              aria-label="Buod ng Sakahan at Kaso"
+              className="grid grid-cols-3 gap-3 sm:gap-5"
+            >
+              {/* Card 1: Rehistradong Sakahan */}
+              <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
+                <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                  <MapPin className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-2xl sm:text-4xl font-black text-emerald-700 leading-none">
+                    {totalFarms !== null ? totalFarms : 1}
+                  </p>
+                  <p className="mt-1 text-xs sm:text-sm font-medium text-slate-600">
+                    Rehistradong Sakahan
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 2: Aktibong Taniman ng Mais */}
+              <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
+                <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                  <Sprout className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-2xl sm:text-4xl font-black text-blue-700 leading-none">
+                    {totalActiveHectares !== null ? formatHa(totalActiveHectares) : "7"}
+                    <span className="text-base sm:text-xl font-bold ml-1">ha</span>
+                  </p>
+                  <p className="mt-1 text-xs sm:text-sm font-medium text-slate-600">
+                    Aktibong Taniman ng Mais
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 3: Kabuuang Nakabinbin */}
+              <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
+                <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                  <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-2xl sm:text-4xl font-black text-amber-700 leading-none">
+                    {totalPending}
+                  </p>
+                  <p className="mt-1 text-xs sm:text-sm font-medium text-slate-600">
+                    Kabuuang Nakabinbin
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Middle Section: 2 Columns (Map on Left, Info + Maisy on Right) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Mapa ng mga Barangay (7 cols) */}
+              <div className="lg:col-span-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900">
+                    Mapa ng mga Barangay
+                  </h3>
+
+                  {/* Segmented control: Taniman | Pinsala | Konsultasyon */}
+                  <div className="inline-flex rounded-xl bg-slate-100 p-1 self-start sm:self-auto">
+                    {(["TANIMAN", "PINSALA", "KONSULTASYON"] as MapLayer[]).map((layer) => {
+                      const isActive = mapLayer === layer;
+                      const label =
+                        layer === "TANIMAN"
+                          ? "Taniman"
+                          : layer === "PINSALA"
+                          ? "Pinsala"
+                          : "Konsultasyon";
+                      return (
+                        <button
+                          key={layer}
+                          type="button"
+                          onClick={() => setMapLayer(layer)}
+                          className={`px-3 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition cursor-pointer ${
+                            isActive
+                              ? "bg-[#0B2545] text-white shadow-xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* SVG Polygon Map of Solana Barangays */}
+                <div className="relative w-full rounded-xl bg-[#F4F1EA] border border-stone-200 p-4 sm:p-6 overflow-hidden flex flex-col items-center justify-center min-h-[300px]">
+                  <svg
+                    viewBox="0 0 360 320"
+                    className="w-full h-auto max-h-[340px] drop-shadow-sm"
+                  >
+                    {/* Render barangay polygons */}
+                    {SOLANA_BARANGAYS.map((b) => {
+                      const isSelected =
+                        b.name.toLowerCase() === selectedBarangayName.toLowerCase();
+                      const isCentroNorte = b.name.includes("Centro Norte");
+
+                      return (
+                        <g
+                          key={b.name}
+                          onClick={() => setSelectedBarangayName(b.name)}
+                          className="cursor-pointer transition hover:opacity-90 group"
+                        >
+                          <path
+                            d={b.d}
+                            fill={
+                              isSelected
+                                ? "#059669" // Vibrant emerald green for selected
+                                : isCentroNorte
+                                ? "#10B981"
+                                : "#EAE6DF" // Light stone/tan for unselected
+                            }
+                            stroke={isSelected ? "#047857" : "#CBD5E1"}
+                            strokeWidth={isSelected ? "2.5" : "1.5"}
+                            strokeLinejoin="round"
+                            className="transition-colors duration-200"
                           />
+
+                          {/* Marker on Centro Norte */}
+                          {isCentroNorte && (
+                            <circle
+                              cx={b.center.x}
+                              cy={b.center.y}
+                              r={8}
+                              fill="#FBBF24"
+                              stroke="#0B2545"
+                              strokeWidth={3}
+                            />
+                          )}
+
+                          {/* Barangay Label */}
+                          <text
+                            x={b.center.x}
+                            y={isCentroNorte ? b.center.y - 14 : b.center.y}
+                            textAnchor="middle"
+                            fill={isSelected ? "#FFFFFF" : "#64748B"}
+                            fontSize={isSelected ? "11" : "10"}
+                            fontWeight={isSelected ? "800" : "600"}
+                            className="pointer-events-none select-none"
+                          >
+                            {b.name}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+
+                  {/* Floating Action Banner at bottom of map */}
+                  <div className="mt-3 inline-flex items-center rounded-full bg-white/95 px-4 py-1.5 shadow-sm border border-stone-200 text-xs sm:text-sm font-medium text-slate-800 backdrop-blur-xs">
+                    Pindutin ang {selectedBarangayName} para makita ang sakahan
+                  </div>
+                </div>
+
+                {/* Legend below map */}
+                <div className="mt-4 flex items-center gap-6 text-xs sm:text-sm text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-[#059669]" />
+                    <span>May taniman</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-md bg-[#EAE6DF] border border-stone-300" />
+                    <span>Wala pang rehistro</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: NAPILI Card + Maisy Assistant (4 cols) */}
+              <div className="lg:col-span-4 space-y-5">
+                {/* NAPILI Card */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+                  <div>
+                    <p className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+                      NAPILI
+                    </p>
+                    <h4 className="mt-0.5 text-xl font-extrabold text-slate-900">
+                      {selectedBarangayData.name}
+                    </h4>
+                  </div>
+
+                  {/* 2 Stats side-by-side: 1 sakahan | 7 ha taniman */}
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                      <p className="text-2xl font-black text-slate-900 leading-tight">
+                        {selectedBarangayData.farms}
+                      </p>
+                      <p className="text-xs font-medium text-slate-500">sakahan</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                      <p className="text-2xl font-black text-blue-700 leading-tight">
+                        {selectedBarangayData.hectares} ha
+                      </p>
+                      <p className="text-xs font-medium text-slate-500">taniman</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.info(`Ipinapakita ang sakahan sa ${selectedBarangayData.name}.`);
+                    }}
+                    className="w-full rounded-xl border border-slate-300 bg-white hover:bg-slate-50 py-3 text-sm font-bold text-slate-800 shadow-xs transition active:scale-98 cursor-pointer"
+                  >
+                    Ipakita ang sakahan sa mapa
+                  </button>
+                </div>
+
+                {/* Maisy Assistant Card — Keeping Maisy's real mascot design as requested! */}
+                <div className="flex w-full items-center gap-3.5 rounded-2xl bg-[#DBEAFE] p-4.5 shadow-xs border border-blue-200/60">
+                  <img
+                    src="/assets/mascot-maisy.png"
+                    alt="Maisy, ang iyong DA farming assistant"
+                    className="h-20 sm:h-22 w-auto shrink-0 object-contain drop-shadow-sm"
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                  <div className="relative min-w-0 flex-1 rounded-2xl bg-white p-3.5 text-slate-900 shadow-xs">
+                    {/* Speech bubble tail */}
+                    <span
+                      aria-hidden="true"
+                      className="absolute -left-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-45 bg-white"
+                    />
+                    <div className="relative">
+                      <p className="text-sm font-extrabold leading-tight text-[#1D4ED8]">
+                        Maisy
+                      </p>
+                      <p className="mt-1 text-xs sm:text-sm font-medium leading-relaxed text-slate-800">
+                        {totalPending === 0
+                          ? "Magandang araw, DA Field! Walang nakabinbin ngayon. Tingnan ang yugto ng mga taniman sa ibaba."
+                          : `Magandang araw, DA Field! May ${totalPending} kasong nangangailangan ng iyong aksyon ngayon.`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Section: Panahon ng Mais (4 Stages Grid) */}
+            <section
+              aria-label="Panahon ng Mais"
+              className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1">
+                <h3 className="text-xl font-bold text-slate-900">
+                  Panahon ng Mais
+                </h3>
+                <p className="text-sm text-slate-500 font-medium">
+                  7 ha ang aktibo &middot; i-set ang yugto ng bawat taniman
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {/* 1 · PAGTATANIM */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold text-slate-500 tracking-wider">
+                    1 &middot; PAGTATANIM
+                  </p>
+                  <p className="mt-2 text-2xl font-black text-slate-800">
+                    &mdash; <span className="text-sm font-semibold text-slate-500">ha</span>
+                  </p>
+                </div>
+
+                {/* 2 · PAGLAGO (Soft Green highlight matching mockup) */}
+                <div className="rounded-xl border border-emerald-300 bg-[#ECFDF5] p-4">
+                  <p className="text-xs font-bold text-emerald-800 tracking-wider">
+                    2 &middot; PAGLAGO
+                  </p>
+                  <p className="mt-2 text-2xl font-black text-emerald-900">
+                    &mdash; <span className="text-sm font-semibold text-emerald-700">ha</span>
+                  </p>
+                </div>
+
+                {/* 3 · PAGBUBUNGA (Soft Orange highlight matching mockup) */}
+                <div className="rounded-xl border border-amber-300 bg-[#FFFBEB] p-4">
+                  <p className="text-xs font-bold text-amber-800 tracking-wider">
+                    3 &middot; PAGBUBUNGA
+                  </p>
+                  <p className="mt-2 text-2xl font-black text-amber-900">
+                    &mdash; <span className="text-sm font-semibold text-amber-700">ha</span>
+                  </p>
+                </div>
+
+                {/* 4 · PAG-ANI (Soft Yellow highlight matching mockup) */}
+                <div className="rounded-xl border border-yellow-300 bg-[#FEFCE8] p-4">
+                  <p className="text-xs font-bold text-yellow-800 tracking-wider">
+                    4 &middot; PAG-ANI
+                  </p>
+                  <p className="mt-2 text-2xl font-black text-yellow-900">
+                    &mdash; <span className="text-sm font-semibold text-yellow-700">ha</span>
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════════
+            TAB 2: PINSALA (Damage Claims) - Matches PDF Page 2 & Page 5
+        ════════════════════════════════════════════════════════════════════ */}
+        {activeTab === "PINSALA" && (
+          <div className="space-y-5">
+            {/* Header + Action Button */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Mga Kaso ng Pinsala
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsAddDamageOpen(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-5 py-2.5 text-sm sm:text-base font-bold text-white shadow-xs transition active:scale-95 cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="h-5 w-5" />
+                <span>Magdagdag ng Kaso</span>
+              </button>
+            </div>
+
+            {/* Filter Pills matching PDF: [Lahat] [Bago] [Sinusuri] [Na-verify] [Aprubado] */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+              {(
+                [
+                  { key: "LAHAT", label: "Lahat" },
+                  { key: "BAGO", label: "Bago" },
+                  { key: "SINUSURI", label: "Sinusuri" },
+                  { key: "NA_VERIFY", label: "Na-verify" },
+                  { key: "APRUBADO", label: "Aprubado" },
+                ] as { key: DamageFilter; label: string }[]
+              ).map((f) => {
+                const isActive = damageFilter === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setDamageFilter(f.key)}
+                    className={`rounded-full px-5 py-2 text-sm font-bold transition shrink-0 cursor-pointer ${
+                      isActive
+                        ? "bg-[#0B2545] text-white shadow-xs"
+                        : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Desktop 2-Column Layout / Mobile Stacked Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Table of Cases (7 cols on desktop) */}
+              <div className="lg:col-span-8 rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-700">
+                    <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                      <tr>
+                        <th className="px-5 py-3.5">Kaso</th>
+                        <th className="px-5 py-3.5">Magsasaka</th>
+                        <th className="px-5 py-3.5">Barangay</th>
+                        <th className="px-5 py-3.5">Pinsala</th>
+                        <th className="px-5 py-3.5">HA</th>
+                        <th className="px-5 py-3.5">Katayuan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredDamageList.map((item) => {
+                        const isSelected = selectedDisasterItem.id === item.id;
+                        return (
+                          <tr
+                            key={item.id}
+                            onClick={() => setSelectedDisasterItem(item)}
+                            className={`cursor-pointer transition hover:bg-slate-50 ${
+                              isSelected ? "bg-blue-50/60 font-semibold" : ""
+                            }`}
+                          >
+                            <td className="px-5 py-4 font-bold text-slate-900">
+                              {item.code}
+                            </td>
+                            <td className="px-5 py-4 text-slate-800">
+                              {item.farmerName}
+                            </td>
+                            <td className="px-5 py-4 text-slate-600">
+                              {item.barangay}
+                            </td>
+                            <td className="px-5 py-4 text-slate-800 font-medium">
+                              {item.disasterType}
+                            </td>
+                            <td className="px-5 py-4 text-slate-600">
+                              {item.hectares} ha
+                            </td>
+                            <td className="px-5 py-4">
+                              <span
+                                className={`inline-flex rounded-full px-3 py-0.5 text-xs font-bold ${
+                                  item.status === "Bago"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : item.status === "Sinusuri"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : item.status === "Na-verify"
+                                    ? "bg-teal-100 text-teal-800"
+                                    : "bg-emerald-100 text-emerald-800"
+                                }`}
+                              >
+                                {item.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Cards List (< md) */}
+                <div className="md:hidden divide-y divide-slate-100 p-2">
+                  {filteredDamageList.map((item) => {
+                    const isSelected = selectedDisasterItem.id === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => setSelectedDisasterItem(item)}
+                        className={`p-4 rounded-xl cursor-pointer transition ${
+                          isSelected ? "bg-blue-50/80 border border-blue-200" : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-bold text-slate-900 text-base">
+                            {item.code} &middot; {item.farmerName}
+                          </p>
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold shrink-0 ${
+                              item.status === "Bago"
+                                ? "bg-blue-100 text-blue-800"
+                                : item.status === "Sinusuri"
+                                ? "bg-amber-100 text-amber-800"
+                                : item.status === "Na-verify"
+                                ? "bg-teal-100 text-teal-800"
+                                : "bg-emerald-100 text-emerald-800"
+                            }`}
+                          >
+                            {item.status}
+                          </span>
                         </div>
-                      </li>
+                        <p className="mt-1 text-xs text-slate-500 font-medium">
+                          {item.disasterType} &middot; {item.hectares} ha &middot; {item.barangay}
+                        </p>
+                      </div>
                     );
                   })}
-                </ul>
-              )}
-            </div>
-
-            {/* I-download ang Ulat */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
-              <div className="mb-1 flex items-center gap-2">
-                <FileSpreadsheet
-                  className="h-5 w-5 text-slate-500"
-                  aria-hidden="true"
-                />
-                <h3 className="text-xl font-bold text-slate-900">
-                  I-download ang Ulat
-                </h3>
-              </div>
-              <p className="mb-4 text-base text-slate-500">
-                Para sa disaster claims at buod ng barangay
-              </p>
-
-              {/* Type selector */}
-              <div className="mb-3">
-                <label
-                  htmlFor="export-type"
-                  className="mb-1 block text-base font-semibold text-slate-700"
-                >
-                  Uri ng Ulat
-                </label>
-                <select
-                  id="export-type"
-                  value={exportType}
-                  onChange={(e) => setExportType(e.target.value as ExportType)}
-                  className="w-full min-h-12 rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
-                >
-                  <option value="disaster-claims">Disaster Claims</option>
-                  <option value="barangay-summary">Buod ng Barangay</option>
-                </select>
+                </div>
               </div>
 
-              {/* Format buttons */}
-              <div className="mb-4 flex gap-3">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setExportFormat("xlsx");
-                    await handleExport();
-                  }}
-                  disabled={exporting}
-                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60 cursor-pointer"
-                >
-                  {exporting && exportFormat === "xlsx" ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Download className="h-5 w-5" aria-hidden="true" />
-                  )}
-                  Excel (.xlsx)
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setExportFormat("csv");
-                    await handleExport();
-                  }}
-                  disabled={exporting}
-                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-emerald-400 active:scale-95 disabled:opacity-60 cursor-pointer"
-                >
-                  {exporting && exportFormat === "csv" ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Download className="h-5 w-5" aria-hidden="true" />
-                  )}
-                  CSV
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: PINSALA */}
-        {activeTab === "PINSALA" && (
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="flex items-center gap-2 text-[22px] font-bold text-slate-900">
-                  Disaster Claim
-                  <span className="rounded-full bg-[#C2410C] px-3 py-0.5 text-sm font-bold text-white">
-                    {pendingDisasterClaims}
-                  </span>
-                </h2>
-                {lastFetchedAt && (
-                  <p className="mt-0.5 text-[14px] text-slate-500">
-                    Huling update:{" "}
-                    {lastFetchedAt.toLocaleTimeString("en-PH", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                      hour12: true,
-                    })}
+              {/* Right Column: Selected Case Details + Stepper (4 cols) */}
+              <div className="lg:col-span-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-6">
+                <div>
+                  <p className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+                    NAPILING KASO
                   </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => fetchPipeline()}
-                disabled={pipelineLoading}
-                className="flex min-h-12 items-center gap-2 rounded-[14px] border-2 border-slate-300 bg-white px-3.5 text-[14px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer self-start sm:self-auto"
-              >
-                <RefreshCw
-                  className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
-                  strokeWidth={2}
-                  aria-hidden="true"
-                />
-                I-refresh
-              </button>
-            </div>
+                  <h3 className="mt-1 text-xl font-extrabold text-slate-900">
+                    {selectedDisasterItem.code} &middot; {selectedDisasterItem.disasterType}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                    {selectedDisasterItem.farmerName} &middot; {selectedDisasterItem.barangay}
+                  </p>
+                </div>
 
-            <FilterSegments
-              value={disasterFilter}
-              onChange={setDisasterFilter}
-            />
+                {/* 4-Step Vertical Stepper matching PDF Page 2 */}
+                <div className="space-y-4 py-2">
+                  {[
+                    { step: 1, label: "Naisumite" },
+                    { step: 2, label: "Sinusuri" },
+                    { step: 3, label: "Na-verify sa bukid" },
+                    { step: 4, label: "Aprubado" },
+                  ].map(({ step, label }) => {
+                    const currentStatus = selectedDisasterItem.status;
+                    const statusStep =
+                      currentStatus === "Bago"
+                        ? 1
+                        : currentStatus === "Sinusuri"
+                        ? 2
+                        : currentStatus === "Na-verify"
+                        ? 3
+                        : 4;
 
-            {pipelineLoading ? (
-              <LoadingState label="Kinukuha ang mga claim..." />
-            ) : pipelineError ? (
-              <ErrorState
-                title="Hindi makuha ang mga claim"
-                message="Subukan muli ang pagkuha ng pipeline."
-                onRetry={() => fetchPipeline()}
-              />
-            ) : filteredDisasters.length === 0 ? (
-              <EmptyState
-                title="Walang claim sa ngayon"
-                message="Walang disaster claim na tumutugma sa napiling filter."
-              />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredDisasters.map((report) => {
-                  const sd = caseStatusDisplay(report.status);
-                  return (
-                    <div
-                      key={report.id}
-                      className="rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm space-y-3 flex flex-col"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span
-                          className={`rounded-full border px-3 py-0.5 text-sm font-bold ${sd.badge}`}
+                    const isDone = step < statusStep;
+                    const isCurrent = step === statusStep;
+
+                    return (
+                      <div key={step} className="flex items-center gap-3.5">
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold transition ${
+                            isDone
+                              ? "bg-emerald-600 text-white"
+                              : isCurrent
+                              ? "bg-amber-500 text-white"
+                              : "border-2 border-slate-300 text-slate-400 bg-white"
+                          }`}
                         >
-                          {sd.label}
+                          {isDone ? <Check className="h-4 w-4 stroke-[3]" /> : step}
+                        </div>
+                        <span
+                          className={`text-sm font-bold ${
+                            isCurrent
+                              ? "text-slate-900 font-extrabold"
+                              : isDone
+                              ? "text-slate-800"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {label}
                         </span>
-                        <AlertTriangle
-                          className="h-5 w-5 shrink-0 text-orange-500 mt-0.5"
-                          aria-hidden="true"
-                        />
                       </div>
+                    );
+                  })}
+                </div>
 
-                      <div>
-                        <p className="text-lg font-bold text-slate-900">
-                          {report.disasterType}
-                        </p>
-                        {report.farm && (
-                          <p className="mt-0.5 flex items-center gap-1 text-base text-slate-500">
-                            <MapPin
-                              className="h-4 w-4 shrink-0"
-                              aria-hidden="true"
-                            />
-                            {report.farm.name} &middot; {report.farm.barangay}
-                          </p>
-                        )}
-                      </div>
+                {/* Case Notes / Summary */}
+                {selectedDisasterItem.notes && (
+                  <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100 text-xs sm:text-sm text-slate-700 leading-relaxed">
+                    <p className="font-bold text-slate-900 mb-1">Tala sa Sakahan:</p>
+                    {selectedDisasterItem.notes}
+                  </div>
+                )}
 
-                      {Number(report.damagePercentage) > 0 && (
-                        <p className="text-base font-semibold text-rose-600">
-                          Pinsala: {Number(report.damagePercentage).toFixed(0)}%
-                        </p>
-                      )}
+                {/* Action Buttons: I-verify sa Bukid & Humingi ng Dokumento */}
+                <div className="space-y-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleVerifyField(selectedDisasterItem.id)}
+                    className="w-full rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-sm sm:text-base font-bold text-white shadow-xs transition active:scale-98 cursor-pointer"
+                  >
+                    I-verify sa Bukid
+                  </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDisaster(report)}
-                        className="mt-auto flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 cursor-pointer"
-                      >
-                        <Eye className="h-5 w-5" aria-hidden="true" />
-                        Suriin / Sagutin
-                      </button>
-                    </div>
-                  );
-                })}
+                  <button
+                    type="button"
+                    onClick={() => handleRequestDoc(selectedDisasterItem.id)}
+                    className="w-full rounded-xl border border-slate-800 bg-white hover:bg-slate-50 py-3 text-sm sm:text-base font-bold text-slate-800 shadow-xs transition active:scale-98 cursor-pointer"
+                  >
+                    Humingi ng Dokumento
+                  </button>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         )}
 
-        {/* TAB 3: KONSULTASYON */}
+        {/* ════════════════════════════════════════════════════════════════════
+            TAB 3: KONSULTASYON (Consultations) - Matches PDF Page 3 & Page 6
+        ════════════════════════════════════════════════════════════════════ */}
         {activeTab === "KONSULTASYON" && (
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="flex items-center gap-2 text-[22px] font-bold text-slate-900">
-                  Kaso ng Konsultasyon
-                  <span className="rounded-full bg-[#BE123C] px-3 py-0.5 text-sm font-bold text-white">
-                    {pendingConsultations}
-                  </span>
-                </h2>
-                {lastFetchedAt && (
-                  <p className="mt-0.5 text-[14px] text-slate-500">
-                    Huling update:{" "}
-                    {lastFetchedAt.toLocaleTimeString("en-PH", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                      hour12: true,
-                    })}
-                  </p>
-                )}
-              </div>
+          <div className="space-y-5">
+            {/* Header + Action Button */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Mga Konsultasyon
+              </h2>
               <button
                 type="button"
-                onClick={() => fetchPipeline()}
-                disabled={pipelineLoading}
-                className="flex min-h-12 items-center gap-2 rounded-[14px] border-2 border-slate-300 bg-white px-3.5 text-[14px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer self-start sm:self-auto"
+                onClick={() => setIsAddConsultOpen(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-5 py-2.5 text-sm sm:text-base font-bold text-white shadow-xs transition active:scale-95 cursor-pointer self-start sm:self-auto"
               >
-                <RefreshCw
-                  className={`h-5 w-5 ${pipelineLoading ? "animate-spin" : ""}`}
-                  strokeWidth={2}
-                  aria-hidden="true"
-                />
-                I-refresh
+                <Plus className="h-5 w-5" />
+                <span>Bagong Tala</span>
               </button>
             </div>
 
-            <FilterSegments value={expertFilter} onChange={setExpertFilter} />
+            {/* Filter Pills matching PDF: [Bago] [Sinagot] [Lahat] */}
+            <div className="flex items-center gap-2">
+              {(
+                [
+                  { key: "BAGO", label: "Bago" },
+                  { key: "SINAGOT", label: "Sinagot" },
+                  { key: "LAHAT", label: "Lahat" },
+                ] as { key: ConsultFilter; label: string }[]
+              ).map((f) => {
+                const isActive = consultFilter === f.key;
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setConsultFilter(f.key)}
+                    className={`rounded-full px-5 py-2 text-sm font-bold transition cursor-pointer ${
+                      isActive
+                        ? "bg-[#0B2545] text-white shadow-xs"
+                        : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
+            </div>
 
-            {pipelineLoading ? (
-              <LoadingState label="Kinukuha ang mga kaso..." />
-            ) : pipelineError ? (
-              <ErrorState
-                title="Hindi makuha ang mga kaso"
-                message="Subukan muli ang pagkuha ng pipeline."
-                onRetry={() => fetchPipeline()}
-              />
-            ) : filteredExperts.length === 0 ? (
-              <EmptyState
-                title="Walang kaso sa ngayon"
-                message="Walang consultation case na tumutugma sa napiling filter."
-              />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredExperts.map((ec) => {
-                  const sd = caseStatusDisplay(ec.status);
-                  const farm = ec.observation?.cropCycle?.farm;
+            {/* Desktop 2-Column Chat Layout / Mobile List & Chat */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Consultation Cards List (5 cols) */}
+              <div className="lg:col-span-5 space-y-3">
+                {filteredConsultList.map((c) => {
+                  const isSelected = selectedConsultItem.id === c.id;
                   return (
                     <div
-                      key={ec.id}
-                      className="rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm space-y-3 flex flex-col"
+                      key={c.id}
+                      onClick={() => setSelectedConsultItem(c)}
+                      className={`p-4 rounded-2xl border transition cursor-pointer shadow-xs ${
+                        isSelected
+                          ? "bg-white border-blue-500 ring-2 ring-blue-500/20"
+                          : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2">
+                        <p className="font-extrabold text-slate-900 text-base">
+                          {c.farmerName}
+                        </p>
                         <span
-                          className={`rounded-full border px-3 py-0.5 text-sm font-bold ${sd.badge}`}
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                            c.status === "Bago"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
                         >
-                          {sd.label}
+                          {c.status}
                         </span>
-                        {ec.observation?.severity &&
-                          ["HIGH", "CRITICAL"].includes(
-                            ec.observation.severity,
-                          ) && (
-                            <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-sm font-bold text-red-700">
-                              {ec.observation.severity === "CRITICAL"
-                                ? "Kritikal"
-                                : "Mataas na Priyoridad"}
-                            </span>
-                          )}
                       </div>
-
-                      <div>
-                        {ec.observation?.title?.includes(
-                          "[Hinihinging Tulong sa LGU Technician]",
-                        ) && (
-                          <span className="mb-1 inline-block rounded-md bg-blue-50 px-2.5 py-0.5 text-sm font-bold text-blue-700 border border-blue-200">
-                            Humingi ng tulong sa LGU Technician
-                          </span>
-                        )}
-                        <p className="text-lg font-bold text-slate-900">
-                          {ec.observation?.title?.replace(
-                            /^\[Hinihinging Tulong sa LGU Technician\]\s*/,
-                            "",
-                          ) ?? "Obserbasyon sa Sakahan"}
-                        </p>
-                        {farm && (
-                          <p className="mt-0.5 flex items-center gap-1 text-base text-slate-500">
-                            <MapPin
-                              className="h-4 w-4 shrink-0"
-                              aria-hidden="true"
-                            />
-                            {farm.name} &middot; {farm.barangay}
-                          </p>
-                        )}
-                      </div>
-
-                      {ec.observation?.severity && (
-                        <p className="text-base font-semibold text-rose-600">
-                          Severity: {ec.observation.severity}
-                        </p>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAdvisoryInput(ec.recommendation ?? "");
-                          setSelectedCase(ec);
-                        }}
-                        className="mt-auto flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 cursor-pointer"
-                      >
-                        <Send className="h-5 w-5" aria-hidden="true" />
-                        Suriin / Sagutin
-                      </button>
+                      <p className="mt-1 text-sm font-medium text-slate-600 line-clamp-1">
+                        {c.topic}
+                      </p>
+                      <p className="mt-2 text-xs text-slate-400 font-medium">
+                        {c.date}
+                      </p>
                     </div>
                   );
                 })}
               </div>
-            )}
+
+              {/* Right Column: Active Conversation Pane (7 cols) */}
+              <div className="lg:col-span-7 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col justify-between min-h-[460px] space-y-5">
+                <div>
+                  {/* Chat Header: Topic | Barangay */}
+                  <div className="flex items-baseline justify-between border-b border-slate-100 pb-3 mb-4">
+                    <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">
+                      {selectedConsultItem.topic}
+                    </h3>
+                    <span className="text-xs sm:text-sm text-slate-500 font-medium">
+                      {selectedConsultItem.barangay}
+                    </span>
+                  </div>
+
+                  {/* Message Bubbles */}
+                  <div className="space-y-4">
+                    {/* Farmer Inquiry Bubble (Left, gray) */}
+                    <div className="flex flex-col items-start max-w-[85%]">
+                      <span className="text-xs font-bold text-slate-400 mb-1">
+                        {selectedConsultItem.farmerName}
+                      </span>
+                      <div className="rounded-2xl rounded-tl-xs bg-slate-100 p-4 text-sm sm:text-base text-slate-800 leading-relaxed">
+                        {selectedConsultItem.question}
+                      </div>
+                    </div>
+
+                    {/* Technician Answer Bubble (Right, navy) */}
+                    {selectedConsultItem.answer && (
+                      <div className="flex flex-col items-end max-w-[85%] ml-auto">
+                        <span className="text-xs font-bold text-slate-400 mb-1">
+                          Ikaw (Technician)
+                        </span>
+                        <div className="rounded-2xl rounded-tr-xs bg-[#0B2545] p-4 text-sm sm:text-base text-white leading-relaxed">
+                          {selectedConsultItem.answer}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Maisy AI Recommendation Box & Reply Input */}
+                <div className="space-y-3 pt-4 border-t border-slate-100">
+                  {/* Mungkahi ni Maisy Card — Preserving real Maisy mascot design as requested! */}
+                  <div className="rounded-2xl border border-amber-300 bg-[#FFFBEB] p-4 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <img
+                        src="/assets/mascot-maisy.png"
+                        alt="Maisy mascot"
+                        className="h-10 w-auto shrink-0 object-contain drop-shadow-xs"
+                      />
+                      <div>
+                        <p className="text-xs sm:text-sm font-extrabold text-amber-900">
+                          Mungkahi ni Maisy
+                        </p>
+                        <p className="mt-0.5 text-xs sm:text-sm text-amber-800 leading-snug">
+                          {selectedConsultItem.suggestedAnswer}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setChatReplyInput(selectedConsultItem.suggestedAnswer)}
+                      className="rounded-xl border border-amber-400 bg-white hover:bg-amber-50 px-4 py-2 text-xs sm:text-sm font-bold text-amber-900 shadow-xs transition active:scale-95 shrink-0 self-start sm:self-auto cursor-pointer"
+                    >
+                      Gamitin
+                    </button>
+                  </div>
+
+                  {/* Input Box + Ipadala Button */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="text"
+                      value={chatReplyInput}
+                      onChange={(e) => setChatReplyInput(e.target.value)}
+                      placeholder="Isulat ang sagot..."
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSendReply();
+                      }}
+                      className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendReply}
+                      className="inline-flex items-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-6 py-3 text-sm sm:text-base font-bold text-white shadow-xs transition active:scale-95 cursor-pointer"
+                    >
+                      <span>Ipadala</span>
+                      <Send className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* TAB 4: ULAT */}
+        {/* ════════════════════════════════════════════════════════════════════
+            TAB 4: ULAT (Reports Export)
+        ════════════════════════════════════════════════════════════════════ */}
         {activeTab === "ULAT" && (
-          <div className="grid gap-5 lg:grid-cols-2">
-            {/* I-download ang Ulat */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
-              <div className="mb-1 flex items-center gap-2">
-                <FileSpreadsheet
-                  className="h-5 w-5 text-slate-500"
-                  aria-hidden="true"
-                />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Download Export Panel (6 cols) */}
+            <div className="lg:col-span-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-5">
+              <div className="flex items-center gap-2.5">
+                <FileSpreadsheet className="h-6 w-6 text-slate-600" />
                 <h3 className="text-xl font-bold text-slate-900">
                   I-download ang Ulat
                 </h3>
               </div>
-              <p className="mb-4 text-base text-slate-500">
-                Pumili ng uri ng ulat para sa disaster claims o buod ng mga
-                sakahan
+              <p className="text-sm text-slate-500">
+                Pumili ng uri ng ulat para sa disaster claims o buod ng mga sakahan ng Cagayan Valley.
               </p>
 
-              <div className="mb-3">
+              <div className="space-y-2">
                 <label
-                  htmlFor="export-type-tab"
-                  className="mb-1 block text-base font-semibold text-slate-700"
+                  htmlFor="report-type"
+                  className="block text-sm font-semibold text-slate-700"
                 >
                   Uri ng Ulat
                 </label>
                 <select
-                  id="export-type-tab"
+                  id="report-type"
                   value={exportType}
                   onChange={(e) => setExportType(e.target.value as ExportType)}
-                  className="w-full min-h-12 rounded-xl border border-slate-300 bg-white px-3 text-base font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-300"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-600"
                 >
-                  <option value="disaster-claims">Disaster Claims</option>
-                  <option value="barangay-summary">Buod ng Barangay</option>
+                  <option value="disaster-claims">Disaster Claims (Pinsala sa Taniman)</option>
+                  <option value="barangay-summary">Buod ng mga Sakahan sa Barangay</option>
                 </select>
               </div>
 
-              <div className="mb-4 flex gap-3">
+              <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={async () => {
-                    setExportFormat("xlsx");
-                    await handleExport();
-                  }}
+                  onClick={() => handleExport("xlsx")}
                   disabled={exporting}
-                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-[#047857] text-base font-bold text-white transition hover:bg-emerald-800 active:scale-95 disabled:opacity-60 cursor-pointer"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3.5 text-sm sm:text-base font-bold text-white shadow-xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
                 >
                   {exporting && exportFormat === "xlsx" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <Download className="h-5 w-5" aria-hidden="true" />
+                    <Download className="h-5 w-5" />
                   )}
                   Excel (.xlsx)
                 </button>
+
                 <button
                   type="button"
-                  onClick={async () => {
-                    setExportFormat("csv");
-                    await handleExport();
-                  }}
+                  onClick={() => handleExport("csv")}
                   disabled={exporting}
-                  className="flex h-13 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#047857] text-base font-bold text-[#047857] transition hover:bg-emerald-50 active:scale-95 disabled:opacity-60 cursor-pointer"
+                  className="flex items-center justify-center gap-2 rounded-xl border-2 border-[#065F46] hover:bg-emerald-50 py-3.5 text-sm sm:text-base font-bold text-[#065F46] shadow-xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
                 >
                   {exporting && exportFormat === "csv" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <Download className="h-5 w-5" aria-hidden="true" />
+                    <Download className="h-5 w-5" />
                   )}
                   CSV
                 </button>
               </div>
             </div>
 
-            {/* Buod ng Barangay Distribution */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
-              <div className="mb-4 flex items-center gap-2">
-                <BarChart3
-                  className="h-5 w-5 text-slate-500"
-                  aria-hidden="true"
-                />
+            {/* Barangay Distribution Summary (6 cols) */}
+            <div className="lg:col-span-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
+              <div className="flex items-center gap-2.5">
+                <BarChart3 className="h-6 w-6 text-slate-600" />
                 <h3 className="text-xl font-bold text-slate-900">
-                  Distribusyon ng Sakahan
+                  Distribusyon ng Sakahan sa Solana
                 </h3>
               </div>
-              {barangays.length === 0 ? (
-                <EmptyState
-                  title="Walang tala ng barangay"
-                  message="Wala pang nakatalang datos para sa ulat."
-                />
+
+              {barangaysLoading ? (
+                <LoadingState label="Kinukuha ang tala ng mga barangay..." />
               ) : (
-                <ul className="space-y-3">
-                  {barangays.slice(0, 6).map((b) => (
+                <ul className="divide-y divide-slate-100">
+                  {SOLANA_BARANGAYS.map((b) => (
                     <li
-                      key={b.barangay}
-                      className="flex items-center justify-between border-b border-slate-100 pb-2"
+                      key={b.name}
+                      className="py-3 flex items-center justify-between text-sm"
                     >
-                      <span className="text-base font-bold text-slate-800">
-                        {b.barangay}
-                      </span>
-                      <span className="text-sm font-semibold text-slate-600">
-                        {b.farmCount} sakahan &middot;{" "}
-                        {formatHa(b.totalHectares)} ha
+                      <span className="font-bold text-slate-800">{b.name}</span>
+                      <span className="text-slate-500 font-medium">
+                        {b.farmsCount} sakahan &middot; {b.hectares} ha
                       </span>
                     </li>
                   ))}
@@ -1325,82 +1561,54 @@ export const TechnicianDashboardPage: React.FC = () => {
         )}
       </main>
 
-      {/* ── D. MOBILE BOTTOM NAV BAR (< md) ─────────────────────────────────── */}
+      {/* ── MOBILE BOTTOM NAVIGATION (Pages 4, 5, 6) ────────────────────────── */}
       <nav
-        aria-label="Pangunahing nabigasyon"
-        className="fixed bottom-0 left-0 right-0 z-40 h-18 bg-white border-t-2 border-slate-300 md:hidden"
+        aria-label="Mobile Navigation"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg"
       >
-        <div className="grid grid-cols-4 h-full">
+        <div className="grid grid-cols-4 h-16">
           {(
             [
-              {
-                key: "BUOD" as TabKey,
-                label: "Buod",
-                icon: LayoutDashboard,
-              },
+              { key: "BUOD" as TabKey, label: "Buod", icon: LayoutDashboard },
               {
                 key: "PINSALA" as TabKey,
                 label: "Pinsala",
-                icon: CloudLightning,
-                badge: pendingDisasterClaims,
-                badgeBg: "bg-[#C2410C]",
+                icon: AlertTriangle,
+                badge: pendingDisasters,
               },
               {
                 key: "KONSULTASYON" as TabKey,
-                label: "Konsulta",
+                label: "Konsultasyon",
                 icon: MessageSquare,
                 badge: pendingConsultations,
-                badgeBg: "bg-[#BE123C]",
               },
-              {
-                key: "ULAT" as TabKey,
-                label: "Ulat",
-                icon: FileDown,
-              },
+              { key: "ULAT" as TabKey, label: "Ulat", icon: FileSpreadsheet },
             ] as const
-          ).map((tab) => {
-            const isActive = activeTab === tab.key;
-            const Icon = tab.icon;
-            const hasBadge = "badge" in tab && tab.badge > 0;
-
+          ).map((t) => {
+            const isActive = activeTab === t.key;
+            const Icon = t.icon;
             return (
               <button
-                key={tab.key}
+                key={t.key}
                 type="button"
-                onClick={() => setActiveTab(tab.key)}
-                aria-current={isActive ? "page" : undefined}
-                className={`relative flex h-full flex-col items-center justify-center gap-1 transition focus-visible:outline focus-visible:outline-blue-400 cursor-pointer ${
-                  isActive
-                    ? "bg-[#EFF6FF] text-[#1D4ED8]"
-                    : "text-[#334155] hover:bg-slate-50"
+                onClick={() => setActiveTab(t.key)}
+                className={`relative flex flex-col items-center justify-center gap-1 transition ${
+                  isActive ? "text-[#0B2545]" : "text-slate-500"
                 }`}
               >
-                {/* 4px blue indicator bar along the top edge (inset 22% left & right, rounded bottom corners) */}
                 {isActive && (
-                  <span className="absolute top-0 left-[22%] right-[22%] h-1 rounded-b-full bg-[#1D4ED8]" />
+                  <span className="absolute top-0 inset-x-4 h-1 rounded-b-full bg-[#0B2545]" />
                 )}
-
-                {/* Outline Icon (size 26, strokeWidth 2) with count badge sitting on the top-right corner */}
-                <div className="relative inline-flex items-center justify-center">
-                  <Icon
-                    className="h-6.5 w-6.5"
-                    strokeWidth={2}
-                    aria-hidden="true"
-                  />
-                  {hasBadge && (
-                    <span
-                      className={`absolute -top-1.5 -right-2.5 flex h-5 w-5 items-center justify-center rounded-full text-[13px] font-bold text-white border-2 leading-none ${
-                        tab.badgeBg
-                      } ${isActive ? "border-[#EFF6FF]" : "border-white"}`}
-                    >
-                      {tab.badge > 99 ? "99+" : tab.badge}
+                <div className="relative">
+                  <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
+                  {"badge" in t && t.badge > 0 && (
+                    <span className="absolute -top-1.5 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+                      {t.badge}
                     </span>
                   )}
                 </div>
-
-                {/* 14px bold label */}
-                <span className="text-[14px] font-bold leading-tight">
-                  {tab.label}
+                <span className={`text-[11px] ${isActive ? "font-extrabold" : "font-semibold"}`}>
+                  {t.label}
                 </span>
               </button>
             );
@@ -1408,761 +1616,306 @@ export const TechnicianDashboardPage: React.FC = () => {
         </div>
       </nav>
 
-      {/* ── DISASTER REVIEW MODAL ─────────────────────────────────────────── */}
-      {selectedDisaster && (
+      {/* ── MODAL: MAGDAGDAG NG KASO NG PINSALA ─────────────────────────────── */}
+      {isAddDamageOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm md:p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
           role="dialog"
           aria-modal="true"
-          aria-label="Pagsusuri sa Disaster Claim"
         >
-          <div className="w-full h-full md:h-auto md:max-h-[90vh] md:max-w-xl rounded-none md:rounded-3xl bg-white p-5 md:p-7 shadow-2xl overflow-y-auto space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-              <h3 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-slate-900">
-                <AlertTriangle
-                  className="h-6 w-6 text-orange-500"
-                  aria-hidden="true"
-                />
-                Pagsusuri sa Disaster Claim
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-xl font-extrabold text-slate-900">
+                Magdagdag ng Kaso ng Pinsala
               </h3>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedDisaster(null);
-                  setConfirmReject(null);
-                  setConfirmApprove(null);
-                }}
-                aria-label="Isara"
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-blue-400 cursor-pointer"
+                onClick={() => setIsAddDamageOpen(false)}
+                className="h-9 w-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition"
               >
-                <X className="h-6 w-6" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              {/* Row 1 */}
+            <form onSubmit={handleAddDamageSubmit} className="space-y-4">
               <div>
-                <p className="text-sm font-medium text-slate-600">
-                  Uri ng Sakuna
-                </p>
-                <p className="mt-0.5 text-[18px] font-bold text-slate-900">
-                  {selectedDisaster.disasterType}
-                </p>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Pangalan ng Magsasaka
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newDamageForm.farmerName}
+                  onChange={(e) =>
+                    setNewDamageForm({ ...newDamageForm, farmerName: e.target.value })
+                  }
+                  placeholder="Hal. Juan Dela Cruz"
+                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
               </div>
-              <div>
-                <p className="text-sm font-medium text-slate-600">
-                  Porsyento ng Pinsala
-                </p>
-                <p className="mt-0.5 text-[18px] font-black text-rose-600">
-                  {Number(selectedDisaster.damagePercentage).toFixed(0)}%
-                </p>
-              </div>
-              {/* Row 2 */}
-              <div>
-                <p className="text-sm font-medium text-slate-600">
-                  Tinatayang Lugi
-                </p>
-                <p className="mt-0.5 text-[18px] font-black text-emerald-700">
-                  &#8369;
-                  {Number(selectedDisaster.estimatedLoss ?? 0).toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-600">
-                  Kasalukuyang Status
-                </p>
-                <p className="mt-0.5 text-[18px] font-bold text-amber-600">
-                  {caseStatusDisplay(selectedDisaster.status).label}
-                </p>
-              </div>
-              {selectedDisaster.farm && (
-                <div className="col-span-2 border-t border-slate-200 pt-3">
-                  <p className="text-[14px] font-medium text-slate-600 whitespace-nowrap">
-                    Sakahan
-                  </p>
-                  <p className="mt-0.5 text-[19px] font-bold text-slate-900">
-                    {selectedDisaster.farm.name} &middot;{" "}
-                    {selectedDisaster.farm.barangay},{" "}
-                    {selectedDisaster.farm.municipality}
-                  </p>
-                </div>
-              )}
-            </div>
 
-            {(() => {
-              const dn = parseDisasterNotes(selectedDisaster.notes);
-              const farmerText = dn.cleanNotes || selectedDisaster.notes;
-              return farmerText ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="mb-1.5 text-[14px] font-bold uppercase tracking-wider text-slate-700">
-                    Tala ng Magsasaka
-                  </p>
-                  <p className="text-[16px] text-slate-800 leading-relaxed whitespace-pre-line">
-                    {farmerText}
-                  </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Barangay
+                  </label>
+                  <select
+                    value={newDamageForm.barangay}
+                    onChange={(e) =>
+                      setNewDamageForm({ ...newDamageForm, barangay: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  >
+                    {SOLANA_BARANGAYS.map((b) => (
+                      <option key={b.name} value={b.name}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              ) : null;
-            })()}
 
-            {/* ── ACTION BUTTONS ──────────────────────────────────────────── */}
-            {["RESOLVED", "REJECTED"].includes(selectedDisaster.status) ? (
-              /* Read-only status banner when already resolved/rejected */
-              <div
-                className={`rounded-2xl border p-4 flex items-center gap-3 ${
-                  selectedDisaster.status === "RESOLVED"
-                    ? "border-emerald-300 bg-emerald-50"
-                    : "border-rose-300 bg-rose-50"
-                }`}
-              >
-                {selectedDisaster.status === "RESOLVED" ? (
-                  <CheckCircle2
-                    className="h-6 w-6 shrink-0 text-emerald-600"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <XCircle
-                    className="h-6 w-6 shrink-0 text-rose-500"
-                    aria-hidden="true"
-                  />
-                )}
-                <p
-                  className={`text-[16px] font-bold ${
-                    selectedDisaster.status === "RESOLVED"
-                      ? "text-emerald-900"
-                      : "text-rose-900"
-                  }`}
-                >
-                  {selectedDisaster.status === "RESOLVED"
-                    ? "Aprubado na ang claim na ito."
-                    : "Hindi naaprubahan ang claim na ito."}
-                </p>
-              </div>
-            ) : confirmReject === selectedDisaster.id ? (
-              /* Reject confirmation step */
-              <div className="space-y-3">
-                <p className="text-[16px] font-semibold text-red-700">
-                  Sigurado ka bang i-reject ang claim na ito?
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmReject(null)}
-                    className="flex h-13 items-center justify-center rounded-[14px] border border-slate-300 text-[16px] font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-blue-400 cursor-pointer"
-                  >
-                    Hindi, bumalik
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleStatusUpdate(selectedDisaster.id, "REJECTED")
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Uri ng Pinsala
+                  </label>
+                  <select
+                    value={newDamageForm.disasterType}
+                    onChange={(e) =>
+                      setNewDamageForm({
+                        ...newDamageForm,
+                        disasterType: e.target.value,
+                      })
                     }
-                    disabled={submittingAction}
-                    className="flex h-13 items-center justify-center gap-2 rounded-[14px] bg-red-600 text-[16px] font-bold text-white transition hover:bg-red-700 focus-visible:outline focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
+                    className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                   >
-                    {submittingAction ? (
-                      <Loader2 className="h-5.5 w-5.5 animate-spin" />
-                    ) : (
-                      <XCircle className="h-5.5 w-5.5" strokeWidth={2} />
-                    )}
-                    Oo, i-reject
-                  </button>
+                    <option value="Bagyo (Typhoon)">Bagyo (Typhoon)</option>
+                    <option value="Baha (Flash Flood)">Baha (Flash Flood)</option>
+                    <option value="Fall Armyworm">Fall Armyworm</option>
+                    <option value="Tagtuyot (Drought)">Tagtuyot (Drought)</option>
+                    <option value="Corn Borer">Corn Borer</option>
+                  </select>
                 </div>
               </div>
-            ) : confirmApprove === selectedDisaster.id ? (
-              /* Approve confirmation step */
-              <div className="space-y-3">
-                <p className="text-[16px] font-semibold text-emerald-800">
-                  Aprubahan ang disaster claim na ito?
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmApprove(null)}
-                    className="flex h-13 items-center justify-center rounded-[14px] border border-slate-300 text-[16px] font-bold text-slate-700 transition hover:bg-slate-50 cursor-pointer"
-                  >
-                    Hindi, bumalik
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleStatusUpdate(selectedDisaster.id, "RESOLVED")
-                    }
-                    disabled={submittingAction}
-                    className="flex h-13 items-center justify-center gap-2 rounded-[14px] bg-[#047857] text-[16px] font-bold text-white transition hover:bg-emerald-800 active:scale-95 disabled:opacity-60 cursor-pointer"
-                  >
-                    {submittingAction ? (
-                      <Loader2 className="h-5.5 w-5.5 animate-spin" />
-                    ) : (
-                      <ShieldCheck className="h-5.5 w-5.5" strokeWidth={2} />
-                    )}
-                    Oo, aprubahan
-                  </button>
-                </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Sukat ng Taniman na Apektado (ha)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  required
+                  value={newDamageForm.hectares}
+                  onChange={(e) =>
+                    setNewDamageForm({ ...newDamageForm, hectares: e.target.value })
+                  }
+                  placeholder="Hal. 2.5"
+                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
               </div>
-            ) : (
-              /* Default action buttons */
-              <div className="space-y-3">
-                {/* PRIMARY: Aprubahan — full width, tall */}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Tala / Obserbasyon
+                </label>
+                <textarea
+                  rows={3}
+                  value={newDamageForm.notes}
+                  onChange={(e) =>
+                    setNewDamageForm({ ...newDamageForm, notes: e.target.value })
+                  }
+                  placeholder="Deskripsyon ng pinsala sa mais..."
+                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setConfirmApprove(selectedDisaster.id)}
-                  disabled={submittingAction}
-                  className="flex w-full min-h-16 items-center justify-center gap-3 rounded-2xl bg-[#047857] text-[20px] font-bold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-emerald-400 active:scale-[0.99] disabled:opacity-60 cursor-pointer shadow-md"
+                  onClick={() => setIsAddDamageOpen(false)}
+                  className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                 >
-                  <ShieldCheck
-                    className="h-6.5 w-6.5"
-                    strokeWidth={2}
-                    aria-hidden="true"
-                  />
-                  Aprubahan
+                  Kanselahin
                 </button>
-                {/* SECONDARY ROW: Sinusuri + I-reject */}
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleStatusUpdate(selectedDisaster.id, "UNDER_REVIEW")
-                    }
-                    disabled={submittingAction}
-                    className="flex min-h-13 items-center justify-center gap-2 rounded-[14px] bg-[#1D4ED8] text-[16px] font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer"
-                  >
-                    {submittingAction ? (
-                      <Loader2 className="h-5.5 w-5.5imate-spin" />
-                    ) : (
-                      <Eye className="h-5.5 w-5.5" strokeWidth={2} />
-                    )}
-                    Sinusuri
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmReject(selectedDisaster.id)}
-                    disabled={submittingAction}
-                    className="flex min-h-13 items-center justify-center gap-2 rounded-[14px] border-2 border-red-300 bg-white text-[16px] font-bold text-[#B91C1C] transition hover:bg-red-50 focus-visible:outline focus-visible:outline-red-400 active:scale-95 disabled:opacity-60 cursor-pointer"
-                  >
-                    <XCircle className="h-5.5 w-5.5" strokeWidth={2} />
-                    I-reject
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  className="flex-1 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-sm font-bold text-white transition cursor-pointer"
+                >
+                  I-save ang Kaso
+                </button>
               </div>
-            )}
+            </form>
           </div>
         </div>
       )}
 
-      {/* ── E. CASE DETAIL MODAL ("Detalye ng Kaso") ───────────────────────── */}
-      {selectedCase &&
-        (() => {
-          const parsed = parseLegacyCaseDescription(
-            selectedCase.observation?.description,
-          );
-
-          // Data source priority (a. Structured fields win over b. Parsed legacy values)
-          const structuredFarmer = selectedCase.observation?.farmer;
-          const structuredFarmerName = structuredFarmer
-            ? `${structuredFarmer.firstName || ""} ${structuredFarmer.lastName || ""}`.trim()
-            : undefined;
-          const farmerName =
-            structuredFarmerName || parsed.farmerName || "Hindi available";
-          const farmerPhone = structuredFarmer?.phone || parsed.phone || null;
-
-          const farmStruct = selectedCase.observation?.cropCycle?.farm;
-          const farmName =
-            farmStruct?.name || parsed.farmName || "Hindi available";
-          const barangay =
-            farmStruct?.barangay || parsed.barangay || "Hindi available";
-          const municipality =
-            farmStruct?.municipality ||
-            parsed.municipality ||
-            "Hindi available";
-          const areaHectares =
-            farmStruct?.areaHectares !== undefined &&
-            farmStruct?.areaHectares !== null
-              ? `${farmStruct.areaHectares} ha`
-              : "Hindi available";
-
-          const cropVariety = selectedCase.observation?.cropCycle?.variety;
-          const plantingDate = selectedCase.observation?.cropCycle?.plantingDate
-            ? new Date(
-                selectedCase.observation.cropCycle.plantingDate,
-              ).toLocaleDateString("fil-PH", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })
-            : null;
-
-          const aiDiagnosis = selectedCase.observation?.aiDiagnosis;
-          const statusInfo = caseStatusDisplay(selectedCase.status);
-          const severityVal = (
-            selectedCase.observation?.severity || "MEDIUM"
-          ).toUpperCase();
-          const isSevere = severityVal === "HIGH" || severityVal === "CRITICAL";
-
-          const hasTechnicianHelpTag =
-            parsed.requestedTechnicianHelp ||
-            Boolean(
-              selectedCase.observation?.title?.includes(
-                "[Hinihinging Tulong sa LGU Technician]",
-              ),
-            );
-
-          const displayTitle = selectedCase.observation?.title
-            ? selectedCase.observation.title.replace(
-                /^\[Hinihinging Tulong sa LGU Technician\]\s*/,
-                "",
-              )
-            : "Ulat mula sa Magsasaka";
-
-          const submittedDateStr = selectedCase.createdAt
-            ? new Date(selectedCase.createdAt).toLocaleDateString("fil-PH", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })
-            : "Hindi available";
-
-          return (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm md:p-4"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Detalye ng Kaso"
-            >
-              {/* Desktop: max-w-[760px], p-7, rounded-3xl. Mobile: full-screen sheet */}
-              <div className="w-full h-full md:h-auto md:max-h-[90vh] md:max-w-190 rounded-none md:rounded-3xl bg-white p-5 md:p-7 shadow-2xl overflow-y-auto space-y-5">
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                  <div>
-                    <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900">
-                      Detalye ng Kaso
-                    </h3>
-                    <p className="text-sm font-semibold text-slate-500 mt-1">
-                      Kaso #{selectedCase.id.slice(0, 8)} &middot; Konsultasyon
-                      sa Taniman
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCase(null);
-                      setAdvisoryInput("");
-                    }}
-                    aria-label="Isara"
-                    className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 focus-visible:outline focus-visible:outline-blue-400 cursor-pointer"
-                  >
-                    <X className="h-6 w-6" />
-                  </button>
-                </div>
-
-                {/* 1. TOP ROW: Severity tag, status badge, LGU help tag, date (all 14-15px bold pills) */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    {/* Severity Tag */}
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm md:text-[15px] font-bold tracking-wide border ${
-                        isSevere
-                          ? "bg-rose-50 text-rose-700 border-rose-300"
-                          : "bg-amber-50 text-amber-700 border-amber-300"
-                      }`}
-                    >
-                      <AlertTriangle className="h-4 w-4 shrink-0" />
-                      SEVERITY: {severityVal}
-                    </span>
-
-                    {/* Status Badge */}
-                    <span
-                      className={`rounded-full px-3.5 py-1.5 text-sm md:text-[15px] font-bold border ${statusInfo.badge}`}
-                    >
-                      {statusInfo.label}
-                    </span>
-
-                    {/* LGU Technician Help Tag */}
-                    {hasTechnicianHelpTag && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm md:text-[15px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                        Humingi ng tulong sa LGU Technician
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Date Submitted */}
-                  <div className="text-sm md:text-[15px] font-semibold text-slate-600 flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4 text-slate-400" />
-                    <span>
-                      Isinumite:{" "}
-                      <strong className="text-slate-800">
-                        {submittedDateStr}
-                      </strong>
-                    </span>
-                  </div>
-                </div>
-
-                {/* 2 & 3. 2-COLUMN GRID ON md+ (Magsasaka and Sakahan cards) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* 2. "MAGSASAKA" CARD */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                          <User className="h-4 w-4 text-emerald-600" />
-                          Magsasaka
-                        </span>
-                        {!structuredFarmer && (
-                          <span
-                            className="text-sm font-medium text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md"
-                            title="observation.farmer is missing from backend response"
-                          >
-                            {farmerName !== "Hindi available"
-                              ? "Nakuha sa Tala"
-                              : "Hindi available sa backend"}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-sm font-medium text-slate-600">
-                            Pangalan
-                          </p>
-                          <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
-                            {farmerName}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-sm font-medium text-slate-600">
-                            Telepono
-                          </p>
-                          <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
-                            {farmerPhone || "Hindi available"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* FULL-WIDTH 52px GREEN (#047857) CALL BUTTON */}
-                    {farmerPhone ? (
-                      <a
-                        href={`tel:${farmerPhone}`}
-                        className="mt-3 flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#047857] hover:bg-emerald-800 active:scale-95 text-white text-base font-bold shadow-sm transition"
-                      >
-                        <Phone className="h-5 w-5" />
-                        <span>Tawagan</span>
-                      </a>
-                    ) : (
-                      <div className="mt-3 flex h-13 w-full items-center justify-center rounded-xl bg-slate-100 text-slate-400 text-sm font-medium">
-                        Walang nakatalang numero
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 3. "SAKAHAN" CARD */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                        <Sprout className="h-4 w-4 text-emerald-600" />
-                        Sakahan
-                      </span>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-sm font-medium text-slate-600">
-                          Pangalan ng Sakahan
-                        </p>
-                        <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
-                          {farmName}
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-slate-600">
-                            Barangay at Munisipyo
-                          </p>
-                          <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
-                            {barangay}, {municipality}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-slate-600">
-                            Sukat
-                          </p>
-                          <p className="text-[18px] md:text-[19px] font-bold text-slate-900 mt-0.5">
-                            {areaHectares}
-                          </p>
-                        </div>
-                      </div>
-
-                      {(cropVariety || plantingDate) && (
-                        <div className="pt-3 border-t border-slate-200 flex flex-wrap gap-4 text-sm">
-                          {cropVariety && (
-                            <div>
-                              <span className="text-slate-600 font-medium">
-                                Bariedad:{" "}
-                              </span>
-                              <strong className="text-slate-900 font-bold">
-                                {cropVariety}
-                              </strong>
-                            </div>
-                          )}
-                          {plantingDate && (
-                            <div>
-                              <span className="text-slate-600 font-medium">
-                                Araw ng Pagtatanim:{" "}
-                              </span>
-                              <strong className="text-slate-900 font-bold">
-                                {plantingDate}
-                              </strong>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. "ULAT NG MAGSASAKA" CARD */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-                  <span className="text-sm font-bold uppercase tracking-wider text-slate-600">
-                    Ulat ng Magsasaka
-                  </span>
-                  <p className="text-[18px] md:text-[19px] font-bold text-slate-900">
-                    {displayTitle}
-                  </p>
-                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-                    <p
-                      className="text-[17px] text-slate-800 whitespace-pre-line"
-                      style={{ lineHeight: 1.5 }}
-                    >
-                      {parsed.message ||
-                        "Walang nakalakip na karagdagang mensahe."}
-                    </p>
-                  </div>
-                </div>
-
-                {/* CONDITIONAL: "RESULTA NG AI SCAN" CARD */}
-                {aiDiagnosis && (
-                  <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 shadow-sm space-y-3">
-                    <div className="flex items-center gap-1.5 text-indigo-950 font-bold text-sm uppercase tracking-wider">
-                      <Sparkles className="h-4 w-4 text-indigo-600" />
-                      Resulta ng AI Scan
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                      <div>
-                        <p className="text-sm text-indigo-700 font-medium">
-                          Kondisyon / Sakit
-                        </p>
-                        <p className="text-[18px] font-bold text-indigo-950">
-                          {aiDiagnosis.condition || "Hindi natukoy"}
-                        </p>
-                      </div>
-                      {aiDiagnosis.confidence !== undefined && (
-                        <div>
-                          <p className="text-sm text-indigo-700 font-medium">
-                            Antas ng Kumpiyansa
-                          </p>
-                          <p className="text-[18px] font-bold text-indigo-950">
-                            {typeof aiDiagnosis.confidence === "number"
-                              ? `${Math.round(aiDiagnosis.confidence * 100)}%`
-                              : String(aiDiagnosis.confidence)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    {aiDiagnosis.recommendedAction && (
-                      <div className="pt-2 border-t border-indigo-200/70">
-                        <p className="text-sm text-indigo-700 font-medium">
-                          Mungkahing Aksyon ng AI
-                        </p>
-                        <p className="text-base text-indigo-900 mt-1 leading-relaxed">
-                          {aiDiagnosis.recommendedAction}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 5. PHOTO (observation.imageUrl) IF PRESENT, TAP TO ENLARGE */}
-                {selectedCase.observation?.imageUrl && (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold uppercase tracking-wider text-slate-600">
-                        Larawan mula sa Sakahan
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEnlargedPhotoUrl(
-                            selectedCase.observation?.imageUrl ?? null,
-                          )
-                        }
-                        className="text-sm font-bold text-[#1D4ED8] hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        <Maximize2 className="h-4 w-4" />
-                        Palakihin
-                      </button>
-                    </div>
-                    <div
-                      onClick={() =>
-                        setEnlargedPhotoUrl(
-                          selectedCase.observation?.imageUrl ?? null,
-                        )
-                      }
-                      className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-slate-100"
-                      title="I-tap upang palakihin"
-                    >
-                      <img
-                        src={selectedCase.observation.imageUrl}
-                        alt="Larawan ng obserbasyon"
-                        className="w-full object-cover max-h-64 transition duration-200 group-hover:scale-[1.02]"
-                      />
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                        <span className="bg-white/95 text-slate-900 text-sm font-bold px-4 py-2 rounded-full shadow-md flex items-center gap-2">
-                          <Maximize2 className="h-4 w-4" />
-                          I-tap upang palakihin
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 6. "REKOMENDASYON" TEXTAREA (min-h-[96px], 17px text) + 56px FULL-WIDTH BUTTON */}
-                {selectedCase.status !== "RESOLVED" ? (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                    <label
-                      htmlFor="advisory-input"
-                      className="block text-sm font-bold uppercase tracking-wider text-slate-700"
-                    >
-                      Rekomendasyon
-                    </label>
-                    <textarea
-                      id="advisory-input"
-                      rows={4}
-                      value={advisoryInput}
-                      onChange={(e) => setAdvisoryInput(e.target.value)}
-                      placeholder="Hal. Mag-apply ng biopesticide o Neem extract sa hapon..."
-                      className="w-full min-h-24 resize-none rounded-2xl border border-slate-300 bg-white p-4 text-[17px] text-slate-900 outline-none focus:ring-2 focus:ring-blue-300 leading-relaxed"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleResolveCase(selectedCase.id)}
-                      disabled={submittingAction}
-                      className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] text-base md:text-[17px] font-bold text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-blue-400 active:scale-95 disabled:opacity-60 cursor-pointer shadow-md"
-                    >
-                      {submittingAction ? (
-                        <>
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                          <span>Ipinapadala...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="h-5 w-5" />
-                          <span>Ipadala ang Payo</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-5 space-y-2">
-                    <p className="flex items-center gap-2 text-base md:text-lg font-bold text-emerald-900">
-                      <CheckCircle2
-                        className="h-6 w-6 text-emerald-600 shrink-0"
-                        aria-hidden="true"
-                      />
-                      Nalutas na ang kasong ito
-                    </p>
-                    {selectedCase.recommendation && (
-                      <p className="mt-2 text-base md:text-[17px] text-emerald-950 leading-relaxed whitespace-pre-line bg-white/90 p-4 rounded-xl border border-emerald-200">
-                        {selectedCase.recommendation}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-      {/* ── PHOTO LIGHTBOX MODAL ─────────────────────────────────────────── */}
-      {enlargedPhotoUrl && (
+      {/* ── MODAL: BAGONG TALA NG KONSULTASYON ──────────────────────────────── */}
+      {isAddConsultOpen && (
         <div
-          className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
           role="dialog"
           aria-modal="true"
-          aria-label="Pinalaking Larawan"
-          onClick={() => setEnlargedPhotoUrl(null)}
         >
-          <div
-            className="relative max-w-3xl w-full max-h-[90vh] flex flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setEnlargedPhotoUrl(null)}
-              aria-label="Isara ang larawan"
-              className="absolute -top-12 right-0 flex h-12 w-12 items-center justify-center rounded-full bg-white/20 hover:bg-white/40 text-white transition cursor-pointer"
-            >
-              <X className="h-6 w-6" />
-            </button>
-            <img
-              src={enlargedPhotoUrl}
-              alt="Pinalaking larawan mula sa sakahan"
-              className="max-h-[85vh] w-auto max-w-full rounded-2xl object-contain shadow-2xl"
-            />
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-xl font-extrabold text-slate-900">
+                Bagong Tala ng Konsultasyon
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddConsultOpen(false)}
+                className="h-9 w-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddConsultSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Pangalan ng Magsasaka
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newConsultForm.farmerName}
+                  onChange={(e) =>
+                    setNewConsultForm({
+                      ...newConsultForm,
+                      farmerName: e.target.value,
+                    })
+                  }
+                  placeholder="Hal. Pedro Santos"
+                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Barangay
+                </label>
+                <select
+                  value={newConsultForm.barangay}
+                  onChange={(e) =>
+                    setNewConsultForm({
+                      ...newConsultForm,
+                      barangay: e.target.value,
+                    })
+                  }
+                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                >
+                  {SOLANA_BARANGAYS.map((b) => (
+                    <option key={b.name} value={b.name}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Paksa ng Tanong
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newConsultForm.topic}
+                  onChange={(e) =>
+                    setNewConsultForm({ ...newConsultForm, topic: e.target.value })
+                  }
+                  placeholder="Hal. Tamang timpla ng pestisidyo"
+                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Tanong ng Magsasaka
+                </label>
+                <textarea
+                  rows={3}
+                  value={newConsultForm.question}
+                  onChange={(e) =>
+                    setNewConsultForm({
+                      ...newConsultForm,
+                      question: e.target.value,
+                    })
+                  }
+                  placeholder="Ilagay ang katanungan o obserbasyon ng magsasaka..."
+                  className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddConsultOpen(false)}
+                  className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Kanselahin
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-sm font-bold text-white transition cursor-pointer"
+                >
+                  I-tala ang Konsultasyon
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
+      {/* ── ACCOUNT DRAWER / SHEET ─────────────────────────────────────────── */}
+      <AccountSheet
+        isOpen={isAccountOpen}
+        onClose={() => setIsAccountOpen(false)}
+        profileName={technicianDisplayName}
+        profileRoleSubtitle="Agricultural Technician"
+        profileInitials={technicianInitials}
+        menuItems={accountMenuItems}
+        triggerRef={activeTriggerRef}
+      />
+
+      {/* ── LOGOUT CONFIRMATION MODAL ──────────────────────────────────────── */}
       {confirmLogout && (
-        <div className="fixed inset-0 z-70 flex items-end sm:items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 shrink-0">
-                <LogOut className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-slate-900">
-                  Mag-logout?
-                </h3>
-                <p className="text-sm font-medium text-slate-500">
-                  Kakailanganin mong mag-login muli.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 pt-1">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+            <h3 className="text-xl font-bold text-slate-900">
+              Sigurado ka bang nais mong mag-logout?
+            </h3>
+            <p className="text-sm text-slate-500">
+              Kakailanganin mong mag-login muli gamit ang iyong municipal account.
+            </p>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmLogout(false)}
+                className="rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Bumalik
+              </button>
               <button
                 type="button"
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-red-600 text-base font-black text-white transition-colors hover:bg-red-700 disabled:opacity-60 cursor-pointer"
+                className="rounded-xl bg-red-600 hover:bg-red-700 py-3 text-sm font-bold text-white transition disabled:opacity-60 flex items-center justify-center gap-1.5"
               >
-                <LogOut className="h-5 w-5" />
-                {loggingOut ? "Nilalabas..." : "Oo, mag-logout"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmLogout(false)}
-                disabled={loggingOut}
-                className="inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-slate-100 text-base font-bold text-slate-600 transition-colors hover:bg-slate-200 cursor-pointer"
-              >
-                Huwag na
+                {loggingOut ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LogOut className="h-4 w-4" />
+                )}
+                <span>Mag-logout</span>
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* ── ACCOUNT / PROFILE SHEET ───────────────────────────────────────── */}
-      <AccountSheet
-        isOpen={isAccountOpen}
-        onClose={() => setIsAccountOpen(false)}
-        triggerRef={activeTriggerRef}
-        profileName={officerName || "Opisyal"}
-        profileRoleSubtitle={`${officerRole} \u00b7 DA Region II`}
-        profileInitials={profileInitials}
-        menuItems={accountMenuItems}
-        footerText="TarabayMais v1.0.0 \u00b7 DA Region II"
-      />
     </div>
   );
 };

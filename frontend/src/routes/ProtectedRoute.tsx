@@ -8,7 +8,11 @@ interface GuardProps {
 
 /** Resolves the home route for a given role. */
 const homeFor = (role: UserRole | null): string =>
-  isMunicipalRole(role) ? "/officer/dashboard" : "/farmer";
+  role === "TECHNICIAN"
+    ? "/technician"
+    : isMunicipalRole(role)
+    ? "/officer/dashboard"
+    : "/farmer";
 
 /**
  * Route guard that gates access by authentication state and role.
