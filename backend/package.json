@@ -10,7 +10,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:baseline": "bash scripts/baseline-migrations.sh",
     "db:baseline:win": "powershell -ExecutionPolicy Bypass -File scripts/baseline-migrations.ps1",
-    "prestart": "npm run db:baseline:win && npm run db:migrate:deploy",
+    "prestart": "npm run db:baseline && npm run db:migrate:deploy",
     "start": "node dist/server.js"
   },
   "keywords": [],
