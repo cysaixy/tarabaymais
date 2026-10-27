@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, useMap, CircleMarker, Popup, Tooltip } from "react-leaflet";
+import type { LatLngBoundsExpression } from "leaflet";
 import { MapPin } from "lucide-react";
 
 export type MapLayerType = "TANIMAN" | "PINSALA" | "KONSULTASYON";
@@ -19,36 +20,41 @@ export interface FarmMarkerData {
   openCases?: number;
 }
 
-// ── Official Barangays of Alcala, Cagayan with Geographic Coordinates ──────────
+// ── Alcala, Cagayan barangay centres — PhilAtlas / PSA verified ──────────────
+// Used ONLY as a GPS fallback when a farm in Alcala has no recorded coordinates.
 export const ALCALA_BARANGAYS: { name: string; lat: number; lng: number }[] = [
-  { name: "Centro Norte (Pob.)", lat: 17.9055, lng: 121.6565 },
-  { name: "Centro Sur (Pob.)", lat: 17.9008, lng: 121.6558 },
-  { name: "Pared", lat: 17.915, lng: 121.648 },
-  { name: "Tupang", lat: 17.885, lng: 121.662 },
-  { name: "Afusing Bato", lat: 17.925, lng: 121.635 },
-  { name: "Afusing Daga", lat: 17.932, lng: 121.628 },
-  { name: "Agani", lat: 17.892, lng: 121.67 },
-  { name: "Baculod", lat: 17.895, lng: 121.662 },
-  { name: "Baybayog", lat: 17.88, lng: 121.64 },
-  { name: "Cabuluan", lat: 17.87, lng: 121.65 },
-  { name: "Calantac", lat: 17.918, lng: 121.665 },
-  { name: "Carallangan", lat: 17.922, lng: 121.672 },
-  { name: "Dalaoig", lat: 17.93, lng: 121.675 },
-  { name: "Damurog", lat: 17.905, lng: 121.63 },
-  { name: "Jurisdiction", lat: 17.898, lng: 121.648 },
-  { name: "Malalatan", lat: 17.945, lng: 121.66 },
-  { name: "Maraburab", lat: 17.92, lng: 121.685 },
-  { name: "Masin", lat: 17.91, lng: 121.645 },
-  { name: "Pagbangkeruan", lat: 17.9, lng: 121.67 },
-  { name: "Piggatan", lat: 17.89, lng: 121.68 },
-  { name: "Pinopoc", lat: 17.935, lng: 121.64 },
-  { name: "Pussian", lat: 17.935, lng: 121.665 },
-  { name: "San Esteban", lat: 17.88, lng: 121.655 },
-  { name: "Tamban", lat: 17.94, lng: 121.645 },
-  { name: "Abbeg", lat: 17.912, lng: 121.678 },
+  { name: "Abbeg",               lat: 17.8439, lng: 121.6256 },
+  { name: "Afusing Bato",        lat: 17.8479, lng: 121.6470 },
+  { name: "Afusing Daga",        lat: 17.8635, lng: 121.6287 },
+  { name: "Agani",               lat: 17.9241, lng: 121.6911 },
+  { name: "Baculod",             lat: 17.9007, lng: 121.6756 },
+  { name: "Baybayog",            lat: 17.8907, lng: 121.7045 },
+  { name: "Cabuluan",            lat: 17.8495, lng: 121.6045 },
+  { name: "Calantac",            lat: 17.8965, lng: 121.7282 },
+  { name: "Carallangan",         lat: 17.9281, lng: 121.6300 },
+  { name: "Centro Norte (Pob.)", lat: 17.9094, lng: 121.6574 },
+  { name: "Centro Sur (Pob.)",   lat: 17.8974, lng: 121.6546 },
+  { name: "Dalaoig",             lat: 17.9683, lng: 121.7245 },
+  { name: "Damurog",             lat: 17.8789, lng: 121.6642 },
+  { name: "Jurisdiction",        lat: 17.8769, lng: 121.6927 },
+  { name: "Malalatan",           lat: 17.8771, lng: 121.6309 },
+  { name: "Maraburab",           lat: 17.9436, lng: 121.6590 },
+  { name: "Masin",               lat: 17.9294, lng: 121.6757 },
+  { name: "Pagbangkeruan",       lat: 17.8830, lng: 121.6823 },
+  { name: "Pared",               lat: 17.8902, lng: 121.6929 },
+  { name: "Piggatan",            lat: 17.9650, lng: 121.6793 },
+  { name: "Pinopoc",             lat: 17.9097, lng: 121.7014 },
+  { name: "Pussian",             lat: 17.9480, lng: 121.6980 },
+  { name: "San Esteban",         lat: 17.9199, lng: 121.7242 },
+  { name: "Tamban",              lat: 17.8963, lng: 121.6265 },
+  { name: "Tupang",              lat: 17.9212, lng: 121.6507 },
 ];
 
-export const ALCALA_CENTER: [number, number] = [17.9042, 121.656];
+// Fallback centre (Cagayan province) when no farms are loaded yet
+export const ALCALA_CENTER: [number, number] = [17.9024, 121.6567];
+const CAGAYAN_DEFAULT: [number, number] = [17.9, 121.65];
+
+// ── Controllers ───────────────────────────────────────────────────────────────
 
 interface MapFocusControllerProps {
   targetCoords: [number, number] | null;
@@ -68,6 +74,27 @@ function MapFocusController({ targetCoords, focusTrigger }: MapFocusControllerPr
 
   return null;
 }
+
+interface MapFitBoundsProps {
+  bounds: LatLngBoundsExpression | null;
+}
+
+/** Fits the map to show all farm markers on first load */
+function MapFitBounds({ bounds }: MapFitBoundsProps) {
+  const map = useMap();
+  const fitted = useRef(false);
+
+  useEffect(() => {
+    if (bounds && !fitted.current) {
+      fitted.current = true;
+      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 13 });
+    }
+  }, [bounds, map]);
+
+  return null;
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 interface TechnicianLeafletMapProps {
   selectedBarangay: string;
@@ -89,109 +116,142 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
   focusTrigger = 0,
   className = "",
 }) => {
-  // Find coordinates of selected barangay
-  const selectedLocation = useMemo(() => {
-    const foundBg = ALCALA_BARANGAYS.find(
-      (b) => b.name.toLowerCase().trim() === selectedBarangay.toLowerCase().trim()
-    );
-    if (foundBg) return [foundBg.lat, foundBg.lng] as [number, number];
+  // ── Compute barangay aggregate markers from actual farm data ─────────────
+  // Groups all farms by barangay, computes centroid, works for ANY municipality.
+  const barangayGroups = useMemo(() => {
+    const groups: Record<
+      string,
+      { key: string; name: string; municipality: string; lat: number; lng: number; count: number }
+    > = {};
 
-    const foundFarm = farms.find(
+    for (const farm of farms) {
+      const key = farm.barangay.toLowerCase().trim();
+      if (!groups[key]) {
+        groups[key] = {
+          key,
+          name: farm.barangay,
+          municipality: farm.municipality,
+          lat: farm.latitude,
+          lng: farm.longitude,
+          count: 0,
+        };
+      }
+      // Running average of coordinates
+      const g = groups[key];
+      g.lat = (g.lat * g.count + farm.latitude) / (g.count + 1);
+      g.lng = (g.lng * g.count + farm.longitude) / (g.count + 1);
+      g.count++;
+    }
+
+    return Object.values(groups);
+  }, [farms]);
+
+  // ── Derive target coords for focus / flyTo ───────────────────────────────
+  const selectedLocation = useMemo(() => {
+    // Look in barangay groups first (any municipality)
+    const bg = barangayGroups.find(
+      (g) => g.key === selectedBarangay.toLowerCase().trim()
+    );
+    if (bg) return [bg.lat, bg.lng] as [number, number];
+
+    // Fallback: find any farm in the selected barangay
+    const farm = farms.find(
       (f) => f.barangay.toLowerCase().trim() === selectedBarangay.toLowerCase().trim()
     );
-    if (foundFarm) return [foundFarm.latitude, foundFarm.longitude] as [number, number];
+    if (farm) return [farm.latitude, farm.longitude] as [number, number];
 
-    return ALCALA_CENTER;
-  }, [selectedBarangay, farms]);
+    return null;
+  }, [selectedBarangay, barangayGroups, farms]);
+
+  // ── Compute map bounds to auto-fit all markers ───────────────────────────
+  const mapBounds = useMemo((): LatLngBoundsExpression | null => {
+    if (farms.length === 0) return null;
+    const lats = farms.map((f) => f.latitude);
+    const lngs = farms.map((f) => f.longitude);
+    return [
+      [Math.min(...lats), Math.min(...lngs)],
+      [Math.max(...lats), Math.max(...lngs)],
+    ];
+  }, [farms]);
+
+  // ── Derive display label ─────────────────────────────────────────────────
+  const locationLabel = useMemo(() => {
+    if (farms.length === 0) return "Cagayan";
+    const municipalities = [...new Set(farms.map((f) => f.municipality).filter(Boolean))];
+    if (municipalities.length === 1) return municipalities[0];
+    if (municipalities.length <= 3) return municipalities.join(", ");
+    return `${municipalities.length} munisipalidad`;
+  }, [farms]);
 
   return (
     <div className={`relative w-full h-full rounded-2xl overflow-hidden border border-slate-200/90 shadow-2xs ${className}`}>
       <MapContainer
-        center={ALCALA_CENTER}
-        zoom={12}
+        center={CAGAYAN_DEFAULT}
+        zoom={10}
         scrollWheelZoom={true}
         className="w-full h-full min-h-[340px] z-10"
       >
+        {/* Auto-fit to farm locations on first load */}
+        <MapFitBounds bounds={mapBounds} />
+
+        {/* Fly-to on "Ipakita" button press */}
         <MapFocusController targetCoords={selectedLocation} focusTrigger={focusTrigger} />
 
-        {/* Real OpenStreetMap / Carto Tile Layer */}
+        {/* OpenStreetMap tiles */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* ── ALCALA BARANGAY MARKERS ── */}
-        {ALCALA_BARANGAYS.map((b) => {
-          const isSelected =
-            b.name.toLowerCase().trim() === selectedBarangay.toLowerCase().trim();
+        {/* ── BARANGAY AGGREGATE MARKERS (derived from real farm data) ── */}
+        {barangayGroups.map((b) => {
+          const isSelected = b.key === selectedBarangay.toLowerCase().trim();
+          const farmCount = barangayFarmCounts[b.key] ?? b.count;
 
-          // Check if this barangay has any registered farms
-          const farmCount =
-            barangayFarmCounts[b.name.toLowerCase()] ??
-            // fallback: count from farm markers array
-            farms.filter(
-              (f) =>
-                f.barangay.toLowerCase().includes(b.name.toLowerCase().split(" ")[0].toLowerCase())
-            ).length;
-          const hasFarms = farmCount > 0;
-
-          // Green ONLY when there are registered farms; gray otherwise
-          const markerColor = isSelected
-            ? "#065F46"          // dark green when selected
-            : hasFarms
-            ? "#10B981"          // green = may registered sakahan
-            : "#94A3B8";         // slate-gray = walang sakahan
-
+          const markerColor = isSelected ? "#065F46" : "#10B981";
           const strokeColor = isSelected ? "#FBBF24" : "#FFFFFF";
 
           return (
-            <React.Fragment key={b.name}>
-              {/* Outer Glow Ring for Selected Barangay */}
+            <React.Fragment key={b.key}>
               {isSelected && (
                 <CircleMarker
                   center={[b.lat, b.lng]}
-                  radius={16}
+                  radius={18}
                   pathOptions={{
                     color: "#FBBF24",
                     fillColor: "#FBBF24",
-                    fillOpacity: 0.25,
-                    weight: 2.5,
+                    fillOpacity: 0.2,
+                    weight: 2,
                   }}
                 />
               )}
-
               <CircleMarker
                 center={[b.lat, b.lng]}
-                radius={isSelected ? 11 : hasFarms ? 8 : 6}
-                eventHandlers={{
-                  click: () => onSelectBarangay(b.name),
-                }}
+                radius={isSelected ? 12 : 9}
+                eventHandlers={{ click: () => onSelectBarangay(b.name) }}
                 pathOptions={{
                   color: strokeColor,
                   fillColor: markerColor,
-                  fillOpacity: hasFarms ? 0.95 : 0.65,
+                  fillOpacity: 0.95,
                   weight: isSelected ? 2.5 : 1.5,
                 }}
               >
-                <Tooltip direction="top" offset={[0, -6]} opacity={0.95}>
+                <Tooltip direction="top" offset={[0, -8]} opacity={0.97}>
                   <div className="text-xs">
                     <p className="font-bold text-slate-900">{b.name}</p>
-                    <p className={hasFarms ? "text-emerald-600 font-semibold" : "text-slate-400"}>
-                      {hasFarms ? `${farmCount} sakahan na rehistrado` : "Walang sakahan"}
+                    <p className="text-emerald-600 font-semibold">
+                      {farmCount} sakahan · {b.municipality}
                     </p>
                   </div>
                 </Tooltip>
-
                 <Popup>
                   <div className="p-1 space-y-1 text-xs">
                     <p className="font-bold text-sm text-slate-900">{b.name}</p>
-                    <p className="text-slate-500">Munisipyo ng Alcala, Cagayan</p>
-                    <p className={hasFarms ? "text-emerald-700 font-semibold" : "text-slate-400"}>
-                      {hasFarms
-                        ? `✓ ${farmCount} rehistradong sakahan`
-                        : "Wala pang rehistradong sakahan"}
+                    <p className="text-slate-500">{b.municipality}, Cagayan</p>
+                    <p className="text-emerald-700 font-semibold">
+                      ✓ {farmCount} rehistradong sakahan
                     </p>
-                    <div className="pt-1 flex gap-2">
+                    <div className="pt-1">
                       <button
                         type="button"
                         onClick={() => onSelectBarangay(b.name)}
@@ -207,11 +267,11 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
           );
         })}
 
-        {/* ── INDIVIDUAL REGISTERED FARMS (GPS PINS) ── */}
+        {/* ── INDIVIDUAL FARM PINS ── */}
         {farms.map((f) => {
           const isSelected =
             f.barangay.toLowerCase().trim() === selectedBarangay.toLowerCase().trim();
-          const noGps = f.hasDamage === true; // hasDamage is reused as noGps flag
+          const noGps = f.hasDamage === true; // reused as "no GPS, placed at barangay centre"
 
           const farmColor =
             f.healthStatus === "critical"
@@ -224,33 +284,30 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
             <CircleMarker
               key={f.id}
               center={[f.latitude, f.longitude]}
-              radius={noGps ? 7 : 8}
-              eventHandlers={{
-                click: () => onSelectBarangay(f.barangay),
-              }}
+              radius={noGps ? 6 : 7}
+              eventHandlers={{ click: () => onSelectBarangay(f.barangay) }}
               pathOptions={{
                 color: isSelected ? "#FBBF24" : noGps ? farmColor : "#FFFFFF",
                 fillColor: farmColor,
-                fillOpacity: noGps ? 0.6 : 0.95,
-                weight: isSelected ? 3 : noGps ? 1.5 : 2,
-                dashArray: noGps ? "4 3" : undefined, // dashed = approximate location
+                fillOpacity: noGps ? 0.55 : 0.95,
+                weight: isSelected ? 3 : noGps ? 1 : 1.5,
+                dashArray: noGps ? "4 3" : undefined,
               }}
             >
               <Tooltip direction="top" offset={[0, -6]}>
                 <div className="text-xs">
                   <p className="font-bold text-slate-900">{f.name}</p>
-                  <p className="text-slate-600">{f.hectares} ha &middot; {f.barangay}</p>
+                  <p className="text-slate-600">{f.hectares} ha · {f.barangay}, {f.municipality}</p>
                   {noGps && (
                     <p className="text-amber-600 text-[10px]">⚠ Tinatayang lokasyon (walang GPS)</p>
                   )}
                 </div>
               </Tooltip>
-
               <Popup>
-                <div className="p-1.5 space-y-1.5 text-xs min-w-[180px]">
+                <div className="p-1.5 space-y-1.5 text-xs min-w-[190px]">
                   <div className="border-b border-slate-100 pb-1">
                     <p className="font-black text-sm text-slate-900">{f.name}</p>
-                    <p className="text-[11px] text-slate-500">{f.barangay}, Alcala</p>
+                    <p className="text-[11px] text-slate-500">{f.barangay}, {f.municipality}</p>
                     {noGps && (
                       <p className="text-[10px] text-amber-600 font-medium mt-0.5">
                         ⚠ Walang exact na GPS — ipinapakita sa gitna ng barangay
@@ -262,10 +319,7 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
                     <p><span className="font-semibold">Yugto:</span> {f.growthStage || "Maisan"}</p>
                     <p>
                       <span className="font-semibold">Kalusugan:</span>{" "}
-                      <span
-                        className="font-bold capitalize"
-                        style={{ color: farmColor }}
-                      >
+                      <span className="font-bold capitalize" style={{ color: farmColor }}>
                         {f.healthStatus || "Malusog"}
                       </span>
                     </p>
@@ -277,22 +331,22 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
         })}
       </MapContainer>
 
-      {/* Floating Map Controls & Info Overlay */}
+      {/* Location label */}
       <div className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 shadow-2xs border border-slate-200 text-xs font-semibold text-slate-800 backdrop-blur-xs">
         <MapPin className="h-3.5 w-3.5 text-emerald-700" />
-        <span>Alcala, Cagayan</span>
+        <span>{locationLabel}</span>
       </div>
 
-      {/* Floating Dynamic Legend */}
+      {/* Legend */}
       <div className="absolute bottom-3 right-3 z-20 rounded-xl bg-white/95 p-2.5 shadow-2xs border border-slate-200 text-[11px] text-slate-700 backdrop-blur-xs space-y-1">
         <p className="font-bold text-[10px] text-slate-400 uppercase tracking-widest pb-0.5">Mapa</p>
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[#10B981] border border-white shadow-xs" />
-          <span className="font-medium">May rehistradong sakahan</span>
+          <span className="font-medium">Barangay (may sakahan)</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#94A3B8] border border-white" />
-          <span>Walang sakahan</span>
+          <span className="h-2.5 w-2.5 rounded-full bg-[#059669] border-2 border-white" />
+          <span>Individual na sakahan</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[#065F46] ring-1 ring-[#FBBF24]" />
