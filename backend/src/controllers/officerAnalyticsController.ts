@@ -684,7 +684,7 @@ export const getFarmsGeo = asyncHandler(
       async () => {
         const farms = await prisma.$queryRawUnsafe<{
           id: string; name: string; barangay: string; municipality: string;
-          areaHectares: string; latitude: string; longitude: string;
+          areaHectares: string; latitude: string | null; longitude: string | null;
           growthStage: string | null; healthStatus: string; openCaseCount: string;
         }[]>(
           `WITH latest_obs AS (
@@ -732,8 +732,7 @@ export const getFarmsGeo = asyncHandler(
            JOIN "crop_cycles" cc ON cc."farm_id" = f.id AND cc."status" = 'active'
            LEFT JOIN latest_obs lo ON lo."crop_cycle_id" = cc.id AND lo.rn = 1
            LEFT JOIN open_counts oc ON oc.farm_id = f.id
-           WHERE f.latitude IS NOT NULL AND f.longitude IS NOT NULL
-             AND ${bw.whereSql}`,
+           WHERE ${bw.whereSql}`,
           ...bw.params,
         );
 
@@ -758,15 +757,22 @@ export const getFarmsGeo = asyncHandler(
           ...bw.params,
         );
 
-        const features = farms.map((f) => ({
-          type: "Feature" as const,
-          properties: {
-            id: f.id, name: f.name, barangay: f.barangay, municipality: f.municipality,
-            hectares: toNumber(f.areaHectares), growthStage: f.growthStage,
-            healthStatus: f.healthStatus, openCaseCount: toNumber(f.openCaseCount),
-          },
-          geometry: { type: "Point" as const, coordinates: [parseFloat(f.longitude), parseFloat(f.latitude)] },
-        }));
+        const features = farms.map((f) => {
+          const hasGps = f.latitude != null && f.longitude != null
+            && f.latitude !== "" && f.longitude !== "";
+          return {
+            type: "Feature" as const,
+            properties: {
+              id: f.id, name: f.name, barangay: f.barangay, municipality: f.municipality,
+              hectares: toNumber(f.areaHectares), growthStage: f.growthStage,
+              healthStatus: f.healthStatus, openCaseCount: toNumber(f.openCaseCount),
+              noGps: !hasGps,
+            },
+            geometry: hasGps
+              ? { type: "Point" as const, coordinates: [parseFloat(f.longitude!), parseFloat(f.latitude!)] }
+              : null,
+          };
+        });
 
         const disasterFeatures = disasters.map((d) => ({
           type: "Feature" as const,

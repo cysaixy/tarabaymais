@@ -58,9 +58,16 @@ export const OfficerLoginPage: React.FC = () => {
   // If already authenticated with a valid profile, skip login screen immediately
   useEffect(() => {
     if (!authLoading && user && profile && role) {
-      navigate(isMunicipalRole(role) ? "/officer/dashboard" : "/farmer", {
-        replace: true,
-      });
+      navigate(
+        role === "TECHNICIAN"
+          ? "/technician"
+          : isMunicipalRole(role)
+          ? "/officer/dashboard"
+          : "/farmer",
+        {
+          replace: true,
+        }
+      );
     }
   }, [authLoading, user, profile, role, navigate]);
 
@@ -151,7 +158,10 @@ export const OfficerLoginPage: React.FC = () => {
       toast.success("Maligayang Pagdating sa Officer Portal!", {
         description: `Naka-login bilang ${me.firstName} ${me.lastName} (${me.role}).`,
       });
-      navigate("/officer/dashboard", { replace: true });
+      navigate(
+        me.role === "TECHNICIAN" ? "/technician" : "/officer/dashboard",
+        { replace: true }
+      );
     } catch (err) {
       console.error(err);
       toast.error("Maling Code", { description: friendlyAuthError(err) });

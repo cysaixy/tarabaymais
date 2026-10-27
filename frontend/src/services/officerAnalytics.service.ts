@@ -144,6 +144,8 @@ export interface FarmGeoFeatureProperties {
   growthStage: string | null;
   healthStatus: FarmHealthStatus;
   openCaseCount: number;
+  /** true when the farm has no GPS coordinates stored — use barangay centre as fallback */
+  noGps?: boolean;
 }
 
 export interface DisasterGeoFeatureProperties {
@@ -162,7 +164,8 @@ export interface FarmsGeoResponse {
       | {
           type: "Feature";
           properties: FarmGeoFeatureProperties;
-          geometry: { type: "Point"; coordinates: [number, number] };
+          /** null when farm has no GPS coordinates */
+          geometry: { type: "Point"; coordinates: [number, number] } | null;
         }
       | {
           type: "Feature";
