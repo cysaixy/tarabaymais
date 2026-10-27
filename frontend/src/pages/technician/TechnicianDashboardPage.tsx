@@ -51,6 +51,7 @@ import {
 import {
   TechnicianLeafletMap,
   type FarmMarkerData,
+  ALCALA_BARANGAYS,
 } from "../../components/dashboard/TechnicianLeafletMap";
 import { LoadingState } from "../../components/LoadingState";
 import { EmptyState } from "../../components/EmptyState";
@@ -192,6 +193,28 @@ export const TechnicianDashboardPage: React.FC = () => {
         for (const feat of geo.features) {
           if (!("kind" in feat.properties)) {
             const p = feat.properties as FarmGeoFeatureProperties;
+
+            let lat: number;
+            let lng: number;
+
+            if (feat.geometry) {
+              // Farm has real GPS coordinates
+              lat = feat.geometry.coordinates[1];
+              lng = feat.geometry.coordinates[0];
+            } else {
+              // No GPS → fall back to the barangay centre
+              const bc = ALCALA_BARANGAYS.find(
+                (b) =>
+                  b.name.toLowerCase().trim() ===
+                  p.barangay.toLowerCase().trim()
+              );
+              if (!bc) continue; // skip if barangay not in our Alcala list
+              // Slightly scatter so stacked no-GPS farms are distinguishable
+              const seed = p.id.charCodeAt(0) / 255;
+              lat = bc.lat + (seed - 0.5) * 0.002;
+              lng = bc.lng + (seed - 0.5) * 0.002;
+            }
+
             markers.push({
               id: p.id,
               name: p.name,
@@ -201,8 +224,9 @@ export const TechnicianDashboardPage: React.FC = () => {
               growthStage: p.growthStage,
               healthStatus: p.healthStatus,
               openCases: p.openCaseCount,
-              latitude: feat.geometry.coordinates[1],
-              longitude: feat.geometry.coordinates[0],
+              hasDamage: p.noGps, // flag: placed at barangay centre, not exact GPS
+              latitude: lat,
+              longitude: lng,
             });
           }
         }

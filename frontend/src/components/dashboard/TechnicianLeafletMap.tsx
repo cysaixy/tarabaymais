@@ -211,6 +211,7 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
         {farms.map((f) => {
           const isSelected =
             f.barangay.toLowerCase().trim() === selectedBarangay.toLowerCase().trim();
+          const noGps = f.hasDamage === true; // hasDamage is reused as noGps flag
 
           const farmColor =
             f.healthStatus === "critical"
@@ -223,21 +224,25 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
             <CircleMarker
               key={f.id}
               center={[f.latitude, f.longitude]}
-              radius={8}
+              radius={noGps ? 7 : 8}
               eventHandlers={{
                 click: () => onSelectBarangay(f.barangay),
               }}
               pathOptions={{
-                color: isSelected ? "#FBBF24" : "#FFFFFF",
+                color: isSelected ? "#FBBF24" : noGps ? farmColor : "#FFFFFF",
                 fillColor: farmColor,
-                fillOpacity: 0.95,
-                weight: isSelected ? 3 : 2,
+                fillOpacity: noGps ? 0.6 : 0.95,
+                weight: isSelected ? 3 : noGps ? 1.5 : 2,
+                dashArray: noGps ? "4 3" : undefined, // dashed = approximate location
               }}
             >
               <Tooltip direction="top" offset={[0, -6]}>
                 <div className="text-xs">
                   <p className="font-bold text-slate-900">{f.name}</p>
                   <p className="text-slate-600">{f.hectares} ha &middot; {f.barangay}</p>
+                  {noGps && (
+                    <p className="text-amber-600 text-[10px]">⚠ Tinatayang lokasyon (walang GPS)</p>
+                  )}
                 </div>
               </Tooltip>
 
@@ -246,6 +251,11 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
                   <div className="border-b border-slate-100 pb-1">
                     <p className="font-black text-sm text-slate-900">{f.name}</p>
                     <p className="text-[11px] text-slate-500">{f.barangay}, Alcala</p>
+                    {noGps && (
+                      <p className="text-[10px] text-amber-600 font-medium mt-0.5">
+                        ⚠ Walang exact na GPS — ipinapakita sa gitna ng barangay
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-0.5 text-slate-700">
                     <p><span className="font-semibold">Sukat:</span> {f.hectares} ha</p>
