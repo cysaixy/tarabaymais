@@ -44,8 +44,14 @@ import {
 } from "../../services/analytics.service";
 import {
   getCropStages,
+  getFarmsGeo,
   type CropStage,
+  type FarmGeoFeatureProperties,
 } from "../../services/officerAnalytics.service";
+import {
+  TechnicianLeafletMap,
+  type FarmMarkerData,
+} from "../../components/dashboard/TechnicianLeafletMap";
 import { LoadingState } from "../../components/LoadingState";
 import { EmptyState } from "../../components/EmptyState";
 import {
@@ -98,6 +104,8 @@ export const TechnicianDashboardPage: React.FC = () => {
   // ── Map interactive state ─────────────────────────────────────────────────
   const [selectedBarangayName, setSelectedBarangayName] = useState<string>("Centro Norte (Pob.)");
   const [mapLayer, setMapLayer] = useState<MapLayer>("TANIMAN");
+  const [farmMarkers, setFarmMarkers] = useState<FarmMarkerData[]>([]);
+  const [focusTrigger, setFocusTrigger] = useState(0);
 
   // ── Damage (Pinsala) Tab State ────────────────────────────────────────────
   const [damageFilter, setDamageFilter] = useState<DamageFilter>("LAHAT");
@@ -172,6 +180,33 @@ export const TechnicianDashboardPage: React.FC = () => {
       const stagesRes = await getCropStages();
       if (stagesRes?.stages) {
         setCropStagesData(stagesRes.stages);
+      }
+    } catch {
+      // Non-fatal
+    }
+
+    try {
+      const geo = await getFarmsGeo();
+      if (geo?.features) {
+        const markers: FarmMarkerData[] = [];
+        for (const feat of geo.features) {
+          if (!("kind" in feat.properties)) {
+            const p = feat.properties as FarmGeoFeatureProperties;
+            markers.push({
+              id: p.id,
+              name: p.name,
+              barangay: p.barangay,
+              municipality: p.municipality,
+              hectares: p.hectares,
+              growthStage: p.growthStage,
+              healthStatus: p.healthStatus,
+              openCases: p.openCaseCount,
+              latitude: feat.geometry.coordinates[1],
+              longitude: feat.geometry.coordinates[0],
+            });
+          }
+        }
+        setFarmMarkers(markers);
       }
     } catch {
       // Non-fatal
@@ -267,12 +302,31 @@ export const TechnicianDashboardPage: React.FC = () => {
       (b) => b.barangay.toLowerCase() === selectedBarangayName.toLowerCase()
     );
 
+    const matchingFarms = farmMarkers.filter(
+      (f) =>
+        f.barangay.toLowerCase().includes(selectedBarangayName.toLowerCase()) ||
+        selectedBarangayName.toLowerCase().includes(f.barangay.toLowerCase())
+    );
+    const farmMarkersHa = matchingFarms.reduce((sum, f) => sum + (f.hectares || 0), 0);
+
     return {
       name: selectedBarangayName || (barangays[0]?.barangay ?? "Lahat ng Barangay"),
-      farms: found ? found.farmCount : (totalFarms !== null ? totalFarms : 0),
-      hectares: found ? formatHa(found.totalHectares) : (totalActiveHectares !== null ? formatHa(totalActiveHectares) : "0"),
+      farms: found
+        ? found.farmCount
+        : matchingFarms.length > 0
+        ? matchingFarms.length
+        : totalFarms !== null
+        ? totalFarms
+        : 0,
+      hectares: found
+        ? formatHa(found.totalHectares)
+        : farmMarkersHa > 0
+        ? formatHa(farmMarkersHa)
+        : totalActiveHectares !== null
+        ? formatHa(totalActiveHectares)
+        : "0",
     };
-  }, [selectedBarangayName, barangays, totalFarms, totalActiveHectares]);
+  }, [selectedBarangayName, barangays, farmMarkers, totalFarms, totalActiveHectares]);
 
   // ── Dynamic Damage Case Filter ────────────────────────────────────────────
   const filteredDamageList = useMemo(() => {
@@ -762,179 +816,38 @@ export const TechnicianDashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* SVG Polygon Cadastre Map */}
-                <div className="relative w-full rounded-xl bg-[#EDF3EC] border border-slate-200/80 p-3 sm:p-5 overflow-hidden flex flex-col items-center justify-center min-h-[320px]">
-                  <svg
-                    viewBox="0 0 540 340"
-                    className="w-full h-auto max-h-[340px] drop-shadow-xs select-none"
-                  >
-                    {[
-                      {
-                        name: "Centro Norte (Pob.)",
-                        points: "160,50 340,50 380,100 330,210 250,170",
-                        pinX: 245,
-                        pinY: 130,
-                        textX: 310,
-                        textY: 80,
-                        rect: { x: 185, y: 42, w: 165, h: 148 },
-                      },
-                      {
-                        name: "Bauan",
-                        points: "60,80 160,50 250,170 150,250 70,210",
-                        pinX: 155,
-                        pinY: 145,
-                        textX: 145,
-                        textY: 150,
-                        rect: { x: 80, y: 70, w: 150, h: 160 },
-                      },
-                      {
-                        name: "Lannig",
-                        points: "150,250 250,170 230,310 130,300",
-                        pinX: 190,
-                        pinY: 245,
-                        textX: 185,
-                        textY: 245,
-                        rect: { x: 135, y: 185, w: 110, h: 120 },
-                      },
-                      {
-                        name: "Centro Sur (Pob.)",
-                        points: "250,170 330,210 310,320 230,310",
-                        pinX: 280,
-                        pinY: 250,
-                        textX: 280,
-                        textY: 250,
-                        rect: { x: 235, y: 180, w: 95, h: 135 },
-                      },
-                      {
-                        name: "Nattai",
-                        points: "340,50 460,70 510,160 380,100",
-                        pinX: 430,
-                        pinY: 100,
-                        textX: 430,
-                        textY: 95,
-                        rect: { x: 350, y: 55, w: 150, h: 95 },
-                      },
-                      {
-                        name: "Bangag",
-                        points: "380,100 510,160 450,240 330,210",
-                        pinX: 420,
-                        pinY: 180,
-                        textX: 420,
-                        textY: 180,
-                        rect: { x: 345, y: 115, w: 155, h: 115 },
-                      },
-                      {
-                        name: "Maddarulug",
-                        points: "330,210 450,240 430,310 310,320",
-                        pinX: 380,
-                        pinY: 270,
-                        textX: 380,
-                        textY: 270,
-                        rect: { x: 320, y: 220, w: 120, h: 95 },
-                      },
-                    ].map((poly) => {
-                      const isSelected =
-                        selectedBarangayName.toLowerCase().trim() ===
-                        poly.name.toLowerCase().trim();
-                      const bData = barangays.find(
-                        (b) => b.barangay.toLowerCase() === poly.name.toLowerCase()
-                      );
-                      const hasFarms = Boolean(bData && bData.farmCount > 0);
-
-                      return (
-                        <g
-                          key={poly.name}
-                          onClick={() => setSelectedBarangayName(poly.name)}
-                          className="cursor-pointer transition-opacity hover:opacity-90"
-                        >
-                          {isSelected && (
-                            <rect
-                              x={poly.rect.x}
-                              y={poly.rect.y}
-                              width={poly.rect.w}
-                              height={poly.rect.h}
-                              fill="none"
-                              stroke="#FFFFFF"
-                              strokeWidth="1.5"
-                              strokeDasharray="4 4"
-                              opacity="0.8"
-                              rx="8"
-                            />
-                          )}
-
-                          <polygon
-                            points={poly.points}
-                            fill={
-                              isSelected
-                                ? "#26854C"
-                                : hasFarms && mapLayer === "TANIMAN"
-                                ? "#48BB78"
-                                : mapLayer === "PINSALA" &&
-                                  disasterReports.some(
-                                    (d) =>
-                                      (d.farm?.barangay || "")
-                                        .toLowerCase()
-                                        .includes(poly.name.toLowerCase().split(" ")[0])
-                                  )
-                                ? "#F87171"
-                                : mapLayer === "KONSULTASYON" &&
-                                  expertCases.some(
-                                    (c) =>
-                                      (c.observation?.cropCycle?.farm?.barangay || "")
-                                        .toLowerCase()
-                                        .includes(poly.name.toLowerCase().split(" ")[0])
-                                  )
-                                ? "#60A5FA"
-                                : "#DFE5DC"
-                            }
-                            stroke={isSelected ? "#1E6B3C" : "#CBD3C8"}
-                            strokeWidth={isSelected ? "2.5" : "1.5"}
-                          />
-
-                          {isSelected && (
-                            <>
-                              <circle
-                                cx={poly.pinX}
-                                cy={poly.pinY}
-                                r="8"
-                                fill="#FBBF24"
-                                stroke="#0B2347"
-                                strokeWidth="3.5"
-                              />
-                              <text
-                                x={poly.textX}
-                                y={poly.textY}
-                                textAnchor="middle"
-                                fill="#FFFFFF"
-                                fontSize="12.5"
-                                fontWeight="700"
-                                className="pointer-events-none drop-shadow-xs"
-                              >
-                                {poly.name}
-                              </text>
-                            </>
-                          )}
-                        </g>
-                      );
-                    })}
-                  </svg>
-
-                  {/* Floating Action Hint */}
-                  <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 inline-flex items-center rounded-full bg-white/95 px-3.5 py-1 shadow-2xs border border-slate-200 text-xs font-medium text-slate-700 backdrop-blur-xs">
-                    Pindutin ang {selectedBarangayData.name} para makita ang sakahan
-                  </div>
+                {/* Real Interactive Leaflet GIS Map */}
+                <div className="relative w-full h-[380px] sm:h-[420px] rounded-xl overflow-hidden">
+                  <TechnicianLeafletMap
+                    selectedBarangay={selectedBarangayName}
+                    onSelectBarangay={(b) => setSelectedBarangayName(b)}
+                    mapLayer={mapLayer}
+                    farms={farmMarkers}
+                    focusTrigger={focusTrigger}
+                  />
                 </div>
 
-                {/* Legend */}
-                <div className="flex items-center gap-5 text-xs text-slate-600 pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-xs bg-[#26854C]" />
-                    <span>May taniman</span>
+                {/* Legend & Location Info */}
+                <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-slate-600 pt-1">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full bg-[#10B981] border border-white shadow-2xs" />
+                      <span>Barangay Center</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full bg-[#065F46] ring-2 ring-[#065F46]/30" />
+                      <span>Napiling Lokasyon</span>
+                    </div>
+                    {farmMarkers.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-[#059669] border border-white" />
+                        <span>Sakahan ({farmMarkers.length})</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-xs bg-[#DFE5DC] border border-slate-300" />
-                    <span>Wala pang rehistro</span>
-                  </div>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    Alcala, Cagayan
+                  </span>
                 </div>
               </div>
 
@@ -970,10 +883,12 @@ export const TechnicianDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      toast.info(`Ipinapakita ang sakahan sa ${selectedBarangayData.name}.`);
+                      setFocusTrigger((prev) => prev + 1);
+                      toast.success(`Naka-focus sa mapa ang ${selectedBarangayData.name}.`);
                     }}
-                    className="w-full rounded-xl border border-[#1E3A8A] text-[#1E3A8A] hover:bg-blue-50 py-2.5 text-xs sm:text-sm font-bold shadow-2xs transition active:scale-98 cursor-pointer"
+                    className="w-full rounded-xl border border-[#1E3A8A] text-[#1E3A8A] hover:bg-blue-50 py-2.5 text-xs sm:text-sm font-bold shadow-2xs transition active:scale-98 cursor-pointer flex items-center justify-center gap-2"
                   >
+                    <MapPin className="h-4 w-4" />
                     Ipakita ang sakahan sa mapa
                   </button>
                 </div>
