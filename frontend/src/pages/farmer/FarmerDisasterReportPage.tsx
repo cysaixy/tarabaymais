@@ -141,12 +141,16 @@ export const FarmerDisasterReportPage: React.FC = () => {
 
       setActiveTab("status");
     } catch (err) {
-      // Only queue on a genuine connectivity failure. A 4xx/5xx from the server
-      // must surface its message and NOT be silently queued.
+      // Queue connectivity and transient server failures; validation/client
+      // errors must be shown directly instead of being retried indefinitely.
       const isNetworkError =
         (err instanceof ApiError && err.isNetworkError) || !navigator.onLine;
 
-      if (!isNetworkError) {
+      const isTemporaryServerError =
+        err instanceof ApiError &&
+        (err.status >= 500 || err.status === 408 || err.status === 429);
+
+      if (!isNetworkError && !isTemporaryServerError) {
         console.error("Disaster report submit failed:", err);
         const description =
           err instanceof ApiError
@@ -157,21 +161,32 @@ export const FarmerDisasterReportPage: React.FC = () => {
         return;
       }
 
-      await queueOfflineAction({
-        actionType: "CREATE_DISASTER_REPORT",
-        displayTitle: `Ulat ng Kalamidad: ${disasterType} (${damagePct}%)`,
-        payload: {
-          farmId,
-          disasterType,
-          damagePercentage: damagePct,
-          estimatedLoss: estimatedLossPhp,
-          notes: notesWithContext,
-        },
-      });
+      try {
+        await queueOfflineAction({
+          actionType: "CREATE_DISASTER_REPORT",
+          displayTitle: `Ulat ng Kalamidad: ${disasterType} (${damagePct}%)`,
+          payload: {
+            farmId,
+            disasterType,
+            damagePercentage: damagePct,
+            estimatedLoss: estimatedLossPhp,
+            notes: notesWithContext,
+          },
+        });
+      } catch (queueError) {
+        console.error("Could not save disaster report to offline queue:", queueError);
+        toast.error("Hindi na-save ang Ulat", {
+          description:
+            "Hindi naipadala at hindi rin naitabi sa telepono ang ulat. Pakisubukan muli.",
+        });
+        return;
+      }
 
       toast.info("Naitago sa Offline Storage (Queue)", {
         description:
-          "Dahil mahina ang signal, itinago ito sa telepono. Awtomatikong mai-sync sa DA server kapag nagkaroon ng koneksyon.",
+          isNetworkError
+            ? "Dahil walang signal, itinabi ito sa telepono at isi-sync kapag may koneksyon."
+            : "Pansamantalang hindi maabot ang DA server. Nasa telepono ang ulat at isi-sync muli kapag available ang server.",
       });
 
       setActiveTab("status");

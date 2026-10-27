@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -13,16 +13,15 @@ import {
 } from "lucide-react";
 import { createObservation } from "../../services/observation.service";
 import { getCasePipeline, type ExpertCase } from "../../services/case.service";
-import {
-  getOfflineQueue,
-  queueOfflineAction,
-} from "../../services/sync.service";
+import { queueOfflineAction } from "../../services/sync.service";
 import { useFarmContext } from "../../hooks/useFarmContext";
 import { useFarmSelection } from "../../context/farmSelectionContext";
 import { ApiError } from "../../lib/api";
 import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 import { caseStatusDisplay, CASE_STATUS_TIMELINE } from "../../lib/caseStatus";
 import { parseLegacyCaseDescription } from "../../lib/parseLegacyCaseDescription";
+import { useSyncQueue } from "../../hooks/useSyncQueue";
+import { QUEUE_UPDATED_EVENT } from "../../lib/offlineQueue";
 
 export const FarmerExpertRequestPage: React.FC = () => {
   const navigate = useNavigate();
@@ -34,7 +33,7 @@ export const FarmerExpertRequestPage: React.FC = () => {
   // Tab State
   const [activeTab, setActiveTab] = useState<"request" | "status">("request");
 
-  const [queueCount, setQueueCount] = useState(0);
+  const { pendingCount: queueCount } = useSyncQueue();
 
   // Form Fields
   const [subject, setSubject] = useState<string>("");
@@ -47,27 +46,27 @@ export const FarmerExpertRequestPage: React.FC = () => {
   const [casesLoading, setCasesLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Load queue count on mount
-  useEffect(() => {
-    getOfflineQueue().then((q) => setQueueCount(q.length));
-  }, []);
-
-  // Fetch cases when switching to status tab
-  useEffect(() => {
-    if (activeTab === "status") {
-      setCasesLoading(true);
-      getCasePipeline()
-        .then((res) => {
-          setExpertCases(res.expertCases || []);
-        })
-        .catch(() => {
-          setExpertCases([]);
-        })
-        .finally(() => {
-          setCasesLoading(false);
-        });
+  const refreshCases = useCallback(async () => {
+    if (activeTab !== "status") return;
+    setCasesLoading(true);
+    try {
+      const res = await getCasePipeline();
+      setExpertCases(res.expertCases || []);
+    } catch {
+      setExpertCases([]);
+    } finally {
+      setCasesLoading(false);
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    void refreshCases();
+  }, [refreshCases]);
+
+  useEffect(() => {
+    window.addEventListener(QUEUE_UPDATED_EVENT, refreshCases);
+    return () => window.removeEventListener(QUEUE_UPDATED_EVENT, refreshCases);
+  }, [refreshCases]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,8 +113,11 @@ export const FarmerExpertRequestPage: React.FC = () => {
       // Only queue on a genuine connectivity failure; a 4xx/5xx must surface.
       const isNetworkError =
         (err instanceof ApiError && err.isNetworkError) || !navigator.onLine;
+      const isTemporaryServerError =
+        err instanceof ApiError &&
+        (err.status >= 500 || err.status === 408 || err.status === 429);
 
-      if (!isNetworkError) {
+      if (!isNetworkError && !isTemporaryServerError) {
         console.error("Expert request submit failed:", err);
         const description =
           err instanceof ApiError
@@ -126,22 +128,30 @@ export const FarmerExpertRequestPage: React.FC = () => {
         return;
       }
 
-      await queueOfflineAction({
-        actionType: "CREATE_OBSERVATION",
-        displayTitle: `Humingi ng Tulong: ${subject.trim()}`,
-        payload: {
-          cropCycleId,
-          title: submissionTitle,
-          description: cleanDescription,
-          severity: "HIGH",
-        },
-      });
-
-      const newQueueCount = queueCount + 1;
-      setQueueCount(newQueueCount);
+      try {
+        await queueOfflineAction({
+          actionType: "CREATE_OBSERVATION",
+          displayTitle: `Humingi ng Tulong: ${subject.trim()}`,
+          payload: {
+            cropCycleId,
+            title: submissionTitle,
+            description: cleanDescription,
+            severity: "HIGH",
+          },
+        });
+      } catch (queueError) {
+        console.error("Could not save expert request to offline queue:", queueError);
+        toast.error("Hindi na-save ang Kahilingan", {
+          description:
+            "Hindi naipadala at hindi rin naitabi sa telepono ang kahilingan. Pakisubukan muli.",
+        });
+        return;
+      }
 
       toast.info("Naitago sa Offline Storage (Queue)", {
-        description: `Dahil walang koneksyon, itinabi ito sa telepono. Awtomatikong maipapadala sa technician pagbalik ng signal. (${newQueueCount} sa queue)`,
+        description: isNetworkError
+          ? `Dahil walang koneksyon, itinabi ito sa telepono. Isi-sync kapag bumalik ang signal. (${queueCount + 1} sa queue)`
+          : "Pansamantalang may problema ang server. Nasa telepono ang kahilingan at maaari itong i-sync kapag maayos na ang server.",
       });
 
       setActiveTab("status");

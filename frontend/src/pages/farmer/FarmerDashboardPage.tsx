@@ -65,6 +65,8 @@ import { QUEUE_UPDATED_EVENT } from "../../lib/offlineQueue";
 import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 import { MaisyGreeting } from "../../components/MaisyGreeting";
 import { ApiError } from "../../lib/api";
+import { useNetworkStatus } from "../../hooks/useNetworkStatus";
+import { useSyncQueue } from "../../hooks/useSyncQueue";
 
 /** True only for genuine connectivity failures (safe to queue offline). */
 const isOfflineError = (err: unknown): boolean =>
@@ -547,6 +549,8 @@ const DynamicWeatherCard: React.FC<{
 
 export const FarmerDashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const isOffline = useNetworkStatus();
+  const { pendingCount } = useSyncQueue();
   const { profile, logout } = useAuth();
   useNotifications({ autoRegister: true, showForegroundToast: true });
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -1294,7 +1298,22 @@ export const FarmerDashboardPage: React.FC = () => {
                     </p>
                     <div className="mt-3 inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/30">
                       <span className="flex items-center gap-1 text-[10px] font-bold text-amber-100">
-                        <WifiOff className="w-3 h-3" /> Gumagana nang offline
+                        {isOffline ? (
+                          <>
+                            <WifiOff className="w-3 h-3" />
+                            Walang koneksyon · isi-sync kapag online
+                          </>
+                        ) : pendingCount > 0 ? (
+                          <>
+                            <RefreshCw className="w-3 h-3" />
+                            {pendingCount} rekord na naghihintay i-sync
+                          </>
+                        ) : (
+                          <>
+                            <Wifi className="w-3 h-3" />
+                            Online · handa nang ipadala sa DA
+                          </>
+                        )}
                       </span>
                     </div>
                   </div>
