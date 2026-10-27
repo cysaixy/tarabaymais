@@ -35,13 +35,19 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
     req.firebaseUser.phone_number,
   );
 
-  // For non-designated phones: only skip re-registration if the user already
-  // has a complete profile (farmerProfile present for FARMER role, or any
-  // non-FARMER role which doesn't need a farmerProfile).
-  if (req.user && !isFarmerRegistration) {
-    const needsFarmerProfile =
-      req.user.role === Role.FARMER && !req.user.farmerProfile;
+  // A synchronized non-FARMER account (OFFICER, TECHNICIAN, ADMIN) is
+  // provisioned by an administrator — never overwrite it as a farmer.
+  if (req.user && req.user.role !== Role.FARMER) {
+    return sendSuccess(res, 200, {
+      message: "User already synchronized",
+      data: { user: req.user },
+    });
+  }
 
+  // For FARMER accounts: only skip re-registration if the profile is complete.
+  // A FARMER with no farmerProfile row needs to fall through to completion.
+  if (req.user && req.user.role === Role.FARMER && !isFarmerRegistration) {
+    const needsFarmerProfile = !req.user.farmerProfile;
     if (!needsFarmerProfile) {
       return sendSuccess(res, 200, {
         message: "User already synchronized",
@@ -51,6 +57,8 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
     // Fall through to complete the missing farmerProfile below.
   }
 
+  // Complete these farmer registrations when authentication found a legacy or
+  // partially-created user without a farmer profile.
   if (req.user && isFarmerRegistration) {
     const existingProfile = await prisma.user.findUnique({
       where: { id: req.user.id },
