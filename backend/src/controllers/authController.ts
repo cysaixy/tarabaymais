@@ -35,15 +35,18 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
     req.firebaseUser.phone_number,
   );
 
-  // Complete these farmer registrations when authentication found a legacy or
-  // partially-created user without a farmer profile.
-  if (req.user && !isFarmerRegistration) {
+  // A synchronized municipal account is provisioned by an administrator.
+  // Never reinterpret it as a farmer just because the request includes a
+  // farmer-shaped registration payload or a designated test phone number.
+  if (req.user && req.user.role !== Role.FARMER) {
     return sendSuccess(res, 200, {
       message: "User already synchronized",
       data: { user: req.user },
     });
   }
 
+  // Complete these farmer registrations when authentication found a legacy or
+  // partially-created user without a farmer profile.
   if (req.user && isFarmerRegistration) {
     const existingProfile = await prisma.user.findUnique({
       where: { id: req.user.id },

@@ -45,8 +45,6 @@ const SessionHomeRedirect: React.FC = () => {
   );
 };
 
-import { useAuth, isMunicipalRole } from "../context/authContext";
-
 const RootRedirect: React.FC = () => {
   const { user, profile, role, loading } = useAuth();
   if (loading) {
@@ -102,10 +100,22 @@ const farmerRoutes = (
     <Route path="/farmer/activity" element={<FarmerActivityPage />} />
     {/* History Hub + Sub-pages */}
     <Route path="/farmer/history" element={<FarmerHistoryHubPage />} />
-    <Route path="/farmer/history/activities" element={<FarmerActivitiesHistoryPage />} />
-    <Route path="/farmer/history/observations" element={<FarmerObservationsHistoryPage />} />
-    <Route path="/farmer/history/disasters" element={<FarmerDisastersHistoryPage />} />
-    <Route path="/farmer/history/sync-queue" element={<FarmerSyncQueuePage />} />
+    <Route
+      path="/farmer/history/activities"
+      element={<FarmerActivitiesHistoryPage />}
+    />
+    <Route
+      path="/farmer/history/observations"
+      element={<FarmerObservationsHistoryPage />}
+    />
+    <Route
+      path="/farmer/history/disasters"
+      element={<FarmerDisastersHistoryPage />}
+    />
+    <Route
+      path="/farmer/history/sync-queue"
+      element={<FarmerSyncQueuePage />}
+    />
     <Route path="/farmer/farms" element={<MyFarmsPage />} />
     {/* `/new` must precede the `:farmId` param route so it is not captured. */}
     <Route path="/farmer/farms/new" element={<AddFarmPage />} />

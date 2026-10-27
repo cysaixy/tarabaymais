@@ -47,28 +47,31 @@ export const authenticate = async (
     const decodedToken = await auth.verifyIdToken(token);
     req.firebaseUser = decodedToken;
 
-    // Attach DB user record if one exists for this UID or verified phone number
+    // Always prefer the Firebase UID. Phone-number fallback is only for legacy
+    // records created before Firebase UIDs were persisted as the user ID.
     const phone = decodedToken.phone_number;
-    let user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { id: decodedToken.uid },
-          ...(phone
-            ? [
-                { phone },
-                { phone: phone.replace("+63", "0") },
-                { phone: phone.replace("+63", "") },
-              ]
-            : []),
-        ],
-      },
+    let user = await prisma.user.findUnique({
+      where: { id: decodedToken.uid },
       include: { farmerProfile: true },
     });
+
+    if (!user && phone) {
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { phone },
+            { phone: phone.replace("+63", "0") },
+            { phone: phone.replace("+63", "") },
+          ],
+        },
+        include: { farmerProfile: true },
+      });
+    }
 
     const normalizedPhone = phone ? normalizePhilippinePhone(phone) : null;
 
     // These Firebase test accounts are farmer registrations, not technician accounts.
-    if (user && isDesignatedFarmerPhone(phone)) {
+    if (user && isDesignatedFarmerPhone(phone) && user.role === Role.FARMER) {
       if (user.role !== Role.FARMER) {
         user = await prisma.user.update({
           where: { id: user.id },
