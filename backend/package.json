@@ -8,6 +8,8 @@
     "dev": "nodemon --watch src --ext ts --exec tsx src/server.ts",
     "build": "prisma generate && tsc",
     "db:migrate:deploy": "prisma migrate deploy",
+    "db:baseline": "bash scripts/baseline-migrations.sh",
+    "db:baseline:win": "powershell -ExecutionPolicy Bypass -File scripts/baseline-migrations.ps1",
     "prestart": "npm run db:migrate:deploy",
     "start": "node dist/server.js"
   },
