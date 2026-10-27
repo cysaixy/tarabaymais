@@ -57,12 +57,12 @@ export function computeGrowthStage(
 
 /**
  * SQL CASE expression (PostgreSQL) that computes growth_stage from planting_date,
- * bucketed in Asia/Manila time. Returns NULL for non-ACTIVE cycles (caller filters).
+ * bucketed in Asia/Manila time. Returns NULL for non-ACTIVE or missing cycles.
  * Use inside `$queryRaw` as: `CASE WHEN ... END AS "growthStage"`.
  */
 export const GROWTH_STAGE_SQL_CASE = `
 CASE
-  WHEN cc."status" != 'active' THEN NULL
+  WHEN cc."status" IS DISTINCT FROM 'active' THEN NULL
   WHEN (EXTRACT(epoch FROM (now() AT TIME ZONE 'Asia/Manila' - cc."planting_date")) / 86400)::int <= ${GROWTH_STAGE_THRESHOLDS.SEEDLING_MAX} THEN 'SEEDLING'
   WHEN (EXTRACT(epoch FROM (now() AT TIME ZONE 'Asia/Manila' - cc."planting_date")) / 86400)::int <= ${GROWTH_STAGE_THRESHOLDS.VEGETATIVE_MAX} THEN 'VEGETATIVE'
   WHEN (EXTRACT(epoch FROM (now() AT TIME ZONE 'Asia/Manila' - cc."planting_date")) / 86400)::int <= ${GROWTH_STAGE_THRESHOLDS.TASSELING_MAX} THEN 'TASSELING'

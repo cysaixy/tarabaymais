@@ -21,7 +21,6 @@ import {
   FileDown,
   Check,
   LayoutDashboard,
-  ChevronDown,
   TrendingUp,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
@@ -362,7 +361,10 @@ export const TechnicianDashboardPage: React.FC = () => {
   }, [selectedDisaster, selectedCase]);
 
   // ── Fetch Overview & Crop Stages (Live API) ───────────────────────────────
-  const fetchAnalytics = useCallback(async () => {
+  const fetchAnalytics = useCallback(async (
+    params?: { barangay?: string; from?: string; to?: string }
+  ) => {
+    const q = params ?? {};
     try {
       const summary = await getAnalyticsSummary();
       setTotalFarms(summary.totalFarms);
@@ -376,12 +378,13 @@ export const TechnicianDashboardPage: React.FC = () => {
     } catch { /* Non-fatal */ }
 
     try {
-      const stagesRes = await getCropStages();
+      const stagesRes = await getCropStages(q);
       if (stagesRes?.stages) setCropStagesData(stagesRes.stages);
     } catch { /* Non-fatal */ }
 
     try {
-      const geo = await getFarmsGeo();      if (geo?.features) {
+      const geo = await getFarmsGeo(q);
+      if (geo?.features) {
         const markers: FarmMarkerData[] = [];
         for (const feat of geo.features) {
           if (!("kind" in feat.properties)) {
@@ -449,12 +452,12 @@ export const TechnicianDashboardPage: React.FC = () => {
     } catch { /* Non-fatal */ }
 
     try {
-      const issues = await getTopIssues();
+      const issues = await getTopIssues(q);
       setTopIssues(issues);
     } catch { /* Non-fatal */ }
 
     try {
-      const disasters = await getDisasters({ groupBy: "barangay" });
+      const disasters = await getDisasters({ ...q, groupBy: "barangay" });
       setDisasterGroups(disasters.groups);
     } catch { /* Non-fatal */ }
 
@@ -464,7 +467,7 @@ export const TechnicianDashboardPage: React.FC = () => {
     } catch { /* Non-fatal */ }
 
     try {
-      const trends = await getScanTrends();
+      const trends = await getScanTrends(q);
       setScanTrends(trends);
     } catch { /* Non-fatal */ }
   }, []);
@@ -482,9 +485,8 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   useEffect(() => {
     fetchPipeline();
-    fetchAnalytics();
     fetchBarangays();
-  }, [fetchPipeline, fetchAnalytics, fetchBarangays]);
+  }, [fetchPipeline, fetchBarangays]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -710,13 +712,69 @@ export const TechnicianDashboardPage: React.FC = () => {
     );
   }, [disasterReports, expertCases]);
 
-  // ── Date range toggle ────────────────────────────────────────────────────
+  // ── Date range + registered barangay filter ──────────────────────────────
   const [dateRange, setDateRange] = useState<"7d" | "30d" | "season">("30d");
+  const [selectedRegisteredLocation, setSelectedRegisteredLocation] = useState("");
   const dateRangeOptions = [
     { key: "7d" as const, label: "7 araw" },
     { key: "30d" as const, label: "30 araw" },
     { key: "season" as const, label: "Season" },
   ];
+
+  // Derive ISO from/to dates from the selected range
+  const filterDates = useMemo(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const toISO = (d: Date) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const to = toISO(now);
+    const from = new Date(now);
+    if (dateRange === "7d") from.setDate(from.getDate() - 7);
+    else if (dateRange === "30d") from.setDate(from.getDate() - 30);
+    else from.setDate(from.getDate() - 90); // season ≈ 90 days
+    return { from: toISO(from), to };
+  }, [dateRange]);
+
+  useEffect(() => {
+    fetchAnalytics(filterDates);
+  }, [fetchAnalytics, filterDates]);
+
+  // Build filter options from farm records returned by the registered-farms API.
+  const registeredFarmLocations = useMemo(() => {
+    const locations = new Map<
+      string,
+      { key: string; barangay: string; municipality: string }
+    >();
+    farmMarkers.forEach((farm) => {
+      const key = JSON.stringify([farm.municipality, farm.barangay]);
+      locations.set(key, {
+        key,
+        barangay: farm.barangay,
+        municipality: farm.municipality,
+      });
+    });
+    return [...locations.values()].sort((a, b) =>
+      `${a.barangay} ${a.municipality}`.localeCompare(
+        `${b.barangay} ${b.municipality}`,
+      ),
+    );
+  }, [farmMarkers]);
+
+  const visibleFarmMarkers = useMemo(
+    () =>
+      selectedRegisteredLocation
+        ? farmMarkers.filter(
+            (farm) =>
+              JSON.stringify([farm.municipality, farm.barangay]) ===
+              selectedRegisteredLocation,
+          )
+        : farmMarkers,
+    [farmMarkers, selectedRegisteredLocation],
+  );
+
+  const registeredFarmCount = selectedRegisteredLocation
+    ? visibleFarmMarkers.length
+    : totalFarms ?? barangays.reduce((sum, barangay) => sum + barangay.farmCount, 0);
 
   // ── Nav items ─────────────────────────────────────────────────────────────
   type NavItem = { key: TabKey; label: string; icon: React.ElementType; badge?: number };
@@ -828,10 +886,24 @@ export const TechnicianDashboardPage: React.FC = () => {
             <div className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-slate-500">
               <span>FILTER</span>
             </div>
-            <div className="hidden sm:flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-50">
-              <span>Lahat ng Barangay</span>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            </div>
+            <label className="hidden sm:flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              <span className="sr-only">Piliin ang rehistradong barangay</span>
+              <select
+                aria-label="Piliin ang rehistradong barangay"
+                value={selectedRegisteredLocation}
+                onChange={(event) =>
+                  setSelectedRegisteredLocation(event.target.value)
+                }
+                className="max-w-40 bg-transparent outline-none cursor-pointer"
+              >
+                <option value="">Lahat ng Barangay</option>
+                {registeredFarmLocations.map((location) => (
+                  <option key={location.key} value={location.key}>
+                    {location.barangay} · {location.municipality}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             {/* Date range toggle */}
             <div className="hidden sm:flex items-center rounded-full border border-slate-200 bg-white p-1 gap-0.5">
@@ -930,7 +1002,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     Rehistradong Sakahan
                   </p>
                   <p className="mt-2 text-3xl font-black text-slate-900 leading-none">
-                    {totalFarms !== null ? totalFarms : barangays.reduce((s, b) => s + b.farmCount, 0)}
+                    {registeredFarmCount}
                   </p>
                   <p className="mt-1 text-[11px] text-slate-400 font-medium">
                     sakahan
@@ -1134,7 +1206,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                         selectedBarangay={selectedBarangayName}
                         onSelectBarangay={(b) => setSelectedBarangayName(b)}
                         mapLayer={mapLayer}
-                        farms={farmMarkers}
+                        farms={visibleFarmMarkers}
                         focusTrigger={focusTrigger}
                       />
                     </div>
@@ -1276,10 +1348,24 @@ export const TechnicianDashboardPage: React.FC = () => {
                 <h2 className="text-xl font-black text-slate-900">Analitika</h2>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-500">FILTER</span>
-                  <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-50">
-                    <span>Lahat ng Barangay</span>
-                    <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-                  </div>
+                  <label className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    <span className="sr-only">Piliin ang rehistradong barangay</span>
+                    <select
+                      aria-label="Piliin ang rehistradong barangay"
+                      value={selectedRegisteredLocation}
+                      onChange={(event) =>
+                        setSelectedRegisteredLocation(event.target.value)
+                      }
+                      className="max-w-40 bg-transparent outline-none cursor-pointer"
+                    >
+                      <option value="">Lahat ng Barangay</option>
+                      {registeredFarmLocations.map((location) => (
+                        <option key={location.key} value={location.key}>
+                          {location.barangay} · {location.municipality}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <div className="flex items-center rounded-full border border-slate-200 bg-white p-1 gap-0.5">
                     {(["7d","30d","season"] as const).map((key) => {
                       const label = key === "7d" ? "7 araw" : key === "30d" ? "30 araw" : "Season";
@@ -1300,7 +1386,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                 <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
                   <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Rehistradong Sakahan</p>
                   <p className="mt-2 text-3xl font-black text-slate-900 leading-none">
-                    {totalFarms !== null ? totalFarms : barangays.reduce((s, b) => s + b.farmCount, 0)}
+                    {registeredFarmCount}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1">sakahan</p>
                 </div>

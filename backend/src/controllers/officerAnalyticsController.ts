@@ -729,7 +729,13 @@ export const getFarmsGeo = asyncHandler(
                   END AS "healthStatus",
                   COALESCE(oc.cnt, '0') AS "openCaseCount"
            FROM "farms" f
-           JOIN "crop_cycles" cc ON cc."farm_id" = f.id AND cc."status" = 'active'
+           LEFT JOIN LATERAL (
+             SELECT cc.*
+             FROM "crop_cycles" cc
+             WHERE cc."farm_id" = f.id AND cc."status" = 'active'
+             ORDER BY cc."planting_date" DESC, cc."created_at" DESC
+             LIMIT 1
+           ) cc ON TRUE
            LEFT JOIN latest_obs lo ON lo."crop_cycle_id" = cc.id AND lo.rn = 1
            LEFT JOIN open_counts oc ON oc.farm_id = f.id
            WHERE ${bw.whereSql}`,
