@@ -660,21 +660,6 @@ export const FarmerDashboardPage: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const syncWhenOnline = async () => {
-      if (!navigator.onLine) return;
-      try {
-        const result = await syncPendingOfflineActions();
-        if (result.total > 0) setQueueCount(result.failed);
-      } catch {
-        // Keep failed actions in IndexedDB for the next retry.
-      }
-    };
-    void syncWhenOnline();
-    window.addEventListener("online", syncWhenOnline);
-    return () => window.removeEventListener("online", syncWhenOnline);
-  }, []);
-
   // ── 1. Activity Modal ─────────────────────────────────────────────────────
   const [actType, setActType] = useState<ActivityType>("FERTILIZER");
   const [actDesc, setActDesc] = useState("");

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -15,14 +15,13 @@ import {
   getCasePipeline,
   type DisasterReport,
 } from "../../services/case.service";
-import {
-  getOfflineQueue,
-  queueOfflineAction,
-} from "../../services/sync.service";
+import { queueOfflineAction } from "../../services/sync.service";
 import { useFarmSelection } from "../../context/farmSelectionContext";
 import { ApiError } from "../../lib/api";
 import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 import { caseStatusDisplay, CASE_STATUS_TIMELINE } from "../../lib/caseStatus";
+import { useSyncQueue } from "../../hooks/useSyncQueue";
+import { QUEUE_UPDATED_EVENT } from "../../lib/offlineQueue";
 
 /** Suggested loss per hectare (₱) — an estimate only, farmer can override. */
 const SUGGESTED_LOSS_PER_HA = 36000;
@@ -42,7 +41,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
   // Tab State
   const [activeTab, setActiveTab] = useState<"report" | "status">("report");
 
-  const [queueCount, setQueueCount] = useState(0);
+  const { pendingCount: queueCount } = useSyncQueue();
 
   // Form Fields
   const [disasterType, setDisasterType] = useState<string>("FLOOD");
@@ -64,27 +63,28 @@ export const FarmerDisasterReportPage: React.FC = () => {
   const [claimsLoading, setClaimsLoading] = useState(false);
   const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null);
 
-  // Load queue count on mount
-  useEffect(() => {
-    getOfflineQueue().then((q) => setQueueCount(q.length));
-  }, []);
-
-  // Fetch claims when switching to status tab
-  useEffect(() => {
-    if (activeTab === "status") {
-      setClaimsLoading(true);
-      getCasePipeline()
-        .then((res) => {
-          setClaimList(res.disasterCases || []);
-        })
-        .catch(() => {
-          setClaimList([]);
-        })
-        .finally(() => {
-          setClaimsLoading(false);
-        });
+  const refreshClaims = useCallback(async () => {
+    if (activeTab !== "status") return;
+    setClaimsLoading(true);
+    try {
+      const res = await getCasePipeline();
+      setClaimList(res.disasterCases || []);
+    } catch {
+      setClaimList([]);
+    } finally {
+      setClaimsLoading(false);
     }
   }, [activeTab]);
+
+  // Fetch claims when switching to status tab.
+  useEffect(() => {
+    void refreshClaims();
+  }, [refreshClaims]);
+
+  useEffect(() => {
+    window.addEventListener(QUEUE_UPDATED_EVENT, refreshClaims);
+    return () => window.removeEventListener(QUEUE_UPDATED_EVENT, refreshClaims);
+  }, [refreshClaims]);
 
   // Derived calculations
   const haNum = parseFloat(affectedHectares) || 0;
@@ -168,8 +168,6 @@ export const FarmerDisasterReportPage: React.FC = () => {
           notes: notesWithContext,
         },
       });
-
-      setQueueCount((prev) => prev + 1);
 
       toast.info("Naitago sa Offline Storage (Queue)", {
         description:

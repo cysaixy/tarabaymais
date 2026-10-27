@@ -10,58 +10,81 @@
  * Copy is in conversational Filipino per AGENTS.md. Placed at the top of the
  * layout (sticky) so it is visible on every route.
  */
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { WifiOff, Wifi, RefreshCw, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNetworkStatus } from "../hooks/useNetworkStatus";
 import { useSyncQueue } from "../hooks/useSyncQueue";
-import {
-  getOfflineQueue,
-  sendBatchSync,
-  clearOfflineQueue,
-} from "../services/sync.service";
+import { syncPendingOfflineActions } from "../services/sync.service";
 
 export function OfflineBanner() {
   const isOffline = useNetworkStatus();
   const { pendingCount } = useSyncQueue();
   const [syncing, setSyncing] = useState(false);
+  const syncInProgress = useRef(false);
+  const hasAttemptedInitialSync = useRef(false);
   const hasPending = pendingCount > 0;
-
-  // State D: online & empty queue → completely hidden.
-  if (!isOffline && !hasPending) return null;
 
   const isOnline = !isOffline;
   const isOfflineWithPending = isOffline && hasPending;
   const isOnlineWithPending = isOnline && hasPending;
 
-  const handleSyncNow = async () => {
-    if (syncing || !hasPending) return;
+  const syncQueue = useCallback(async (automatic = false) => {
+    if (syncInProgress.current || !hasPending) return;
     if (isOffline) {
+      if (automatic) return;
       toast.error("Walang koneksyon sa internet!", {
         description:
           "Maaari mong i-sync ang mga rekord kapag balik na ang signal.",
       });
       return;
     }
+    syncInProgress.current = true;
     setSyncing(true);
     const toastId = toast.loading("Isini-sync ang mga rekord sa server...");
     try {
-      const queue = await getOfflineQueue();
-      if (queue.length > 0) await sendBatchSync(queue);
-      await clearOfflineQueue();
-      toast.success("Matagumpay na nai-sync!", {
-        id: toastId,
-        description: "Lahat ng nakabinbing record ay naipadala na sa server.",
-      });
+      const result = await syncPendingOfflineActions();
+      if (result.failed > 0) {
+        const firstError = result.results.find(
+          (item) => item.status !== "SUCCESS",
+        )?.error;
+        toast.warning("May ilang rekord na hindi pa nai-sync.", {
+          id: toastId,
+          description: `${result.processed} naipadala; ${result.failed} nanatili sa queue para subukang muli.${firstError ? ` Dahilan: ${firstError}` : ""}`,
+        });
+      } else {
+        toast.success("Matagumpay na nai-sync!", {
+          id: toastId,
+          description: "Lahat ng nakabinbing record ay naipadala na sa server.",
+        });
+      }
     } catch {
       toast.error("Hindi natapos ang pag-sync.", {
         id: toastId,
         description: "Subukan muli kapag may koneksyon na.",
       });
     } finally {
+      syncInProgress.current = false;
       setSyncing(false);
     }
-  };
+  }, [hasPending, isOffline]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      void syncQueue(true);
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [syncQueue, hasPending, isOffline]);
+
+  useEffect(() => {
+    if (hasAttemptedInitialSync.current || isOffline || !hasPending) return;
+    hasAttemptedInitialSync.current = true;
+    void syncQueue(true);
+  }, [syncQueue, hasPending, isOffline]);
+
+  // State D: online & empty queue → completely hidden.
+  if (!isOffline && !hasPending) return null;
 
   const bg = isOnlineWithPending
     ? "bg-emerald-600 border-emerald-400/70"
@@ -103,7 +126,7 @@ export function OfflineBanner() {
       {isOnlineWithPending && (
         <button
           type="button"
-          onClick={handleSyncNow}
+          onClick={() => void syncQueue()}
           disabled={syncing}
           aria-label="I-sync ngayon ang nakabinbing rekord"
           className="shrink-0 min-h-12 px-4 py-2 rounded-xl bg-white text-emerald-700 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"

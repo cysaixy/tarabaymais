@@ -20,7 +20,7 @@ import { BottomNav } from "../../components/BottomNav";
 import {
   getOfflineQueue,
   clearOfflineQueue,
-  sendBatchSync,
+  syncPendingOfflineActions,
   type SyncActionItem,
 } from "../../services/sync.service";
 
@@ -81,13 +81,22 @@ export const FarmerSyncQueuePage: React.FC = () => {
     const toastId = toast.loading("Isini-sync ang mga rekord sa DA Server...");
 
     try {
-      await sendBatchSync(queue);
-      await clearOfflineQueue();
+      const result = await syncPendingOfflineActions();
       loadQueue();
-      toast.success("Matagumpay na nai-sync sa PostgreSQL Server!", {
-        id: toastId,
-        description: `${queue.length} rekord ang nai-record sa DA Database.`,
-      });
+      if (result.failed > 0) {
+        const firstError = result.results.find(
+          (item) => item.status !== "SUCCESS",
+        )?.error;
+        toast.warning("May ilang rekord na hindi pa nai-sync.", {
+          id: toastId,
+          description: `${result.processed} naipadala; ${result.failed} nanatili sa queue.${firstError ? ` Dahilan: ${firstError}` : ""}`,
+        });
+      } else {
+        toast.success("Matagumpay na nai-sync sa PostgreSQL Server!", {
+          id: toastId,
+          description: `${result.processed} rekord ang nai-record sa DA Database.`,
+        });
+      }
     } catch {
       toast.error("Hindi matapos ang pag-sync", {
         id: toastId,

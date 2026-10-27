@@ -33,6 +33,10 @@ export const errorMiddleware = (
 
   // ── 2. Prisma client errors ────────────────────────────────────────────
   if (isPrismaError(err)) {
+    console.error("[Database operation failed]", {
+      code: err.code,
+      message: err.message,
+    });
     const { status, message } = mapPrismaError(err);
     res.status(status).json({ success: false, error: message });
     return;
@@ -81,6 +85,12 @@ function mapPrismaError(err: { code: string }): {
       return { status: 404, message: "Record not found" };
     case "P2003":
       return { status: 409, message: "Related record not found (foreign key)" };
+    case "P2021":
+    case "P2022":
+      return {
+        status: 500,
+        message: "Database schema is outdated; apply pending database migrations",
+      };
     default:
       return { status: 500, message: "Database operation failed" };
   }
