@@ -98,7 +98,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             err.message.includes("auth/user-token-expired") ||
             err.message.includes("auth/invalid-user-token"));
 
-        if (isOnline && (isAuthRejection || isUserDisabled)) {
+        // Only treat a 401 as a real "session revoked" signal when the user
+        // already had a cached profile. A brand-new user (onboarding flow)
+        // will always get 401 from /auth/me because they haven't called
+        // /auth/sync yet — logging them out here kills the OTP session.
+        const hasCachedProfile = !!readCachedProfile(currentUser.uid);
+
+        if (isOnline && (isUserDisabled || (isAuthRejection && hasCachedProfile))) {
           console.warn("[AuthProvider] Genuine online auth rejection: clearing session");
           clearCachedProfile(currentUser.uid);
           setProfile(null);

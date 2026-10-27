@@ -10,7 +10,6 @@ import {
   Tooltip,
   Cell,
   ResponsiveContainer,
-  type PieLabelRenderProps,
   type TooltipContentProps,
 } from "recharts";
 import {
@@ -66,29 +65,27 @@ export const StageDonut: React.FC<StageDonutProps> = ({ stages }) => {
 
   if (total === 0) {
     return (
-      <div className="h-75 flex flex-col items-center justify-center">
+      <div className="h-48 flex flex-col items-center justify-center">
         <p className="text-slate-500">Wala pang datos ng yugto ng taniman.</p>
       </div>
     );
   }
 
   return (
-    <div className="h-75 w-full">
+    <div className="w-full">
+      <div className="h-52">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
             data={data}
             cx="50%"
             cy="50%"
-            innerRadius={70}
-            outerRadius={90}
+            innerRadius={65}
+            outerRadius={88}
+            paddingAngle={2}
+            dataKey="value"
+            label={false}
             labelLine={false}
-            label={({ name, percent }: PieLabelRenderProps) => {
-              const pct = total > 0 ? Math.round((percent ?? 0) * 100) : 0;
-              return typeof name === "string" && pct > 5
-                ? `${name} ${pct}%`
-                : null;
-            }}
           >
             {data.map((_entry, _index) => (
               <Cell key={`cell-${_index}`} fill={CUSTOM_COLORS[_index]} />
@@ -97,14 +94,15 @@ export const StageDonut: React.FC<StageDonutProps> = ({ stages }) => {
           <Tooltip content={tooltipContent} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="mt-2 flex justify-center gap-3 text-[12px]">
+      </div>
+      <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-2 text-[12px]">
         {data.map((d) => (
           <span
             key={d.name}
-            className="flex items-center gap-1.5 whitespace-nowrap"
+            className="flex items-center gap-1.5"
           >
             <span
-              className="w-2.5 h-2.5 rounded-full"
+              className="w-2.5 h-2.5 rounded-full shrink-0"
               style={{
                 backgroundColor:
                   GROWTH_STAGE_COLORS[STAGE_ORDER[data.indexOf(d)]],

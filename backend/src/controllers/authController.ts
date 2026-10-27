@@ -35,13 +35,20 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
     req.firebaseUser.phone_number,
   );
 
-  // Complete these farmer registrations when authentication found a legacy or
-  // partially-created user without a farmer profile.
+  // For non-designated phones: only skip re-registration if the user already
+  // has a complete profile (farmerProfile present for FARMER role, or any
+  // non-FARMER role which doesn't need a farmerProfile).
   if (req.user && !isFarmerRegistration) {
-    return sendSuccess(res, 200, {
-      message: "User already synchronized",
-      data: { user: req.user },
-    });
+    const needsFarmerProfile =
+      req.user.role === Role.FARMER && !req.user.farmerProfile;
+
+    if (!needsFarmerProfile) {
+      return sendSuccess(res, 200, {
+        message: "User already synchronized",
+        data: { user: req.user },
+      });
+    }
+    // Fall through to complete the missing farmerProfile below.
   }
 
   if (req.user && isFarmerRegistration) {
@@ -73,6 +80,37 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
   const { firstName, lastName, phone, rsbsaNumber, preferredLanguage } =
     parseResult.data;
 
+  // If the middleware already found this user (by UID or phone) but they're a
+  // FARMER without a farmerProfile, complete the registration now.
+  if (req.user && req.user.role === Role.FARMER && !req.user.farmerProfile) {
+    const completedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        firstName,
+        lastName,
+        farmerProfile: {
+          upsert: {
+            create: {
+              rsbsaNumber: rsbsaNumber ?? null,
+              preferredLanguage: preferredLanguage ?? "filipino",
+            },
+            update: {
+              ...(rsbsaNumber !== undefined ? { rsbsaNumber } : {}),
+              ...(preferredLanguage !== undefined ? { preferredLanguage } : {}),
+            },
+          },
+        },
+      },
+      include: { farmerProfile: true },
+    });
+    await invalidateAnalyticsCache();
+
+    return sendSuccess(res, 200, {
+      message: "Farmer profile completed and synchronized",
+      data: { user: completedUser },
+    });
+  }
+
   // Check if a user with this phone already exists in the database
   const existingUserByPhone = await prisma.user.findFirst({
     where: {
@@ -87,7 +125,7 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
 
   if (existingUserByPhone) {
     if (
-      isFarmerRegistration &&
+      (isFarmerRegistration || existingUserByPhone.role === Role.FARMER) &&
       (existingUserByPhone.role !== Role.FARMER ||
         !existingUserByPhone.farmerProfile)
     ) {

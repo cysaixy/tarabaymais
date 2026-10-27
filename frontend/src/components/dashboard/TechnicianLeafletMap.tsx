@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, useMap, CircleMarker, Popup, Tooltip } from "react-leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
 import { MapPin } from "lucide-react";
+import { cagayanBarangays } from "../../data/cagayanBarangays";
 
 export type MapLayerType = "TANIMAN" | "PINSALA" | "KONSULTASYON";
 
@@ -20,35 +21,10 @@ export interface FarmMarkerData {
   openCases?: number;
 }
 
-// ── Alcala, Cagayan barangay centres — PhilAtlas / PSA verified ──────────────
-// Used ONLY as a GPS fallback when a farm in Alcala has no recorded coordinates.
-export const ALCALA_BARANGAYS: { name: string; lat: number; lng: number }[] = [
-  { name: "Abbeg",               lat: 17.8439, lng: 121.6256 },
-  { name: "Afusing Bato",        lat: 17.8479, lng: 121.6470 },
-  { name: "Afusing Daga",        lat: 17.8635, lng: 121.6287 },
-  { name: "Agani",               lat: 17.9241, lng: 121.6911 },
-  { name: "Baculod",             lat: 17.9007, lng: 121.6756 },
-  { name: "Baybayog",            lat: 17.8907, lng: 121.7045 },
-  { name: "Cabuluan",            lat: 17.8495, lng: 121.6045 },
-  { name: "Calantac",            lat: 17.8965, lng: 121.7282 },
-  { name: "Carallangan",         lat: 17.9281, lng: 121.6300 },
-  { name: "Centro Norte (Pob.)", lat: 17.9094, lng: 121.6574 },
-  { name: "Centro Sur (Pob.)",   lat: 17.8974, lng: 121.6546 },
-  { name: "Dalaoig",             lat: 17.9683, lng: 121.7245 },
-  { name: "Damurog",             lat: 17.8789, lng: 121.6642 },
-  { name: "Jurisdiction",        lat: 17.8769, lng: 121.6927 },
-  { name: "Malalatan",           lat: 17.8771, lng: 121.6309 },
-  { name: "Maraburab",           lat: 17.9436, lng: 121.6590 },
-  { name: "Masin",               lat: 17.9294, lng: 121.6757 },
-  { name: "Pagbangkeruan",       lat: 17.8830, lng: 121.6823 },
-  { name: "Pared",               lat: 17.8902, lng: 121.6929 },
-  { name: "Piggatan",            lat: 17.9650, lng: 121.6793 },
-  { name: "Pinopoc",             lat: 17.9097, lng: 121.7014 },
-  { name: "Pussian",             lat: 17.9480, lng: 121.6980 },
-  { name: "San Esteban",         lat: 17.9199, lng: 121.7242 },
-  { name: "Tamban",              lat: 17.8963, lng: 121.6265 },
-  { name: "Tupang",              lat: 17.9212, lng: 121.6507 },
-];
+// ── All Cagayan barangay centres (all municipalities) — re-exported from data layer
+export const ALCALA_BARANGAYS = cagayanBarangays.filter(b => b.municipality === "Alcala");
+export const TUGUEGARAO_BARANGAYS = cagayanBarangays.filter(b => b.municipality === "Tuguegarao City");
+export const ALL_BARANGAYS = cagayanBarangays;
 
 // Fallback centre (Cagayan province) when no farms are loaded yet
 export const ALCALA_CENTER: [number, number] = [17.9024, 121.6567];
