@@ -823,6 +823,11 @@ export const TechnicianDashboardPage: React.FC = () => {
                     onSelectBarangay={(b) => setSelectedBarangayName(b)}
                     mapLayer={mapLayer}
                     farms={farmMarkers}
+                    barangayFarmCounts={Object.fromEntries(
+                      barangays
+                        .filter((b) => b.farmCount > 0)
+                        .map((b) => [b.barangay.toLowerCase(), b.farmCount])
+                    )}
                     focusTrigger={focusTrigger}
                   />
                 </div>

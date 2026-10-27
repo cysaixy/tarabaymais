@@ -74,6 +74,8 @@ interface TechnicianLeafletMapProps {
   onSelectBarangay: (barangay: string) => void;
   mapLayer: MapLayerType;
   farms?: FarmMarkerData[];
+  /** Map of barangay name (lowercase) → farm count, used to colour markers */
+  barangayFarmCounts?: Record<string, number>;
   focusTrigger?: number;
   className?: string;
 }
@@ -81,8 +83,9 @@ interface TechnicianLeafletMapProps {
 export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
   selectedBarangay,
   onSelectBarangay,
-  mapLayer,
+  mapLayer: _mapLayer,
   farms = [],
+  barangayFarmCounts = {},
   focusTrigger = 0,
   className = "",
 }) => {
@@ -122,12 +125,24 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
           const isSelected =
             b.name.toLowerCase().trim() === selectedBarangay.toLowerCase().trim();
 
-          const markerColor =
-            mapLayer === "TANIMAN"
-              ? isSelected ? "#065F46" : "#10B981"
-              : mapLayer === "PINSALA"
-              ? isSelected ? "#B91C1C" : "#F59E0B"
-              : isSelected ? "#1E3A8A" : "#3B82F6";
+          // Check if this barangay has any registered farms
+          const farmCount =
+            barangayFarmCounts[b.name.toLowerCase()] ??
+            // fallback: count from farm markers array
+            farms.filter(
+              (f) =>
+                f.barangay.toLowerCase().includes(b.name.toLowerCase().split(" ")[0].toLowerCase())
+            ).length;
+          const hasFarms = farmCount > 0;
+
+          // Green ONLY when there are registered farms; gray otherwise
+          const markerColor = isSelected
+            ? "#065F46"          // dark green when selected
+            : hasFarms
+            ? "#10B981"          // green = may registered sakahan
+            : "#94A3B8";         // slate-gray = walang sakahan
+
+          const strokeColor = isSelected ? "#FBBF24" : "#FFFFFF";
 
           return (
             <React.Fragment key={b.name}>
@@ -139,28 +154,31 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
                   pathOptions={{
                     color: "#FBBF24",
                     fillColor: "#FBBF24",
-                    fillOpacity: 0.35,
-                    weight: 3,
+                    fillOpacity: 0.25,
+                    weight: 2.5,
                   }}
                 />
               )}
 
               <CircleMarker
                 center={[b.lat, b.lng]}
-                radius={isSelected ? 10 : 7}
+                radius={isSelected ? 11 : hasFarms ? 8 : 6}
                 eventHandlers={{
                   click: () => onSelectBarangay(b.name),
                 }}
                 pathOptions={{
-                  color: "#FFFFFF",
+                  color: strokeColor,
                   fillColor: markerColor,
-                  fillOpacity: 0.95,
-                  weight: 2,
+                  fillOpacity: hasFarms ? 0.95 : 0.65,
+                  weight: isSelected ? 2.5 : 1.5,
                 }}
               >
                 <Tooltip direction="top" offset={[0, -6]} opacity={0.95}>
-                  <div className="font-bold text-xs text-slate-900">
-                    {b.name}
+                  <div className="text-xs">
+                    <p className="font-bold text-slate-900">{b.name}</p>
+                    <p className={hasFarms ? "text-emerald-600 font-semibold" : "text-slate-400"}>
+                      {hasFarms ? `${farmCount} sakahan na rehistrado` : "Walang sakahan"}
+                    </p>
                   </div>
                 </Tooltip>
 
@@ -168,6 +186,11 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
                   <div className="p-1 space-y-1 text-xs">
                     <p className="font-bold text-sm text-slate-900">{b.name}</p>
                     <p className="text-slate-500">Munisipyo ng Alcala, Cagayan</p>
+                    <p className={hasFarms ? "text-emerald-700 font-semibold" : "text-slate-400"}>
+                      {hasFarms
+                        ? `✓ ${farmCount} rehistradong sakahan`
+                        : "Wala pang rehistradong sakahan"}
+                    </p>
                     <div className="pt-1 flex gap-2">
                       <button
                         type="button"
@@ -252,20 +275,19 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
 
       {/* Floating Dynamic Legend */}
       <div className="absolute bottom-3 right-3 z-20 rounded-xl bg-white/95 p-2.5 shadow-2xs border border-slate-200 text-[11px] text-slate-700 backdrop-blur-xs space-y-1">
+        <p className="font-bold text-[10px] text-slate-400 uppercase tracking-widest pb-0.5">Mapa</p>
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#10B981] border border-white" />
-          <span>Barangay / Taniman</span>
+          <span className="h-2.5 w-2.5 rounded-full bg-[#10B981] border border-white shadow-xs" />
+          <span className="font-medium">May rehistradong sakahan</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#FBBF24] border border-[#0B2347]" />
-          <span>Napiling Lokasyon</span>
+          <span className="h-2.5 w-2.5 rounded-full bg-[#94A3B8] border border-white" />
+          <span>Walang sakahan</span>
         </div>
-        {mapLayer === "PINSALA" && (
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#DC2626] border border-white" />
-            <span>Kaso ng Pinsala</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#065F46] ring-1 ring-[#FBBF24]" />
+          <span>Napiling barangay</span>
+        </div>
       </div>
     </div>
   );
