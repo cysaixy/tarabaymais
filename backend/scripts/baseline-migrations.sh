@@ -4,8 +4,6 @@
 # Use this when your production database already has the schema but Prisma's
 # migration history table is missing or out of sync
 
-set -e
-
 echo "=================================="
 echo "Prisma Migration Baseline Script"
 echo "=================================="
@@ -41,28 +39,25 @@ migrations=(
 echo "📋 Found ${#migrations[@]} migrations to baseline"
 echo ""
 
-# Mark each migration as applied
+# Mark each migration as applied - handle already-applied gracefully
 for migration in "${migrations[@]}"; do
   echo "⏳ Marking migration as applied: $migration"
-  npx prisma migrate resolve --applied "$migration"
   
-  if [ $? -eq 0 ]; then
-    echo "✅ Successfully marked: $migration"
-  else
-    echo "❌ Failed to mark: $migration"
-    exit 1
-  fi
+  # Try to resolve as applied; if it fails (e.g., already applied), that's OK
+  npx prisma migrate resolve --applied "$migration" 2>/dev/null || \
+    echo "⚠️ Migration $migration already applied or skipped"
+  
+  # Continue regardless of success/failure - we verify at the end with migrate deploy
   echo ""
 done
 
 echo "=================================="
-echo "✅ All migrations have been baselined!"
+echo "✅ Baseline complete - checking migration status"
 echo "=================================="
-echo ""
-echo "Now running 'prisma migrate deploy' to verify..."
 echo ""
 
 # Run migrate deploy to verify everything is in sync
+# This will succeed if migrations are already applied, or apply pending ones
 npx prisma migrate deploy
 
 if [ $? -eq 0 ]; then
