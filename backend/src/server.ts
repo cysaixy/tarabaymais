@@ -4,6 +4,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 
 import authRoutes from "./routes/authRoutes";
 import farmRoutes from "./routes/farmRoutes";
@@ -18,6 +20,24 @@ import officerRoutes from "./routes/officerRoutes";
 
 import { errorMiddleware } from "./middlewares/error.middleware";
 import { closeCache } from "./lib/cache";
+
+if (process.env.NODE_ENV === "production") {
+  const backendRoot = path.resolve(__dirname, "..");
+  const prismaCli = path.join(
+    backendRoot,
+    "node_modules",
+    "prisma",
+    "build",
+    "index.js",
+  );
+  console.info("[Server] Applying pending database migrations...");
+  execFileSync(
+    process.execPath,
+    [prismaCli, "migrate", "deploy"],
+    { cwd: backendRoot, stdio: "inherit" },
+  );
+  console.info("[Server] Database migrations are up to date.");
+}
 
 const app = express();
 const port = process.env.PORT ?? 3000;
