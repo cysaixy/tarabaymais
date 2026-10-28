@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, useMap, CircleMarker, Popup, Tooltip } from "react-leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
 import { MapPin } from "lucide-react";
-import { cagayanBarangays } from "../../data/cagayanBarangays";
+import { registeredLocationKey } from "../../data/cagayanBarangays";
 
 export type MapLayerType = "TANIMAN" | "PINSALA" | "KONSULTASYON";
 
@@ -16,18 +16,11 @@ export interface FarmMarkerData {
   healthStatus?: "healthy" | "watch" | "critical" | string;
   latitude: number;
   longitude: number;
-  hasDamage?: boolean;
+  noGps?: boolean;
   damageType?: string;
   openCases?: number;
 }
 
-// ── All Cagayan barangay centres (all municipalities) — re-exported from data layer
-export const ALCALA_BARANGAYS = cagayanBarangays.filter(b => b.municipality === "Alcala");
-export const TUGUEGARAO_BARANGAYS = cagayanBarangays.filter(b => b.municipality === "Tuguegarao City");
-export const ALL_BARANGAYS = cagayanBarangays;
-
-// Fallback centre (Cagayan province) when no farms are loaded yet
-export const ALCALA_CENTER: [number, number] = [17.9024, 121.6567];
 const CAGAYAN_DEFAULT: [number, number] = [17.9, 121.65];
 
 // ── Controllers ───────────────────────────────────────────────────────────────
@@ -73,9 +66,8 @@ function MapFitBounds({ bounds }: MapFitBoundsProps) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 interface TechnicianLeafletMapProps {
-  selectedBarangay: string;
-  onSelectBarangay: (barangay: string) => void;
-  mapLayer: MapLayerType;
+  selectedLocationKey: string;
+  onSelectLocation: (locationKey: string) => void;
   farms?: FarmMarkerData[];
   /** Map of barangay name (lowercase) → farm count, used to colour markers */
   barangayFarmCounts?: Record<string, number>;
@@ -84,9 +76,8 @@ interface TechnicianLeafletMapProps {
 }
 
 export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
-  selectedBarangay,
-  onSelectBarangay,
-  mapLayer: _mapLayer,
+  selectedLocationKey,
+  onSelectLocation,
   farms = [],
   barangayFarmCounts = {},
   focusTrigger = 0,
@@ -101,7 +92,7 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
     > = {};
 
     for (const farm of farms) {
-      const key = farm.barangay.toLowerCase().trim();
+      const key = registeredLocationKey(farm.municipality, farm.barangay);
       if (!groups[key]) {
         groups[key] = {
           key,
@@ -124,20 +115,18 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
 
   // ── Derive target coords for focus / flyTo ───────────────────────────────
   const selectedLocation = useMemo(() => {
-    // Look in barangay groups first (any municipality)
-    const bg = barangayGroups.find(
-      (g) => g.key === selectedBarangay.toLowerCase().trim()
-    );
+    const bg = barangayGroups.find((g) => g.key === selectedLocationKey);
     if (bg) return [bg.lat, bg.lng] as [number, number];
 
-    // Fallback: find any farm in the selected barangay
     const farm = farms.find(
-      (f) => f.barangay.toLowerCase().trim() === selectedBarangay.toLowerCase().trim()
+      (f) =>
+        registeredLocationKey(f.municipality, f.barangay) ===
+        selectedLocationKey,
     );
     if (farm) return [farm.latitude, farm.longitude] as [number, number];
 
     return null;
-  }, [selectedBarangay, barangayGroups, farms]);
+  }, [selectedLocationKey, barangayGroups, farms]);
 
   // ── Compute map bounds to auto-fit all markers ───────────────────────────
   const mapBounds = useMemo((): LatLngBoundsExpression | null => {
@@ -181,7 +170,7 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
 
         {/* ── BARANGAY AGGREGATE MARKERS (derived from real farm data) ── */}
         {barangayGroups.map((b) => {
-          const isSelected = b.key === selectedBarangay.toLowerCase().trim();
+          const isSelected = b.key === selectedLocationKey;
           const farmCount = barangayFarmCounts[b.key] ?? b.count;
 
           const markerColor = isSelected ? "#065F46" : "#10B981";
@@ -204,7 +193,7 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
               <CircleMarker
                 center={[b.lat, b.lng]}
                 radius={isSelected ? 12 : 9}
-                eventHandlers={{ click: () => onSelectBarangay(b.name) }}
+                eventHandlers={{ click: () => onSelectLocation(b.key) }}
                 pathOptions={{
                   color: strokeColor,
                   fillColor: markerColor,
@@ -230,7 +219,7 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
                     <div className="pt-1">
                       <button
                         type="button"
-                        onClick={() => onSelectBarangay(b.name)}
+                        onClick={() => onSelectLocation(b.key)}
                         className="rounded-lg bg-[#065F46] text-white px-2.5 py-1 text-xs font-bold shadow-xs hover:bg-emerald-800 transition"
                       >
                         Piliin ang Barangay
@@ -245,9 +234,12 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
 
         {/* ── INDIVIDUAL FARM PINS ── */}
         {farms.map((f) => {
-          const isSelected =
-            f.barangay.toLowerCase().trim() === selectedBarangay.toLowerCase().trim();
-          const noGps = f.hasDamage === true; // reused as "no GPS, placed at barangay centre"
+          const locationKey = registeredLocationKey(
+            f.municipality,
+            f.barangay,
+          );
+          const isSelected = locationKey === selectedLocationKey;
+          const noGps = f.noGps === true;
 
           const farmColor =
             f.healthStatus === "critical"
@@ -261,7 +253,7 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
               key={f.id}
               center={[f.latitude, f.longitude]}
               radius={noGps ? 6 : 7}
-              eventHandlers={{ click: () => onSelectBarangay(f.barangay) }}
+              eventHandlers={{ click: () => onSelectLocation(locationKey) }}
               pathOptions={{
                 color: isSelected ? "#FBBF24" : noGps ? farmColor : "#FFFFFF",
                 fillColor: farmColor,

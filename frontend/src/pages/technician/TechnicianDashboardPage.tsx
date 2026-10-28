@@ -57,8 +57,11 @@ import {
 import {
   TechnicianLeafletMap,
   type FarmMarkerData,
-  ALL_BARANGAYS,
 } from "../../components/dashboard/TechnicianLeafletMap";
+import {
+  cagayanBarangays,
+  registeredLocationKey,
+} from "../../data/cagayanBarangays";
 import { LoadingState } from "../../components/LoadingState";
 import { EmptyState } from "../../components/EmptyState";
 import {
@@ -202,7 +205,7 @@ const CaseStatusBar: React.FC<{ sinusuri: number; nainspeksyon: number; aprubado
 
 const ResponseTimeChart: React.FC<{ data: ScanTrendPoint[]; avgHours: number }> = ({ data, avgHours }) => {
   const chartData = data.length > 0
-    ? data.slice(-4).map((d, i) => ({ week: `L${i + 1}`, hours: d.healthy + d.flagged > 0 ? Math.round(avgHours * (0.8 + Math.random() * 0.4)) : avgHours }))
+    ? data.slice(-4).map((_, i) => ({ week: `L${i + 1}`, hours: avgHours }))
     : [{ week: "L1", hours: avgHours }, { week: "L2", hours: avgHours }, { week: "L3", hours: avgHours }, { week: "L4", hours: avgHours }];
   return (
     <div className="space-y-2">
@@ -304,7 +307,6 @@ export const TechnicianDashboardPage: React.FC = () => {
   const [exporting, setExporting] = useState(false);
 
   // ── Map interactive state ─────────────────────────────────────────────────
-  const [selectedBarangayName, setSelectedBarangayName] = useState<string>("Centro Norte (Pob.)");
   const [mapLayer, setMapLayer] = useState<MapLayer>("TANIMAN");
   const [farmMarkers, setFarmMarkers] = useState<FarmMarkerData[]>([]);
   const [focusTrigger] = useState(0);
@@ -395,8 +397,7 @@ export const TechnicianDashboardPage: React.FC = () => {
               lat = feat.geometry.coordinates[1];
               lng = feat.geometry.coordinates[0];
             } else {
-              // Normalize barangay names for matching — strip "(Pob.)", "(Poblacion)",
-              // trailing roman numerals used as variants, etc.
+              // Match the registered municipality and barangay to their reference point.
               const normalizeName = (s: string) =>
                 s.toLowerCase().trim()
                   .replace(/\s*\(pob\.?\)\s*/gi, "")
@@ -407,30 +408,17 @@ export const TechnicianDashboardPage: React.FC = () => {
               const muniLower = p.municipality?.toLowerCase().trim() ?? "";
               const bgyNorm = normalizeName(p.barangay);
 
-              // 1. Exact match: name + municipality
-              let bc = ALL_BARANGAYS.find(
+              const bc = cagayanBarangays.find(
                 (b) =>
                   normalizeName(b.name) === bgyNorm &&
                   b.municipality.toLowerCase().trim() === muniLower
               );
 
-              // 2. Fallback: name only (across all municipalities)
-              if (!bc) {
-                bc = ALL_BARANGAYS.find(
-                  (b) => normalizeName(b.name) === bgyNorm
-                );
-              }
-              if (bc) {
-                const seed = p.id.charCodeAt(0) / 255;
-                lat = bc.lat + (seed - 0.5) * 0.002;
-                lng = bc.lng + (seed - 0.5) * 0.002;
-              } else {
-                // Unknown barangay — scatter around Cagayan centre so farm
-                // still appears on the map rather than being silently dropped
-                const seed = p.id.charCodeAt(0) / 255;
-                lat = 17.72 + (seed - 0.5) * 0.05;
-                lng = 121.73 + (seed - 0.5) * 0.05;
-              }
+              // Do not invent a point elsewhere when this registered location
+              // has no matching reference coordinate.
+              if (!bc) continue;
+              lat = bc.lat;
+              lng = bc.lng;
             }
             markers.push({
               id: p.id,
@@ -441,7 +429,7 @@ export const TechnicianDashboardPage: React.FC = () => {
               growthStage: p.growthStage,
               healthStatus: p.healthStatus,
               openCases: p.openCaseCount,
-              hasDamage: p.noGps,
+              noGps: p.noGps,
               latitude: lat,
               longitude: lng,
             });
@@ -478,10 +466,9 @@ export const TechnicianDashboardPage: React.FC = () => {
     try {
       const list = await getBarangayDistribution();
       setBarangays(list);
-      if (list.length > 0 && !selectedBarangayName) setSelectedBarangayName(list[0].barangay);
     } catch { /* Non-fatal */ }
     finally { setBarangaysLoading(false); }
-  }, [selectedBarangayName]);
+  }, []);
 
   useEffect(() => {
     fetchPipeline();
@@ -746,7 +733,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       { key: string; barangay: string; municipality: string }
     >();
     farmMarkers.forEach((farm) => {
-      const key = JSON.stringify([farm.municipality, farm.barangay]);
+      const key = registeredLocationKey(farm.municipality, farm.barangay);
       locations.set(key, {
         key,
         barangay: farm.barangay,
@@ -765,7 +752,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       selectedRegisteredLocation
         ? farmMarkers.filter(
             (farm) =>
-              JSON.stringify([farm.municipality, farm.barangay]) ===
+              registeredLocationKey(farm.municipality, farm.barangay) ===
               selectedRegisteredLocation,
           )
         : farmMarkers,
@@ -931,7 +918,7 @@ export const TechnicianDashboardPage: React.FC = () => {
               userId={userId}
               expertCases={expertCases}
               disasterCases={disasterReports}
-              onOpenCase={(_caseId) => setActiveTab("KONSULTASYON")}
+              onOpenCase={() => setActiveTab("KONSULTASYON")}
               onViewAll={() => setActiveTab("KONSULTASYON")}
               isOpen={isNotifOpen}
               onOpenChange={setIsNotifOpen}
@@ -1203,9 +1190,8 @@ export const TechnicianDashboardPage: React.FC = () => {
 
                     <div className="relative w-full h-[260px] sm:h-[300px] rounded-xl overflow-hidden">
                       <TechnicianLeafletMap
-                        selectedBarangay={selectedBarangayName}
-                        onSelectBarangay={(b) => setSelectedBarangayName(b)}
-                        mapLayer={mapLayer}
+                        selectedLocationKey={selectedRegisteredLocation}
+                        onSelectLocation={setSelectedRegisteredLocation}
                         farms={visibleFarmMarkers}
                         focusTrigger={focusTrigger}
                       />

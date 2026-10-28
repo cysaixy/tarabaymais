@@ -15,6 +15,20 @@ export interface BarangayLocation {
   lng: number;
 }
 
+export const registeredLocationKey = (
+  municipality: string,
+  barangay: string,
+): string =>
+  JSON.stringify([
+    municipality.toLowerCase().trim().replace(/\s+/g, " "),
+    barangay
+      .toLowerCase()
+      .trim()
+      .replace(/\s*\(pob\.?\)\s*/gi, "")
+      .replace(/\s*\(poblacion\)\s*/gi, "")
+      .replace(/\s+/g, " "),
+  ]);
+
 export const cagayanBarangays: BarangayLocation[] = [
 
   // ─────────────────────────────────────────────────────────
