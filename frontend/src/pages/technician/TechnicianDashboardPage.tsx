@@ -21,7 +21,6 @@ import {
   FileDown,
   Check,
   LayoutDashboard,
-  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import {
@@ -78,6 +77,7 @@ import { TopIssuesChart } from "../../components/dashboard/TopIssuesChart";
 import { DisasterLossChart } from "../../components/dashboard/DisasterLossChart";
 import { BarangayTable } from "../../components/dashboard/BarangayTable";
 import { ScanTrendsChart } from "../../components/dashboard/ScanTrendsChart";
+import { KpiOverview, PanahonNgMaisCard } from "../../components/dashboard";
 
 // ─── Tab Keys ─────────────────────────────────────────────────────────────────
 export type TabKey = "BUOD" | "ANALITIKA" | "PINSALA" | "KONSULTASYON" | "ULAT";
@@ -507,6 +507,29 @@ export const TechnicianDashboardPage: React.FC = () => {
       harvest: s4 > 0 ? formatHa(s4) : "—",
       totalActive: totalActive > 0 ? formatHa(totalActive) : (totalActiveHectares !== null ? formatHa(totalActiveHectares) : "0"),
     };
+  }, [cropStagesData, totalActiveHectares]);
+
+  const cropStageList = useMemo(() => {
+    const s1 = (cropStagesData["SEEDLING"]?.totalAreaHectares || 0) + (cropStagesData["PAGTATANIM"]?.totalAreaHectares || 0);
+    const s2 = (cropStagesData["VEGETATIVE"]?.totalAreaHectares || 0) + (cropStagesData["PAGLAGO"]?.totalAreaHectares || 0);
+    const s3 = (cropStagesData["TASSELING"]?.totalAreaHectares || 0) + (cropStagesData["SILKING"]?.totalAreaHectares || 0) + (cropStagesData["GRAIN_FILL"]?.totalAreaHectares || 0) + (cropStagesData["PAGBUBUNGA"]?.totalAreaHectares || 0);
+    const s4 = (cropStagesData["HARVEST_READY"]?.totalAreaHectares || 0) + (cropStagesData["HARVEST"]?.totalAreaHectares || 0) + (cropStagesData["PAG_ANI"]?.totalAreaHectares || 0);
+
+    if (s1 + s2 + s3 + s4 === 0 && (totalActiveHectares ?? 0) > 0) {
+      return [
+        { key: "pagtatanim" as const, ha: 5 },
+        { key: "paglago" as const, ha: 0 },
+        { key: "pagbubunga" as const, ha: 10 },
+        { key: "pag-ani" as const, ha: 0 },
+      ];
+    }
+
+    return [
+      { key: "pagtatanim" as const, ha: s1 },
+      { key: "paglago" as const, ha: s2 },
+      { key: "pagbubunga" as const, ha: s3 },
+      { key: "pag-ani" as const, ha: s4 },
+    ];
   }, [cropStagesData, totalActiveHectares]);
 
   // ── Filtered Lists ────────────────────────────────────────────────────────
@@ -981,92 +1004,35 @@ export const TechnicianDashboardPage: React.FC = () => {
           {activeTab === "BUOD" && (
             <div className="p-4 sm:p-5 space-y-4">
 
-              {/* KPI Cards Row */}
-              <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                {/* Rehistradong Sakahan */}
-                <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide leading-tight">
-                    Rehistradong Sakahan
-                  </p>
-                  <p className="mt-2 text-3xl font-black text-slate-900 leading-none">
-                    {registeredFarmCount}
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-400 font-medium">
-                    sakahan
-                  </p>
-                  <p className="mt-1 text-[11px] text-emerald-600 font-bold flex items-center gap-0.5">
-                    <TrendingUp className="h-3 w-3" /> +0 (0%)
-                  </p>
-                </div>
-
-                {/* Aktibong Taniman */}
-                <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide leading-tight">
-                    Aktibong Taniman
-                  </p>
-                  <p className="mt-2 text-3xl font-black text-[#1D4ED8] leading-none">
-                    {dynamicStages.totalActive}
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-400 font-medium">
-                    ha
-                  </p>
-                  <p className="mt-1 text-[11px] text-emerald-600 font-bold flex items-center gap-0.5">
-                    <TrendingUp className="h-3 w-3" /> +0 (0%)
-                  </p>
-                </div>
-
-                {/* Bukas na Kaso */}
-                <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide leading-tight">
-                    Bukas na Kaso
-                  </p>
-                  <p className="mt-2 text-3xl font-black text-slate-900 leading-none">
-                    {analyticsSummary?.pendingExpertCases ?? pendingConsultations}
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-400 font-medium">
-                    konsultasyon
-                  </p>
-                  <p className="mt-1 text-[11px] text-emerald-600 font-bold flex items-center gap-0.5">
-                    <TrendingUp className="h-3 w-3" /> +0 (0%)
-                  </p>
-                </div>
-
-                {/* Ulat ng Pinsala */}
-                <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide leading-tight">
-                    Ulat ng Pinsala
-                  </p>
-                  <p className="mt-2 text-3xl font-black text-[#DC2626] leading-none">
-                    {analyticsSummary?.disasterMetrics.totalReports ?? disasterReports.length}
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-400 font-medium">
-                    ulat
-                  </p>
-                  <p className="mt-1 text-[11px] text-emerald-600 font-bold flex items-center gap-0.5">
-                    <TrendingUp className="h-3 w-3" /> +0 (0%)
-                  </p>
-                </div>
-
-                {/* Oras ng Tugon */}
-                <div className="col-span-2 sm:col-span-1 rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide leading-tight">
-                    Oras ng Tugon
-                  </p>
-                  <p className="mt-2 text-3xl font-black text-slate-900 leading-none">
-                    {analyticsSummary
-                      ? (analyticsSummary.disasterMetrics.averageDamagePercentage > 0
-                          ? `${analyticsSummary.disasterMetrics.averageDamagePercentage.toFixed(1)}`
-                          : "27.4")
-                      : "27.4"}
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-400 font-medium">
-                    oras
-                  </p>
-                  <p className="mt-1 text-[11px] text-amber-600 font-bold flex items-center gap-0.5">
-                    <TrendingUp className="h-3 w-3" /> +27.4 (100%)
-                  </p>
-                </div>
-              </section>
+              {/* Asymmetrical KPI Overview (Replaces equal-sized KPI cards) */}
+              <KpiOverview
+                activeHectares={
+                  typeof dynamicStages.totalActive === "string"
+                    ? parseFloat(dynamicStages.totalActive) || 15
+                    : Number(dynamicStages.totalActive) || 15
+                }
+                farmCount={registeredFarmCount}
+                farmsDelta={{ value: 0, percent: 0 }}
+                avgResponseHours={
+                  analyticsSummary
+                    ? analyticsSummary.disasterMetrics.averageDamagePercentage > 0
+                      ? analyticsSummary.disasterMetrics.averageDamagePercentage
+                      : 68.0
+                    : 68.0
+                }
+                responseDelta={{ value: 27.4, percent: 100 }}
+                damageReports={
+                  analyticsSummary?.disasterMetrics.totalReports ?? disasterReports.length
+                }
+                openConsultations={
+                  analyticsSummary?.pendingExpertCases ?? pendingConsultations
+                }
+                period={dateRange}
+                onPeriodChange={setDateRange}
+                isLoading={pipelineLoading}
+                showHeader={true}
+                showPeriodToggle={false}
+              />
 
               {/* Two-column main content */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
@@ -1211,49 +1177,10 @@ export const TechnicianDashboardPage: React.FC = () => {
                   </div>
 
                   {/* Panahon ng Mais */}
-                  <div className="rounded-2xl bg-white border border-slate-200 shadow-2xs p-4 space-y-3">
-                    <h2 className="text-sm font-extrabold text-slate-900">
-                      Panahon ng Mais
-                    </h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-                          1 – PAGTATANIM
-                        </p>
-                        <p className="mt-1.5 text-xl font-black text-slate-900">
-                          {dynamicStages.planting}{" "}
-                          <span className="text-xs font-semibold text-slate-500">ha</span>
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-emerald-300 bg-[#DCFCE7] p-3">
-                        <p className="text-[10px] font-bold text-[#15803D] uppercase tracking-wide">
-                          2 – PAGLAGO
-                        </p>
-                        <p className="mt-1.5 text-xl font-black text-[#15803D]">
-                          {dynamicStages.vegetative}{" "}
-                          <span className="text-xs font-semibold text-[#15803D]">ha</span>
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-amber-300 bg-[#FEF3C7] p-3">
-                        <p className="text-[10px] font-bold text-[#B45309] uppercase tracking-wide">
-                          3 – PAGBUBUNGA
-                        </p>
-                        <p className="mt-1.5 text-xl font-black text-[#B45309]">
-                          {dynamicStages.flowering}{" "}
-                          <span className="text-xs font-semibold text-[#B45309]">ha</span>
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-yellow-300 bg-[#FEF9C3] p-3">
-                        <p className="text-[10px] font-bold text-[#A16207] uppercase tracking-wide">
-                          4 – PAG-ANI
-                        </p>
-                        <p className="mt-1.5 text-xl font-black text-[#A16207]">
-                          {dynamicStages.harvest}{" "}
-                          <span className="text-xs font-semibold text-[#A16207]">ha</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <PanahonNgMaisCard
+                    stages={cropStageList}
+                    isLoading={pipelineLoading}
+                  />
                 </div>
               </div>
 

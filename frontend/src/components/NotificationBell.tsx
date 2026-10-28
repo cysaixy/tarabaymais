@@ -141,13 +141,13 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         aria-haspopup="true"
         aria-expanded={panelOpen}
         aria-controls={panelId}
-        className="relative flex h-[52px] w-[52px] items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white active:scale-95 cursor-pointer"
+        className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 active:scale-95 cursor-pointer shadow-2xs"
       >
-        <Bell className="h-6 w-6" aria-hidden="true" />
+        <Bell className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
         {unreadCount > 0 && (
           <span
             aria-hidden="true"
-            className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#0F2A5C] bg-[#E11D48] text-[11px] font-bold text-white"
+            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-rose-600 text-[10px] font-bold text-white shadow-xs"
           >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
