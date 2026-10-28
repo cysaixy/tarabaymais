@@ -476,7 +476,10 @@ export const getScanTrends = asyncHandler(
         const rows = await prisma.$queryRawUnsafe<{
           week: string; healthy: string; flagged: string;
         }[]>(
-          `SELECT to_char(ps."created_at" AT TIME ZONE 'Asia/Manila', 'IYYY-IW') AS "week",
+          `SELECT to_char(
+                    date_trunc('week', ps."created_at" AT TIME ZONE 'Asia/Manila'),
+                    'YYYY-MM-DD'
+                  ) AS "week",
                   COUNT(*) FILTER (WHERE ps."verdict" = 'healthy')::text AS "healthy",
                   COUNT(*) FILTER (WHERE ps."verdict" = 'flagged')::text AS "flagged"
            FROM "plant_scans" ps

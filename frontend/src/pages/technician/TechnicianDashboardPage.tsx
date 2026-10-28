@@ -1281,7 +1281,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                         Trend ng Pagsusuri ng AI
                       </h3>
                       <p className="text-[11px] text-slate-400">
-                        Malusog vs May Pinsala (nakaraang linggo)
+                        Malusog vs May Pinsala (lingguhang bilang sa napiling panahon)
                       </p>
                     </div>
                     <ScanTrendsChart data={scanTrends} />
