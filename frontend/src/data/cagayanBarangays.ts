@@ -1,9 +1,8 @@
 /**
  * Approximate GPS coordinates for barangays in Cagayan Province, Philippines.
  *
- * Coordinates are plausible offsets (±0.01–0.05°) from each municipality's
- * confirmed PhilAtlas centre. They are suitable for placing farm markers on a
- * Leaflet map in the correct general area — not survey-grade positions.
+ * Coordinates are barangay reference points, not survey-grade farm locations.
+ * Some points are estimated; verified OpenStreetMap place nodes are noted inline.
  *
  * Sources: PhilAtlas (philatlas.com) barangay lists per municipality.
  */
@@ -238,7 +237,7 @@ export const cagayanBarangays: BarangayLocation[] = [
   { name: "San Antonio",          municipality: "Enrile", lat: 17.5420, lng: 121.7000 },
 
   // ─────────────────────────────────────────────────────────
-  // Alcala  (centre: 17.9000, 121.6570)
+  // Alcala (municipal centre: 17.9000, 121.6570)
   // ─────────────────────────────────────────────────────────
   { name: "Abbeg",                municipality: "Alcala", lat: 17.9080, lng: 121.6680 },
   { name: "Afusing Bato",         municipality: "Alcala", lat: 17.9160, lng: 121.6620 },
@@ -249,8 +248,8 @@ export const cagayanBarangays: BarangayLocation[] = [
   { name: "Cabuluan",             municipality: "Alcala", lat: 17.9200, lng: 121.6550 },
   { name: "Calantac",             municipality: "Alcala", lat: 17.9240, lng: 121.6480 },
   { name: "Carallangan",          municipality: "Alcala", lat: 17.8920, lng: 121.6480 },
-  { name: "Centro Norte",         municipality: "Alcala", lat: 17.9005, lng: 121.6575 },
-  { name: "Centro Sur",           municipality: "Alcala", lat: 17.8990, lng: 121.6555 },
+  { name: "Centro Norte",         municipality: "Alcala", lat: 17.9033789, lng: 121.6525179 }, // OSM node 9816207234
+  { name: "Centro Sur",           municipality: "Alcala", lat: 17.9020211, lng: 121.6569596 }, // OSM node 9816268204
   { name: "Dalaoig",              municipality: "Alcala", lat: 17.8840, lng: 121.6610 },
   { name: "Damurog",              municipality: "Alcala", lat: 17.9120, lng: 121.6460 },
   { name: "Jurisdiction",         municipality: "Alcala", lat: 17.8800, lng: 121.6650 },
