@@ -1531,9 +1531,6 @@ export const TechnicianDashboardPage: React.FC = () => {
                             {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "I-verify sa Bukid"}
                           </button>
                         )}
-                        <button type="button" disabled={actionLoading} onClick={() => toast.info("Humihingi ng karagdagang dokumento o larawan para sa sakahan.")} className="w-full rounded-xl border border-[#0B2347] bg-white hover:bg-slate-50 py-3 text-sm font-bold text-[#0B2347] shadow-2xs transition active:scale-98 disabled:opacity-60 cursor-pointer">
-                          Humingi ng Dokumento
-                        </button>
                         {selectedDisaster.status === "INSPECTED" && (
                           <button type="button" disabled={actionLoading} onClick={() => handleUpdateStatus(selectedDisaster.id, "RESOLVED")} className="w-full rounded-xl bg-blue-700 hover:bg-blue-800 py-3 text-sm font-bold text-white shadow-2xs transition active:scale-98 disabled:opacity-60 cursor-pointer">
                             Aprubahan ang Claim
