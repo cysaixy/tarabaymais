@@ -141,3 +141,4 @@ export const PinsalaViewSkeleton: React.FC = () => {
     </div>
   );
 };
+

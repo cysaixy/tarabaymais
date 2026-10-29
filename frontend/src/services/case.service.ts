@@ -26,7 +26,7 @@ export interface DisasterReport {
   createdAt: string;
   updatedAt?: string;
   verifiedBy?: { firstName: string; lastName: string } | null;
-  farm?: { name: string; barangay: string; municipality: string };
+  farm?: { name: string; barangay: string; municipality: string; farmer?: { firstName: string; lastName: string; phone?: string } | null };
 }
 
 export interface ExpertCase {
@@ -50,6 +50,7 @@ export interface ExpertCase {
         barangay: string;
         municipality: string;
         areaHectares?: number | string;
+        farmer?: { firstName: string; lastName: string; phone?: string } | null;
       };
     };
     farmer?: {

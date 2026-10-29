@@ -94,3 +94,4 @@ export const CaseRow: React.FC<CaseRowProps> = ({ item, onSelect }) => {
     </li>
   );
 };
+

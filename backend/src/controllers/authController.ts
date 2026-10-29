@@ -85,8 +85,9 @@ export const syncUser = asyncHandler(async (req: Request, res: Response) => {
     );
   }
 
-  const { firstName, lastName, phone, rsbsaNumber, preferredLanguage } =
+  const { firstName, lastName, rsbsaNumber, preferredLanguage } =
     parseResult.data;
+  const phone = req.firebaseUser.phone_number ?? parseResult.data.phone;
 
   // If the middleware already found this user (by UID or phone) but they're a
   // FARMER without a farmerProfile, complete the registration now.

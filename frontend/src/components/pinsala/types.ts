@@ -30,3 +30,4 @@ export interface BarangayCaseCount {
   barangay: string;
   count: number;
 }
+

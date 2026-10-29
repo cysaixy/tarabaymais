@@ -59,7 +59,22 @@ export const getUnifiedCases = asyncHandler(
         where: expertCasesWhere,
         include: {
           observation: {
-            include: { cropCycle: { include: { farm: true } } },
+            include: {
+              farmer: {
+                select: { id: true, firstName: true, lastName: true, phone: true },
+              },
+              cropCycle: {
+                include: {
+                  farm: {
+                    include: {
+                      farmer: {
+                        select: { id: true, firstName: true, lastName: true, phone: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
           assignedTechnician: {
             select: { firstName: true, lastName: true, phone: true },
@@ -70,7 +85,13 @@ export const getUnifiedCases = asyncHandler(
       prisma.disasterReport.findMany({
         where: disasterCasesWhere,
         include: {
-          farm: true,
+          farm: {
+            include: {
+              farmer: {
+                select: { id: true, firstName: true, lastName: true, phone: true },
+              },
+            },
+          },
           verifiedBy: { select: { firstName: true, lastName: true } },
         },
         orderBy: { createdAt: "desc" },

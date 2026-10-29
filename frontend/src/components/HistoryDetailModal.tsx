@@ -116,18 +116,18 @@ export const HistoryDetailModal: React.FC<HistoryDetailModalProps> = ({
     if (e.target === e.currentTarget) onClose();
   };
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") onClose();
-    if (e.key === "ArrowRight" && imageIndex < 0)
-      setImageIndex((i) => Math.min(i + 1, 0));
-    if (e.key === "ArrowLeft" && imageIndex > 0)
-      setImageIndex((i) => Math.max(i - 1, 0));
-  };
-
   React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight" && imageIndex < 0)
+        setImageIndex((i) => Math.min(i + 1, 0));
+      if (e.key === "ArrowLeft" && imageIndex > 0)
+        setImageIndex((i) => Math.max(i - 1, 0));
+    };
+
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [imageIndex, onClose]);
 
   if (!isOpen) return null;
 

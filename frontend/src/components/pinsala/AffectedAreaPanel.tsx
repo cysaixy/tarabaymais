@@ -116,3 +116,4 @@ export const AffectedAreaPanel: React.FC<AffectedAreaPanelProps> = ({
     </section>
   );
 };
+

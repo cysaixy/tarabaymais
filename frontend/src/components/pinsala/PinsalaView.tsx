@@ -20,8 +20,10 @@ export interface PinsalaViewProps {
   isLoading?: boolean;
   error?: string | null;
   onVerifyCase: (caseId: string) => Promise<void> | void;
+  onApproveCase?: (caseId: string) => Promise<void> | void;
   onRequestDocument?: (caseItem: CaseItem) => void;
   isVerifying?: boolean;
+  isApproving?: boolean;
   selectedLocationKey?: string;
 }
 
@@ -30,8 +32,9 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
   isLoading = false,
   error = null,
   onVerifyCase,
-  onRequestDocument,
+  onApproveCase,
   isVerifying = false,
+  isApproving = false,
   selectedLocationKey = "",
 }) => {
   const [activeFilter, setActiveFilter] = useState<FilterChipKey>("Lahat");
@@ -59,7 +62,10 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
         item.damagePercentage,
         (item.farm as { areaHectares?: string | number } | undefined)?.areaHectares
       );
-      const farmerName = extractFarmerName(item.farm?.name, item.notes);
+      const verifiedFarmer = item.farm?.farmer
+        ? `${item.farm.farmer.firstName || ""} ${item.farm.farmer.lastName || ""}`.trim()
+        : null;
+      const farmerName = extractFarmerName(item.farm?.name, item.notes, verifiedFarmer);
       const barangay = item.farm?.barangay || "Centro Norte (Pob.)";
       const status = mapCaseStatus(item.status);
       const farmNote = extractFarmNote(item.notes);
@@ -117,12 +123,6 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
     return casesForActiveChip.filter((c) => c.id !== selectedCase.id);
   }, [casesForActiveChip, selectedCase]);
 
-  const handleRequestDocDefault = (c: CaseItem) => {
-    if (onRequestDocument) {
-      onRequestDocument(c);
-    }
-  };
-
   return (
     <div
       style={{
@@ -175,8 +175,9 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
                   <SelectedCaseCard
                     selectedCase={selectedCase}
                     onVerify={onVerifyCase}
-                    onRequestDoc={handleRequestDocDefault}
+                    onApprove={onApproveCase || onVerifyCase}
                     isVerifying={isVerifying}
+                    isApproving={isApproving}
                   />
                 </div>
               ) : null}

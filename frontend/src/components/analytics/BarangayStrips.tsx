@@ -14,6 +14,7 @@ export interface BarangayStripsProps {
   isLoading?: boolean;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getRiskColor(risk: number): string {
   if (risk >= 75) return "#9b1c1c";
   if (risk >= 40) return "#9a4a05";

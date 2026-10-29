@@ -57,3 +57,4 @@ export const BarangayCountCard: React.FC<BarangayCountCardProps> = ({
     </section>
   );
 };
+

@@ -202,3 +202,4 @@ export function getStatusChipStyle(status: CaseStatusTL): {
       return { backgroundColor: "#dde8ff", color: "#1b3f9a" };
   }
 }
+

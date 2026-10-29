@@ -6,8 +6,10 @@ import { getStatusChipStyle } from "./formatters";
 export interface SelectedCaseCardProps {
   selectedCase: CaseItem;
   onVerify: (caseId: string) => void;
-  onRequestDoc: (selectedCase: CaseItem) => void;
+  onApprove: (caseId: string) => void;
+  onRequestDoc?: (selectedCase: CaseItem) => void;
   isVerifying?: boolean;
+  isApproving?: boolean;
 }
 
 const STEPS = [
@@ -27,15 +29,23 @@ const STATUS_ORDER: Record<string, number> = {
 export const SelectedCaseCard: React.FC<SelectedCaseCardProps> = ({
   selectedCase,
   onVerify,
-  onRequestDoc,
+  onApprove,
   isVerifying = false,
+  isApproving = false,
 }) => {
   const currentStepNum = STATUS_ORDER[selectedCase.status] || 1;
   const chipStyle = getStatusChipStyle(selectedCase.status);
-  const isPrimaryDisabled =
-    selectedCase.status === "Na-verify" ||
-    selectedCase.status === "Aprubado" ||
-    isVerifying;
+
+  const isAlreadyVerified =
+    selectedCase.status === "Na-verify" || selectedCase.status === "Aprubado";
+  const isAlreadyApproved = selectedCase.status === "Aprubado";
+
+  const isVerifyDisabled = isAlreadyVerified || isVerifying || isApproving;
+  const isApproveDisabled = isAlreadyApproved || isApproving || isVerifying;
+
+  const isAwaitingVerification = !isAlreadyVerified;
+  const isAwaitingApproval =
+    selectedCase.status === "Na-verify" && !isAlreadyApproved;
 
   return (
     <article
@@ -135,30 +145,50 @@ export const SelectedCaseCard: React.FC<SelectedCaseCardProps> = ({
         </div>
       ) : null}
 
-      {/* Buttons row */}
+      {/* Buttons row: I-verify sa Bukid & Aprubahan */}
       <div className="flex flex-col sm:flex-row gap-3 pt-1">
         <button
           type="button"
-          disabled={isPrimaryDisabled}
+          disabled={isVerifyDisabled}
           onClick={() => onVerify(selectedCase.id)}
-          className={`min-h-[52px] sm:flex-[2] rounded-[14px] px-6 text-[15px] font-extrabold text-white flex items-center justify-center gap-2 transition select-none ${
-            isPrimaryDisabled
-              ? "bg-[#0a6b45]/50 cursor-not-allowed"
-              : "bg-[#0a6b45] hover:bg-[#085336] active:scale-[0.99] cursor-pointer shadow-xs"
+          aria-label={`I-verify sa bukid ang kaso blg. ${selectedCase.caseNo}`}
+          className={`min-h-[52px] sm:flex-1 rounded-[14px] px-6 text-[15px] font-extrabold flex items-center justify-center gap-2 transition select-none ${
+            isVerifyDisabled
+              ? "bg-[#e8ebe4] text-[#6b7280] border border-[#c8d0c2] cursor-not-allowed"
+              : isAwaitingVerification
+              ? "bg-[#0a6b45] text-white hover:bg-[#085336] active:scale-[0.99] cursor-pointer shadow-xs"
+              : "bg-white text-[#0a6b45] border border-[#0a6b45] hover:bg-emerald-50 active:scale-[0.99] cursor-pointer"
           }`}
         >
           {isVerifying ? (
             <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+          ) : isAlreadyVerified ? (
+            <Check className="w-4 h-4 text-[#0a6b45] stroke-[3]" aria-hidden="true" />
           ) : null}
-          <span>I-verify sa Bukid</span>
+          <span>
+            {isAlreadyVerified ? "Na-verify na sa Bukid" : "I-verify sa Bukid"}
+          </span>
         </button>
 
         <button
           type="button"
-          onClick={() => onRequestDoc(selectedCase)}
-          className="min-h-[52px] sm:flex-1 rounded-[14px] px-5 text-[15px] font-extrabold bg-white border border-[#0f2a5c] text-[#0f2a5c] hover:bg-slate-50 active:scale-[0.99] transition cursor-pointer select-none flex items-center justify-center"
+          disabled={isApproveDisabled}
+          onClick={() => onApprove(selectedCase.id)}
+          aria-label={`Aprubahan ang kaso blg. ${selectedCase.caseNo}`}
+          className={`min-h-[52px] sm:flex-1 rounded-[14px] px-6 text-[15px] font-extrabold flex items-center justify-center gap-2 transition select-none ${
+            isApproveDisabled
+              ? "bg-[#d9f3e5] text-[#0a6b45] border border-[#a3e2c3] cursor-not-allowed"
+              : isAwaitingApproval
+              ? "bg-[#0a6b45] text-white hover:bg-[#085336] active:scale-[0.99] cursor-pointer shadow-xs"
+              : "bg-[#0f2a5c] text-white hover:bg-[#1b3f9a] active:scale-[0.99] cursor-pointer shadow-xs"
+          }`}
         >
-          Humingi ng Dokumento
+          {isApproving ? (
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+          ) : isAlreadyApproved ? (
+            <Check className="w-4 h-4 text-[#0a6b45] stroke-[3]" aria-hidden="true" />
+          ) : null}
+          <span>{isAlreadyApproved ? "Aprubado na" : "Aprubahan"}</span>
         </button>
       </div>
     </article>

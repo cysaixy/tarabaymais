@@ -43,6 +43,7 @@ export interface KpiOverviewProps {
 /**
  * Returns Tagalog period label text based on selected period
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function getPeriodLabel(period: PeriodType = "30d"): string {
   switch (period) {
     case "7d":
@@ -58,6 +59,7 @@ export function getPeriodLabel(period: PeriodType = "30d"): string {
 /**
  * Returns header title in Tagalog based on period
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function getPeriodHeading(period: PeriodType = "30d"): string {
   switch (period) {
     case "7d":
@@ -131,6 +133,7 @@ export const DeltaTrendArrow: React.FC<{
 /**
  * Formats delta into arrow, sign (+ or -), value rounded to 1 decimal place, and percentage
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function formatDelta(
   delta?: DeltaData | null,
   periodSuffix?: string
@@ -172,6 +175,7 @@ export function formatDelta(
 /**
  * Formats hours with 1 decimal if needed (e.g. 68 -> "68.0", 70.45 stays "70.45")
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function formatHours(val: number): string {
   if (val === null || val === undefined || isNaN(val)) return "0.0";
   if (Number.isInteger(val)) {

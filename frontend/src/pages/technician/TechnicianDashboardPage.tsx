@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import {
   AlertTriangle,
   LogOut,
-  Send,
   X,
   Loader2,
   Download,
@@ -68,7 +67,6 @@ import {
 } from "../../components/AccountSheet";
 import { NotificationBell } from "../../components/NotificationBell";
 import { clearReadNotifications } from "../../lib/notificationReadTracking";
-import { parseLegacyCaseDescription } from "../../lib/parseLegacyCaseDescription";
 import { GlobalFilterProvider } from "../../context/filterContext";
 import { StageDonut } from "../../components/dashboard/StageDonut";
 import { TopIssuesChart } from "../../components/dashboard/TopIssuesChart";
@@ -78,10 +76,10 @@ import { ScanTrendsChart } from "../../components/dashboard/ScanTrendsChart";
 import { KpiOverview, PanahonNgMaisCard } from "../../components/dashboard";
 import { AnalitikaView } from "../../components/analytics";
 import { PinsalaView } from "../../components/pinsala";
+import { KonsultasyonView } from "../../components/konsultasyon";
 
 // ─── Tab Keys ─────────────────────────────────────────────────────────────────
 export type TabKey = "BUOD" | "ANALITIKA" | "PINSALA" | "KONSULTASYON" | "ULAT";
-type ConsultFilter = "BAGO" | "SINAGOT" | "LAHAT";
 type MapLayer = "TANIMAN" | "PINSALA" | "KONSULTASYON";
 
 function formatHa(value: number): string {
@@ -150,9 +148,7 @@ export const TechnicianDashboardPage: React.FC = () => {
   });
 
   // ── Consultation Tab State ────────────────────────────────────────────────
-  const [consultFilter, setConsultFilter] = useState<ConsultFilter>("LAHAT");
   const [selectedCase, setSelectedCase] = useState<ExpertCase | null>(null);
-  const [chatReplyInput, setChatReplyInput] = useState("");
   const [isAddConsultOpen, setIsAddConsultOpen] = useState(false);
   const [newConsultForm, setNewConsultForm] = useState({
     farmerName: "",
@@ -349,12 +345,6 @@ export const TechnicianDashboardPage: React.FC = () => {
   }, [cropStagesData]);
   // ── Filtered Lists ────────────────────────────────────────────────────────
 
-  const filteredConsultList = useMemo(() => {
-    if (consultFilter === "BAGO") return expertCases.filter((c) => ["SUBMITTED", "UNDER_REVIEW"].includes(c.status));
-    if (consultFilter === "SINAGOT") return expertCases.filter((c) => ["INSPECTED", "RESOLVED"].includes(c.status) || Boolean(c.recommendation));
-    return expertCases;
-  }, [expertCases, consultFilter]);
-
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleUpdateStatus = async (caseId: string, newStatus: CaseStatus) => {
     setActionLoading(true);
@@ -364,22 +354,6 @@ export const TechnicianDashboardPage: React.FC = () => {
       await fetchPipeline(true);
     } catch {
       toast.error("Hindi na-update ang katayuan. Pakisubukan muli.");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleSendReply = async () => {
-    if (!selectedCase) return;
-    if (!chatReplyInput.trim()) { toast.error("Mangyaring isulat muna ang iyong payo o rekomendasyon."); return; }
-    setActionLoading(true);
-    try {
-      await resolveExpertCase(selectedCase.id, { recommendation: chatReplyInput.trim() });
-      toast.success("Naipadala ang rekomendasyon sa magsasaka.");
-      setChatReplyInput("");
-      await fetchPipeline(true);
-    } catch {
-      toast.error("Hindi naipadala ang payo. Pakisubukan muli.");
     } finally {
       setActionLoading(false);
     }
@@ -1182,12 +1156,9 @@ export const TechnicianDashboardPage: React.FC = () => {
               isLoading={pipelineLoading}
               error={null}
               onVerifyCase={(caseId) => handleUpdateStatus(caseId, "INSPECTED")}
-              onRequestDocument={(caseItem) =>
-                toast.info(
-                  `Humihingi ng karagdagang dokumento o larawan para kay ${caseItem.farmerName} sa ${caseItem.barangay}.`
-                )
-              }
+              onApproveCase={(caseId) => handleUpdateStatus(caseId, "RESOLVED")}
               isVerifying={actionLoading}
+              isApproving={actionLoading}
               selectedLocationKey={selectedRegisteredLocation}
             />
           )}
@@ -1196,108 +1167,25 @@ export const TechnicianDashboardPage: React.FC = () => {
               TAB: KONSULTASYON
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "KONSULTASYON" && (
-            <div className="p-4 sm:p-5 space-y-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900">Mga Konsultasyon</h2>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {([
-                  { key: "BAGO", label: "Bago" },
-                  { key: "SINAGOT", label: "Sinagot" },
-                  { key: "LAHAT", label: "Lahat" },
-                ] as { key: ConsultFilter; label: string }[]).map((f) => {
-                  const isActive = consultFilter === f.key;
-                  return (
-                    <button key={f.key} type="button" onClick={() => setConsultFilter(f.key)} className={`rounded-full px-5 py-1.5 text-xs sm:text-sm font-bold transition cursor-pointer ${isActive ? "bg-[#0B2347] text-white shadow-2xs" : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"}`}>
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {pipelineLoading ? (
-                <LoadingState label="Kinukuha ang mga konsultasyon..." />
-              ) : filteredConsultList.length === 0 ? (
-                <EmptyState title="Walang nakatalang konsultasyon" message="Walang kasong naghihintay ng payo sa napiling filter." />
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                  <div className="lg:col-span-5 space-y-3">
-                    {filteredConsultList.map((c) => {
-                      const isSelected = selectedCase?.id === c.id;
-                      const parsed = parseLegacyCaseDescription(c.observation?.description);
-                      const farmerName = c.observation?.farmer ? `${c.observation.farmer.firstName} ${c.observation.farmer.lastName}`.trim() : parsed.farmerName || "Magsasaka";
-                      const isAnswered = Boolean(c.recommendation) || c.status === "RESOLVED";
-                      return (
-                        <div key={c.id} onClick={() => setSelectedCase(c)} className={`p-4 rounded-2xl border transition cursor-pointer shadow-2xs ${isSelected ? "bg-white border-blue-500 ring-2 ring-blue-500/20" : "bg-white border-slate-200 hover:border-slate-300"}`}>
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="font-extrabold text-slate-900 text-sm sm:text-base">{farmerName}</p>
-                            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${isAnswered ? "bg-slate-100 text-slate-700" : "bg-blue-100 text-blue-800"}`}>
-                              {isAnswered ? "Sinagot" : "Bago"}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs sm:text-sm font-medium text-slate-600 line-clamp-1">{c.observation?.title || "Konsultasyon sa Taniman"}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {selectedCase && (() => {
-                    const parsed = parseLegacyCaseDescription(selectedCase.observation?.description);
-                    const farmerName = selectedCase.observation?.farmer ? `${selectedCase.observation.farmer.firstName} ${selectedCase.observation.farmer.lastName}`.trim() : parsed.farmerName || "Magsasaka";
-                    const farmBarangay = selectedCase.observation?.cropCycle?.farm?.barangay || parsed.barangay || "Centro Norte (Pob.)";
-                    const questionText = parsed.message || selectedCase.observation?.description || "Kailangan ng payo ukol sa kalagayan ng taniman.";
-                    const aiRec = selectedCase.observation?.aiDiagnosis?.recommendedAction || "Batay sa yugto ng paglago ng mais, regular na inspeksyunin ang usbong at panatilihin ang sapat na moisture sa lupa.";
-
-                    return (
-                      <div className="lg:col-span-7 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs flex flex-col justify-between min-h-[460px] space-y-4">
-                        <div>
-                          <div className="flex items-baseline justify-between border-b border-slate-100 pb-3 mb-4">
-                            <h3 className="text-base sm:text-lg font-black text-slate-900">{selectedCase.observation?.title || "Konsultasyon"}</h3>
-                            <span className="text-xs text-slate-500 font-medium">{farmBarangay}</span>
-                          </div>
-                          <div className="space-y-4">
-                            <div className="flex flex-col items-start max-w-[85%]">
-                              <span className="text-xs font-bold text-slate-400 mb-1">{farmerName}</span>
-                              <div className="rounded-2xl rounded-tl-xs bg-slate-100 p-3.5 text-xs sm:text-sm text-slate-800 leading-relaxed">{questionText}</div>
-                            </div>
-                            {selectedCase.recommendation && (
-                              <div className="flex flex-col items-end max-w-[85%] ml-auto">
-                                <span className="text-xs font-bold text-slate-400 mb-1">Ikaw</span>
-                                <div className="rounded-2xl rounded-tr-xs bg-[#0B2347] p-3.5 text-xs sm:text-sm text-white leading-relaxed">{selectedCase.recommendation}</div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="space-y-3 pt-3 border-t border-slate-100">
-                          <div className="rounded-2xl border border-amber-300 bg-[#FFFBEB] p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                            <div className="flex items-start gap-2.5">
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 p-0.5">
-                                <img src="/assets/mascot-maisy.png" alt="Maisy" className="h-7 w-7 shrink-0 object-contain drop-shadow-2xs" style={{ imageRendering: "pixelated" }} />
-                              </div>
-                              <div>
-                                <p className="text-xs font-bold text-amber-900">Mungkahi ni Maisy</p>
-                                <p className="text-xs text-amber-800 leading-snug">{aiRec}</p>
-                              </div>
-                            </div>
-                            <button type="button" onClick={() => setChatReplyInput(aiRec)} className="rounded-xl border border-amber-400 bg-white hover:bg-amber-50 px-3.5 py-1.5 text-xs font-bold text-amber-900 shadow-2xs transition active:scale-95 shrink-0 self-start sm:self-auto cursor-pointer">
-                              Gamitin
-                            </button>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <input type="text" value={chatReplyInput} onChange={(e) => setChatReplyInput(e.target.value)} placeholder="Isulat ang sagot..." onKeyDown={(e) => { if (e.key === "Enter") handleSendReply(); }} className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600" />
-                            <button type="button" disabled={actionLoading} onClick={handleSendReply} className="inline-flex items-center gap-1.5 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-2xs transition active:scale-95 disabled:opacity-60 cursor-pointer">
-                              <span>Ipadala</span>
-                              {actionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
+            <KonsultasyonView
+              expertCases={expertCases}
+              isLoading={pipelineLoading}
+              error={null}
+              onSendReply={async (caseId, reply) => {
+                setActionLoading(true);
+                try {
+                  await resolveExpertCase(caseId, { recommendation: reply });
+                  toast.success("Naipadala ang rekomendasyon sa magsasaka.");
+                  await fetchPipeline(true);
+                } catch {
+                  toast.error("Hindi naipadala ang payo. Pakisubukan muli.");
+                } finally {
+                  setActionLoading(false);
+                }
+              }}
+              isSendingReply={actionLoading}
+              selectedLocationKey={selectedRegisteredLocation}
+            />
           )}
 
           {/* ══════════════════════════════════════════════════════════════════
