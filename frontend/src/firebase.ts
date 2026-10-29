@@ -24,6 +24,7 @@ export const firebaseConfig = {
   appId:
     import.meta.env.VITE_FIREBASE_APP_ID ||
     "1:123456789012:web:abcdef1234567890",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase
