@@ -19,7 +19,6 @@ import {
   Sprout,
   MessageSquare,
   FileDown,
-  Check,
   LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
@@ -70,7 +69,6 @@ import {
 import { NotificationBell } from "../../components/NotificationBell";
 import { clearReadNotifications } from "../../lib/notificationReadTracking";
 import { parseLegacyCaseDescription } from "../../lib/parseLegacyCaseDescription";
-import { parseDisasterNotes } from "../../lib/parseDisasterNotes";
 import { GlobalFilterProvider } from "../../context/filterContext";
 import { StageDonut } from "../../components/dashboard/StageDonut";
 import { TopIssuesChart } from "../../components/dashboard/TopIssuesChart";
@@ -83,7 +81,6 @@ import { PinsalaView } from "../../components/pinsala";
 
 // ─── Tab Keys ─────────────────────────────────────────────────────────────────
 export type TabKey = "BUOD" | "ANALITIKA" | "PINSALA" | "KONSULTASYON" | "ULAT";
-type DamageFilter = "LAHAT" | "BAGO" | "SINUSURI" | "NA_VERIFY" | "APRUBADO";
 type ConsultFilter = "BAGO" | "SINAGOT" | "LAHAT";
 type MapLayer = "TANIMAN" | "PINSALA" | "KONSULTASYON";
 
@@ -141,7 +138,6 @@ export const TechnicianDashboardPage: React.FC = () => {
   const [focusTrigger] = useState(0);
 
   // ── Damage (Pinsala) Tab State ────────────────────────────────────────────
-  const [damageFilter, setDamageFilter] = useState<DamageFilter>("LAHAT");
   const [selectedDisaster, setSelectedDisaster] = useState<DisasterReport | null>(null);
   const [isAddDamageOpen, setIsAddDamageOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -351,15 +347,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       { key: "pag-ani" as const, ha: s4 },
     ];
   }, [cropStagesData]);
-
   // ── Filtered Lists ────────────────────────────────────────────────────────
-  const filteredDamageList = useMemo(() => {
-    if (damageFilter === "BAGO") return disasterReports.filter((r) => r.status === "SUBMITTED");
-    if (damageFilter === "SINUSURI") return disasterReports.filter((r) => r.status === "UNDER_REVIEW");
-    if (damageFilter === "NA_VERIFY") return disasterReports.filter((r) => r.status === "INSPECTED");
-    if (damageFilter === "APRUBADO") return disasterReports.filter((r) => r.status === "RESOLVED");
-    return disasterReports;
-  }, [disasterReports, damageFilter]);
 
   const filteredConsultList = useMemo(() => {
     if (consultFilter === "BAGO") return expertCases.filter((c) => ["SUBMITTED", "UNDER_REVIEW"].includes(c.status));
