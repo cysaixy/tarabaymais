@@ -12,7 +12,6 @@ import {
   LogOut,
   X,
   Loader2,
-  Download,
   FileSpreadsheet,
   BarChart3,
   Sprout,
@@ -77,6 +76,7 @@ import { KpiOverview, PanahonNgMaisCard } from "../../components/dashboard";
 import { AnalitikaView } from "../../components/analytics";
 import { PinsalaView } from "../../components/pinsala";
 import { KonsultasyonView } from "../../components/konsultasyon";
+import { UlatView } from "../../components/ulat";
 
 // ─── Tab Keys ─────────────────────────────────────────────────────────────────
 export type TabKey = "BUOD" | "ANALITIKA" | "PINSALA" | "KONSULTASYON" | "ULAT";
@@ -85,6 +85,12 @@ type MapLayer = "TANIMAN" | "PINSALA" | "KONSULTASYON";
 function formatHa(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
+
+const DATE_RANGE_OPTIONS = [
+  { key: "7d", label: "7 araw" },
+  { key: "30d", label: "30 araw" },
+  { key: "season", label: "Season" },
+] as const;
 
 export const TechnicianDashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -118,6 +124,7 @@ export const TechnicianDashboardPage: React.FC = () => {
   // ── Live Barangay Distribution from Backend ───────────────────────────────
   const [barangays, setBarangays] = useState<BarangayDistribution[]>([]);
   const [barangaysLoading, setBarangaysLoading] = useState(true);
+  const [barangaysError, setBarangaysError] = useState<string | null>(null);
 
   // ── Chart data from Officer Analytics endpoints ───────────────────────────
   const [topIssues, setTopIssues] = useState<TopIssue[]>([]);
@@ -127,8 +134,9 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   // ── Export state ──────────────────────────────────────────────────────────
   const [exportType, setExportType] = useState<ExportType>("disaster-claims");
-  const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [exporting, setExporting] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   // ── Map interactive state ─────────────────────────────────────────────────
   const [mapLayer, setMapLayer] = useState<MapLayer>("TANIMAN");
@@ -284,10 +292,13 @@ export const TechnicianDashboardPage: React.FC = () => {
   // ── Fetch Barangay Distribution (Live API) ────────────────────────────────
   const fetchBarangays = useCallback(async () => {
     setBarangaysLoading(true);
+    setBarangaysError(null);
     try {
       const list = await getBarangayDistribution();
       setBarangays(list);
-    } catch { /* Non-fatal */ }
+    } catch {
+      setBarangaysError("Hindi makuha ang distribusyon ng sakahan.");
+    }
     finally { setBarangaysLoading(false); }
   }, []);
 
@@ -403,13 +414,36 @@ export const TechnicianDashboardPage: React.FC = () => {
   };
 
   const handleExport = async (format: ExportFormat = "xlsx") => {
-    setExportFormat(format);
     setExporting(true);
+    setDownloadSuccess(false);
+    setDownloadError(null);
     try {
-      await downloadAnalyticsReport({ type: exportType, format });
-      toast.success("Na-download ang opisyal na ulat ng DA.");
+      const selectedLocation = registeredFarmLocations.find(
+        (location) => location.key === selectedRegisteredLocation,
+      );
+      const blob = await downloadAnalyticsReport({
+        type: exportType,
+        format,
+        startDate: filterDates.from,
+        endDate: filterDates.to,
+        ...(selectedLocation
+          ? {
+              barangay: selectedLocation.barangay,
+              municipality: selectedLocation.municipality,
+            }
+          : {}),
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `TarabayMais_${exportType}_${filterDates.to}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setDownloadSuccess(true);
     } catch {
-      toast.info("Na-export ang ulat para sa kasalukuyang talaan.");
+      setDownloadError("Hindi na-download. Subukan muli.");
     } finally {
       setExporting(false);
     }
@@ -507,11 +541,6 @@ export const TechnicianDashboardPage: React.FC = () => {
   // ── Date range + registered barangay filter ──────────────────────────────
   const [dateRange, setDateRange] = useState<"7d" | "30d" | "season">("30d");
   const [selectedRegisteredLocation, setSelectedRegisteredLocation] = useState("");
-  const dateRangeOptions = [
-    { key: "7d" as const, label: "7 araw" },
-    { key: "30d" as const, label: "30 araw" },
-    { key: "season" as const, label: "Season" },
-  ];
 
   // Derive ISO from/to dates from the selected range
   const filterDates = useMemo(() => {
@@ -563,6 +592,97 @@ export const TechnicianDashboardPage: React.FC = () => {
         : farmMarkers,
     [farmMarkers, selectedRegisteredLocation],
   );
+
+  const selectedLocation = registeredFarmLocations.find(
+    (location) => location.key === selectedRegisteredLocation,
+  );
+
+  const filteredDisasterReports = useMemo(
+    () =>
+      disasterReports.filter((report) => {
+        if (!report.createdAt) return false;
+        const reportDate = new Date(report.createdAt);
+        if (Number.isNaN(reportDate.getTime())) return false;
+        const dateParts = new Intl.DateTimeFormat("en", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        })
+          .formatToParts(reportDate)
+          .reduce<Record<string, string>>((parts, part) => {
+            if (part.type !== "literal") parts[part.type] = part.value;
+            return parts;
+          }, {});
+        const reportDateKey = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+        if (reportDateKey < filterDates.from || reportDateKey > filterDates.to) {
+          return false;
+        }
+        if (
+          selectedLocation &&
+          registeredLocationKey(
+            report.farm?.municipality ?? "",
+            report.farm?.barangay ?? "",
+          ) !== selectedLocation.key
+        ) {
+          return false;
+        }
+        return report.farmId !== "manual-entry";
+      }),
+    [disasterReports, filterDates.from, filterDates.to, selectedLocation],
+  );
+
+  const reportScope = useMemo(() => {
+    const rowCount =
+      exportType === "disaster-claims"
+        ? filteredDisasterReports.length
+        : new Set(
+            filteredDisasterReports
+              .map((report) => report.farm?.barangay?.trim())
+              .filter((barangay): barangay is string => Boolean(barangay)),
+          ).size;
+    return {
+      barangayLabel: selectedLocation
+        ? `${selectedLocation.barangay} · ${selectedLocation.municipality}`
+        : "Lahat ng Barangay",
+      rangeLabel:
+        DATE_RANGE_OPTIONS.find((option) => option.key === dateRange)?.label ??
+        "30 araw",
+      rowCount,
+    };
+  }, [
+    exportType,
+    filteredDisasterReports,
+    selectedLocation,
+    dateRange,
+  ]);
+
+  const distributionRows = useMemo(() => {
+    if (!selectedLocation) return barangays;
+    const farms = farmMarkers.filter(
+      (farm) =>
+        registeredLocationKey(farm.municipality, farm.barangay) ===
+        selectedLocation.key,
+    );
+    return farms.length
+      ? [
+          {
+            barangay: selectedLocation.barangay,
+            farmCount: farms.length,
+            totalHectares: farms.reduce(
+              (total, farm) => total + Number(farm.hectares || 0),
+              0,
+            ),
+          },
+        ]
+      : [];
+  }, [barangays, farmMarkers, selectedLocation]);
+
+  const distributionMunicipality =
+    selectedLocation?.municipality ??
+    (new Set(farmMarkers.map((farm) => farm.municipality)).size === 1
+      ? farmMarkers[0]?.municipality ?? "Cagayan"
+      : "Cagayan");
 
   const registeredFarmCount = selectedRegisteredLocation
     ? visibleFarmMarkers.length
@@ -779,7 +899,7 @@ export const TechnicianDashboardPage: React.FC = () => {
 
             {/* Date range toggle */}
             <div className="hidden sm:flex items-center rounded-full border border-slate-200 bg-white p-1 gap-0.5">
-              {dateRangeOptions.map(({ key, label }) => {
+              {DATE_RANGE_OPTIONS.map(({ key, label }) => {
                 const isActive = dateRange === key;
                 return (
                   <button
@@ -1192,55 +1312,24 @@ export const TechnicianDashboardPage: React.FC = () => {
               TAB: ULAT
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "ULAT" && (
-            <div className="p-4 sm:p-5">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                <div className="lg:col-span-6 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-2xs space-y-4">
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-slate-600" />
-                    <h3 className="text-lg font-bold text-slate-900">I-download ang Ulat</h3>
-                  </div>
-                  <p className="text-xs sm:text-sm text-slate-500">Pumili ng uri ng ulat para sa disaster claims o buod ng mga sakahan ng Cagayan Valley.</p>
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700">Uri ng Ulat</label>
-                    <select value={exportType} onChange={(e) => setExportType(e.target.value as ExportType)} className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-600">
-                      <option value="disaster-claims">Disaster Claims (Pinsala sa Taniman)</option>
-                      <option value="barangay-summary">Buod ng mga Sakahan sa Barangay</option>
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <button type="button" onClick={() => handleExport("xlsx")} disabled={exporting} className="flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-xs sm:text-sm font-bold text-white shadow-2xs transition active:scale-95 disabled:opacity-60 cursor-pointer">
-                      {exporting && exportFormat === "xlsx" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                      Excel (.xlsx)
-                    </button>
-                    <button type="button" onClick={() => handleExport("csv")} disabled={exporting} className="flex items-center justify-center gap-2 rounded-xl border border-[#065F46] hover:bg-emerald-50 py-3 text-xs sm:text-sm font-bold text-[#065F46] shadow-2xs transition active:scale-95 disabled:opacity-60 cursor-pointer">
-                      {exporting && exportFormat === "csv" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                      CSV
-                    </button>
-                  </div>
-                </div>
-
-                <div className="lg:col-span-6 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-2xs space-y-4">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-slate-600" />
-                    <h3 className="text-lg font-bold text-slate-900">Distribusyon ng Sakahan sa Solana</h3>
-                  </div>
-                  {barangaysLoading ? (
-                    <LoadingState label="Kinukuha ang tala ng mga barangay..." />
-                  ) : barangays.length === 0 ? (
-                    <EmptyState title="Walang tala ng barangay" message="Wala pang nakarehistrong sakahan ayon sa barangay." />
-                  ) : (
-                    <ul className="divide-y divide-slate-100">
-                      {barangays.map((b) => (
-                        <li key={b.barangay} className="py-2.5 flex items-center justify-between text-xs sm:text-sm">
-                          <span className="font-bold text-slate-800">{b.barangay}</span>
-                          <span className="text-slate-500 font-medium">{b.farmCount} sakahan · {formatHa(b.totalHectares)} ha</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            </div>
+            <UlatView
+              selectedReportType={exportType}
+              onSelectReportType={(type) => {
+                setExportType(type);
+                setDownloadSuccess(false);
+                setDownloadError(null);
+              }}
+              scope={reportScope}
+              onDownload={handleExport}
+              isDownloading={exporting}
+              downloadSuccess={downloadSuccess}
+              downloadError={downloadError}
+              municipality={distributionMunicipality}
+              barangays={distributionRows}
+              barangaysLoading={barangaysLoading}
+              barangaysError={barangaysError}
+              isLoading={pipelineLoading}
+            />
           )}
 
         </main>

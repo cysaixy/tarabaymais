@@ -14,6 +14,7 @@ const exportQuerySchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   barangay: z.string().optional(),
+  municipality: z.string().optional(),
 });
 
 // ── Controller ────────────────────────────────────────────────────────────────
@@ -42,6 +43,9 @@ export const exportAnalyticsReport = asyncHandler(
       }),
       ...(parsedFilters.barangay !== undefined && {
         barangay: parsedFilters.barangay,
+      }),
+      ...(parsedFilters.municipality !== undefined && {
+        municipality: parsedFilters.municipality,
       }),
     };
 

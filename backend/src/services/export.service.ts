@@ -7,6 +7,7 @@ export interface ExportFilters {
   startDate?: string;
   endDate?: string;
   barangay?: string;
+  municipality?: string;
 }
 
 export class ExportService {
@@ -48,8 +49,18 @@ export class ExportService {
 
     if (barangay) {
       whereClause.farm = {
+        ...(whereClause.farm ?? {}),
         barangay: {
           equals: barangay.trim(),
+          mode: "insensitive",
+        },
+      };
+    }
+    if (filters.municipality) {
+      whereClause.farm = {
+        ...(whereClause.farm ?? {}),
+        municipality: {
+          equals: filters.municipality.trim(),
           mode: "insensitive",
         },
       };
@@ -146,6 +157,20 @@ export class ExportService {
   static async generateBarangaySummaryReport(
     filters: ExportFilters,
   ): Promise<Buffer> {
+    const startDate = filters.startDate
+      ? new Date(`${filters.startDate}T00:00:00+08:00`)
+      : null;
+    const endDate = filters.endDate
+      ? new Date(`${filters.endDate}T00:00:00+08:00`)
+      : null;
+    if (
+      (startDate && Number.isNaN(startDate.getTime())) ||
+      (endDate && Number.isNaN(endDate.getTime()))
+    ) {
+      throw new Error("Invalid report date range");
+    }
+    if (endDate) endDate.setTime(endDate.getTime() + 24 * 60 * 60 * 1000);
+
     const summaryData = await prisma.$queryRaw<
       Array<{
         barangay: string;
@@ -161,6 +186,10 @@ export class ExportService {
         COALESCE(SUM(dr.estimated_loss), 0) AS total_financial_loss
       FROM disaster_reports dr
       JOIN farms f ON dr.farm_id = f.id
+      WHERE (${startDate}::timestamptz IS NULL OR dr.created_at >= ${startDate})
+        AND (${endDate}::timestamptz IS NULL OR dr.created_at < ${endDate})
+        AND (${filters.barangay ?? null}::text IS NULL OR LOWER(f.barangay) = LOWER(${filters.barangay ?? null}))
+        AND (${filters.municipality ?? null}::text IS NULL OR LOWER(f.municipality) = LOWER(${filters.municipality ?? null}))
       GROUP BY f.barangay
       ORDER BY total_financial_loss DESC;
     `;

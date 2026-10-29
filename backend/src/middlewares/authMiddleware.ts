@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { auth } from "../config/firebase";
 import prisma from "../config/prisma";
 import { sendError } from "../utils/apiResponse";
@@ -116,6 +116,51 @@ export const authenticate = async (
         .catch((error: unknown) => {
           console.warn("[Auth] Could not update technician role claim:", error);
         });
+    }
+
+    if (
+      user?.role === Role.FARMER &&
+      normalizedPhone &&
+      normalizePhilippinePhone(user.phone) !== normalizedPhone
+    ) {
+      const localPhone = normalizedPhone.replace(/^\+63/, "0");
+      const phoneWithoutPlus = normalizedPhone.replace(/^\+/, "");
+      const phoneOwner = await prisma.user.findFirst({
+        where: {
+          id: { not: user.id },
+          OR: [
+            { phone: normalizedPhone },
+            { phone: localPhone },
+            { phone: phoneWithoutPlus },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (phoneOwner) {
+        console.warn(
+          "[Auth] Could not sync verified farmer phone because it belongs to another account.",
+        );
+      } else {
+        try {
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: { phone: normalizedPhone },
+            include: { farmerProfile: true },
+          });
+        } catch (error: unknown) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002"
+          ) {
+            console.warn(
+              "[Auth] Could not sync verified farmer phone because it was assigned to another account.",
+            );
+          } else {
+            throw error;
+          }
+        }
+      }
     }
 
     if (user) {

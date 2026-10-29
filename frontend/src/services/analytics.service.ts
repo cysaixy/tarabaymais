@@ -47,9 +47,9 @@ export const getAnalyticsSummary = async (): Promise<AnalyticsSummary> => {
  * Per-barangay farm distribution.
  * Endpoint: GET /api/v1/analytics/barangays (role: OFFICER | TECHNICIAN)
  *
- * The backend returns the raw Prisma groupBy shape
- * `{ barangay, _count: { id }, _sum: { areaHectares } }`; this flattens it and
- * coerces the Decimal hectares to a number.
+ * The analytics controller returns `{ barangay, farms, hectares, ... }`.
+ * Accept the raw Prisma groupBy shape as well for compatibility with older
+ * deployments.
  */
 export interface BarangayDistribution {
   barangay: string;
@@ -59,6 +59,10 @@ export interface BarangayDistribution {
 
 interface RawBarangayRow {
   barangay: string;
+  farms?: number | string | null;
+  hectares?: number | string | null;
+  farmCount?: number | string | null;
+  totalHectares?: number | string | null;
   _count?: { id?: number };
   _sum?: { areaHectares?: string | number | null };
 }
@@ -70,8 +74,10 @@ export const getBarangayDistribution = async (): Promise<
   const rows: RawBarangayRow[] = data.data.barangays ?? [];
   return rows.map((r) => ({
     barangay: r.barangay,
-    farmCount: Number(r._count?.id ?? 0),
-    totalHectares: Number(r._sum?.areaHectares ?? 0),
+    farmCount: Number(r.farmCount ?? r.farms ?? r._count?.id ?? 0),
+    totalHectares: Number(
+      r.totalHectares ?? r.hectares ?? r._sum?.areaHectares ?? 0,
+    ),
   }));
 };
 
@@ -88,6 +94,7 @@ export interface ExportParams {
   startDate?: string;
   endDate?: string;
   barangay?: string;
+  municipality?: string;
 }
 
 export const downloadAnalyticsReport = async (
