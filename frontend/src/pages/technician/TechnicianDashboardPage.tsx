@@ -78,6 +78,8 @@ import { DisasterLossChart } from "../../components/dashboard/DisasterLossChart"
 import { BarangayTable } from "../../components/dashboard/BarangayTable";
 import { ScanTrendsChart } from "../../components/dashboard/ScanTrendsChart";
 import { KpiOverview, PanahonNgMaisCard } from "../../components/dashboard";
+import { AnalitikaView } from "../../components/analytics";
+import { PinsalaView } from "../../components/pinsala";
 
 // ─── Tab Keys ─────────────────────────────────────────────────────────────────
 export type TabKey = "BUOD" | "ANALITIKA" | "PINSALA" | "KONSULTASYON" | "ULAT";
@@ -88,179 +90,6 @@ type MapLayer = "TANIMAN" | "PINSALA" | "KONSULTASYON";
 function formatHa(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
-
-// ─── Analitika inline chart helpers ───────────────────────────────────────────
-import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
-} from "recharts";
-
-const DisasterTrendChart: React.FC<{ data: DisasterGroup[] }> = ({ data }) => {
-  if (data.length === 0) {
-    const weeks = [
-      { week: "Linggo 1", count: 0 },
-      { week: "Linggo 2", count: 0 },
-      { week: "Linggo 3", count: 0 },
-      { week: "Linggo 4", count: 0 },
-    ];
-    return (
-      <div className="h-52 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={weeks} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-            <defs>
-              <linearGradient id="disasterGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#b45309" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#b45309" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="week" tickLine={false} axisLine={false} fontSize={11} />
-            <YAxis tickLine={false} axisLine={false} fontSize={11} allowDecimals={false} />
-            <Area type="monotone" dataKey="count" stroke="#b45309" strokeWidth={2} fill="url(#disasterGrad)" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    );
-  }
-  const chartData = data.slice(0, 8).map((g, i) => ({
-    week: g.groupKey.length > 12 ? g.groupKey.slice(0, 10) + "…" : g.groupKey,
-    label: `Linggo ${i + 1}`,
-    count: g.count,
-  }));
-  return (
-    <div className="h-52 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-          <defs>
-            <linearGradient id="disasterGrad2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#b45309" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#b45309" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          <XAxis dataKey="week" tickLine={false} axisLine={false} fontSize={11} />
-          <YAxis tickLine={false} axisLine={false} fontSize={11} allowDecimals={false} />
-          <Tooltip contentStyle={{ borderRadius: "10px", fontSize: "12px" }} />
-          <Area type="monotone" dataKey="count" name="Ulat" stroke="#b45309" strokeWidth={2.5} dot={{ r: 3, fill: "#b45309" }} fill="url(#disasterGrad2)" />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  );
-};
-
-const CasesByBarangayChart: React.FC<{ data: BarangayRow[] }> = ({ data }) => {
-  const sorted = [...data].sort((a, b) => b.openCases - a.openCases).slice(0, 5);
-  const max = Math.max(...sorted.map(r => r.openCases), 1);
-  if (sorted.length === 0) {
-    return <p className="text-sm text-slate-400 text-center py-8">Walang datos ng barangay.</p>;
-  }
-  return (
-    <div className="space-y-3">
-      {sorted.map((row) => {
-        const pct = Math.max((row.openCases / max) * 100, 3);
-        return (
-          <div key={row.barangay} className="grid grid-cols-[minmax(0,7rem)_1fr_auto] items-center gap-2">
-            <p className="text-xs font-semibold text-slate-700 truncate" title={row.barangay}>{row.barangay}</p>
-            <div className="h-6 rounded-md bg-slate-100 overflow-hidden">
-              <div className="h-full rounded-md bg-amber-700 flex items-center px-2 text-[10px] font-bold text-white transition-[width]"
-                style={{ width: `${pct}%`, minWidth: "1.5rem" }}>
-                {row.openCases}
-              </div>
-            </div>
-            <span className="text-xs font-bold text-slate-500 w-8 text-right">[bil.]</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-const CaseStatusBar: React.FC<{ sinusuri: number; nainspeksyon: number; aprubado: number }> = ({ sinusuri, nainspeksyon, aprubado }) => {
-  const total = sinusuri + nainspeksyon + aprubado || 1;
-  const segments = [
-    { label: "Sinusuri", value: sinusuri, color: "#F59E0B" },
-    { label: "Nainspeksyon", value: nainspeksyon, color: "#8B5CF6" },
-    { label: "Aprubado", value: aprubado, color: "#10B981" },
-  ];
-  return (
-    <div className="space-y-3">
-      <div className="flex w-full h-6 rounded-full overflow-hidden gap-0.5">
-        {segments.map((s) => (
-          <div key={s.label} className="h-full transition-[width]"
-            style={{ width: `${Math.max((s.value / total) * 100, s.value > 0 ? 4 : 0)}%`, backgroundColor: s.color }}
-          />
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px]">
-        {segments.map((s) => (
-          <span key={s.label} className="flex items-center gap-1.5 font-semibold text-slate-600">
-            <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: s.color }} />
-            {s.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const ResponseTimeChart: React.FC<{ data: ScanTrendPoint[]; avgHours: number }> = ({ data, avgHours }) => {
-  const chartData = data.length > 0
-    ? data.slice(-4).map((_, i) => ({ week: `L${i + 1}`, hours: avgHours }))
-    : [{ week: "L1", hours: avgHours }, { week: "L2", hours: avgHours }, { week: "L3", hours: avgHours }, { week: "L4", hours: avgHours }];
-  return (
-    <div className="space-y-2">
-      <p className="text-[11px] text-slate-400 font-medium">Average {avgHours.toFixed(1)} oras</p>
-      <div className="h-36 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="week" tickLine={false} axisLine={false} fontSize={11} />
-            <YAxis tickLine={false} axisLine={false} fontSize={11} />
-            <Tooltip contentStyle={{ borderRadius: "10px", fontSize: "12px" }} />
-            <ReferenceLine y={avgHours} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: `Avg ${avgHours.toFixed(1)}`, fontSize: 10, fill: "#64748b", position: "insideTopLeft" }} />
-            <Bar dataKey="hours" name="Oras" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-};
-
-const STAGE_COLORS: Record<string, string> = {
-  planting: "#94A3B8",
-  vegetative: "#10B981",
-  flowering: "#F59E0B",
-  harvest: "#EAB308",
-};
-
-const CropStageBar: React.FC<{ stages: { planting: string; vegetative: string; flowering: string; harvest: string } }> = ({ stages }) => {
-  const items = [
-    { key: "planting", label: "Pagtatanim", value: parseFloat(stages.planting) || 0 },
-    { key: "vegetative", label: "Paglago", value: parseFloat(stages.vegetative) || 0 },
-    { key: "flowering", label: "Pagbubunga", value: parseFloat(stages.flowering) || 0 },
-    { key: "harvest", label: "Pag-ani", value: parseFloat(stages.harvest) || 0 },
-  ].filter(i => i.value > 0);
-  const total = items.reduce((s, i) => s + i.value, 1);
-  return (
-    <div className="space-y-3">
-      <div className="flex w-full h-5 rounded-full overflow-hidden gap-0.5">
-        {items.map((s) => (
-          <div key={s.key} className="h-full transition-[width]"
-            style={{ width: `${Math.max((s.value / total) * 100, 4)}%`, backgroundColor: STAGE_COLORS[s.key] }}
-          />
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px]">
-        {items.map((s) => (
-          <span key={s.key} className="flex items-center gap-1.5 font-semibold text-slate-600">
-            <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: STAGE_COLORS[s.key] }} />
-            {s.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 export const TechnicianDashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -515,22 +344,13 @@ export const TechnicianDashboardPage: React.FC = () => {
     const s3 = (cropStagesData["TASSELING"]?.totalAreaHectares || 0) + (cropStagesData["SILKING"]?.totalAreaHectares || 0) + (cropStagesData["GRAIN_FILL"]?.totalAreaHectares || 0) + (cropStagesData["PAGBUBUNGA"]?.totalAreaHectares || 0);
     const s4 = (cropStagesData["HARVEST_READY"]?.totalAreaHectares || 0) + (cropStagesData["HARVEST"]?.totalAreaHectares || 0) + (cropStagesData["PAG_ANI"]?.totalAreaHectares || 0);
 
-    if (s1 + s2 + s3 + s4 === 0 && (totalActiveHectares ?? 0) > 0) {
-      return [
-        { key: "pagtatanim" as const, ha: 5 },
-        { key: "paglago" as const, ha: 0 },
-        { key: "pagbubunga" as const, ha: 10 },
-        { key: "pag-ani" as const, ha: 0 },
-      ];
-    }
-
     return [
       { key: "pagtatanim" as const, ha: s1 },
       { key: "paglago" as const, ha: s2 },
       { key: "pagbubunga" as const, ha: s3 },
       { key: "pag-ani" as const, ha: s4 },
     ];
-  }, [cropStagesData, totalActiveHectares]);
+  }, [cropStagesData]);
 
   // ── Filtered Lists ────────────────────────────────────────────────────────
   const filteredDamageList = useMemo(() => {
@@ -785,6 +605,86 @@ export const TechnicianDashboardPage: React.FC = () => {
   const registeredFarmCount = selectedRegisteredLocation
     ? visibleFarmMarkers.length
     : totalFarms ?? barangays.reduce((sum, barangay) => sum + barangay.farmCount, 0);
+
+  // ── Analitika Real Data Mappings ─────────────────────────────────────────
+  const analitikaAvgResponseHours = useMemo(() => {
+    if (analyticsSummary && analyticsSummary.disasterMetrics.averageDamagePercentage > 0) {
+      return Math.round(analyticsSummary.disasterMetrics.averageDamagePercentage * 10) / 10;
+    }
+    return 0;
+  }, [analyticsSummary]);
+
+  const analitikaDamageReportsByDate = useMemo(() => {
+    if (disasterReports.length === 0) return [];
+    const tagalogMonths = ["Ene", "Peb", "Mar", "Abr", "May", "Hun", "Hul", "Ago", "Set", "Okt", "Nob", "Dis"];
+    const countsByDate = new Map<string, number>();
+    disasterReports.forEach((r) => {
+      if (!r.createdAt) return;
+      const d = new Date(r.createdAt);
+      if (isNaN(d.getTime())) return;
+      const key = `${tagalogMonths[d.getMonth()]} ${d.getDate()}`;
+      countsByDate.set(key, (countsByDate.get(key) || 0) + 1);
+    });
+    return Array.from(countsByDate.entries()).map(([date, count]) => ({ date, count }));
+  }, [disasterReports]);
+
+  const analitikaResponseByWeek = useMemo(() => {
+    if (scanTrends.length > 0) {
+      return scanTrends.slice(-4).map((_, i) => ({
+        weekLabel: `L${i + 1}`,
+        hours: analitikaAvgResponseHours,
+      }));
+    }
+    if (analitikaAvgResponseHours > 0) {
+      return [
+        { weekLabel: "L1", hours: analitikaAvgResponseHours },
+        { weekLabel: "L2", hours: analitikaAvgResponseHours },
+        { weekLabel: "L3", hours: analitikaAvgResponseHours },
+        { weekLabel: "L4", hours: analitikaAvgResponseHours },
+      ];
+    }
+    return [];
+  }, [scanTrends, analitikaAvgResponseHours]);
+
+  const analitikaStatusBreakdown = useMemo(() => {
+    const sinusuri =
+      disasterReports.filter((r) => r.status === "UNDER_REVIEW").length +
+      expertCases.filter((c) => c.status === "UNDER_REVIEW").length;
+    const nainspeksyon =
+      disasterReports.filter((r) => r.status === "INSPECTED").length +
+      expertCases.filter((c) => c.status === "INSPECTED").length;
+    const aprubado =
+      disasterReports.filter((r) => r.status === "RESOLVED").length +
+      expertCases.filter((c) => c.status === "RESOLVED").length;
+
+    return [
+      { status: "Sinusuri" as const, count: sinusuri },
+      { status: "Nainspeksyon" as const, count: nainspeksyon },
+      { status: "Aprubado" as const, count: aprubado },
+    ];
+  }, [disasterReports, expertCases]);
+
+  const analitikaBarangays = useMemo(() => {
+    let list = barangayRows.map((r) => ({
+      name: r.barangay,
+      farmCount: r.farms,
+      hectares: r.hectares,
+      openCases: r.openCases,
+      damageReports: r.disasterCount,
+      risk: r.riskScore,
+    }));
+    if (selectedRegisteredLocation) {
+      const selectedLocationObj = registeredFarmLocations.find(
+        (l) => l.key === selectedRegisteredLocation
+      );
+      if (selectedLocationObj) {
+        list = list.filter((b) =>
+          b.name.toLowerCase().includes(selectedLocationObj.barangay.toLowerCase())
+        );
+      }
+    }
+    return list;
+  }, [barangayRows, selectedRegisteredLocation, registeredFarmLocations]);
 
   // ── Nav items ─────────────────────────────────────────────────────────────
   type NavItem = { key: TabKey; label: string; icon: React.ElementType; badge?: number };
@@ -1254,297 +1154,54 @@ export const TechnicianDashboardPage: React.FC = () => {
               TAB: ANALITIKA
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "ANALITIKA" && (
-            <GlobalFilterProvider>
-            <div className="p-4 sm:p-5 space-y-4">
-              {/* Header row */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h2 className="text-xl font-black text-slate-900">Analitika</h2>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-500">FILTER</span>
-                  <label className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                    <span className="sr-only">Piliin ang rehistradong barangay</span>
-                    <select
-                      aria-label="Piliin ang rehistradong barangay"
-                      value={selectedRegisteredLocation}
-                      onChange={(event) =>
-                        setSelectedRegisteredLocation(event.target.value)
-                      }
-                      className="max-w-40 bg-transparent outline-none cursor-pointer"
-                    >
-                      <option value="">Lahat ng Barangay</option>
-                      {registeredFarmLocations.map((location) => (
-                        <option key={location.key} value={location.key}>
-                          {location.barangay} · {location.municipality}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="flex items-center rounded-full border border-slate-200 bg-white p-1 gap-0.5">
-                    {(["7d","30d","season"] as const).map((key) => {
-                      const label = key === "7d" ? "7 araw" : key === "30d" ? "30 araw" : "Season";
-                      const isActive = dateRange === key;
-                      return (
-                        <button key={key} type="button" onClick={() => setDateRange(key)}
-                          className={`rounded-full px-3 py-1 text-xs font-semibold transition cursor-pointer ${isActive ? "bg-[#D1FAE5] text-[#065F46] font-bold" : "text-slate-500 hover:text-slate-700"}`}>
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* KPI Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Rehistradong Sakahan</p>
-                  <p className="mt-2 text-3xl font-black text-slate-900 leading-none">
-                    {registeredFarmCount}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1">sakahan</p>
-                </div>
-                <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Aktibong Taniman</p>
-                  <p className="mt-2 text-3xl font-black text-[#1D4ED8] leading-none">{dynamicStages.totalActive}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">ha</p>
-                </div>
-                <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Bukas na Kaso</p>
-                  <p className="mt-2 text-3xl font-black text-[#B45309] leading-none">
-                    {analyticsSummary?.pendingExpertCases ?? pendingConsultations}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1">kaso</p>
-                </div>
-                <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Karaniwang Oras ng Tugon</p>
-                  <p className="mt-2 text-3xl font-black text-slate-900 leading-none">
-                    {analyticsSummary
-                      ? (analyticsSummary.disasterMetrics.averageDamagePercentage > 0
-                          ? analyticsSummary.disasterMetrics.averageDamagePercentage.toFixed(1)
-                          : "27.4")
-                      : "27.4"}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1">oras</p>
-                </div>
-              </div>
-
-              {/* Row 2: Disaster Trend + Cases by Barangay */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* Disaster Trend Area Chart */}
-                <div className="lg:col-span-2 rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-sm font-extrabold text-slate-900">Mga Ulat ng Pinsala sa Paglipas ng Panahon</h3>
-                    <span className="text-[11px] text-slate-400 font-medium shrink-0 ml-2">
-                      {dateRange === "7d" ? "7 araw" : dateRange === "30d" ? "30 araw" : "Season"} · {disasterGroups.reduce((s, g) => s + g.count, 0)} ulat
-                    </span>
-                  </div>
-                  <DisasterTrendChart data={disasterGroups} />
-                </div>
-
-                {/* Cases by Barangay */}
-                <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
-                  <h3 className="text-sm font-extrabold text-slate-900 mb-3">Mga Kaso ayon sa Barangay</h3>
-                  <CasesByBarangayChart data={barangayRows} />
-                </div>
-              </div>
-
-              {/* Row 3: Case Status + Response Time + Crop Stage */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {/* Case Status stacked bar */}
-                <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-extrabold text-slate-900">Katayuan ng mga Kaso</h3>
-                    <span className="text-[11px] text-amber-600 font-bold">{totalPending} bukas</span>
-                  </div>
-                  <CaseStatusBar
-                    sinusuri={disasterReports.filter(r => r.status === "UNDER_REVIEW").length + expertCases.filter(c => c.status === "UNDER_REVIEW").length}
-                    nainspeksyon={disasterReports.filter(r => r.status === "INSPECTED").length + expertCases.filter(c => c.status === "INSPECTED").length}
-                    aprubado={disasterReports.filter(r => r.status === "RESOLVED").length + expertCases.filter(c => c.status === "RESOLVED").length}
-                  />
-                </div>
-
-                {/* Response Time bar chart */}
-                <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-extrabold text-slate-900">Oras ng Tugon</h3>
-                    <span className="text-[11px] text-slate-400 font-medium">bawat linggo</span>
-                  </div>
-                  <ResponseTimeChart data={scanTrends} avgHours={
-                    analyticsSummary
-                      ? (analyticsSummary.disasterMetrics.averageDamagePercentage > 0
-                          ? analyticsSummary.disasterMetrics.averageDamagePercentage
-                          : 27.4)
-                      : 27.4
-                  } />
-                </div>
-
-                {/* Crop Stage horizontal bar */}
-                <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-extrabold text-slate-900">Taniman ayon sa Yugto</h3>
-                    <span className="text-[11px] text-slate-400 font-medium">{dynamicStages.totalActive} ha</span>
-                  </div>
-                  <CropStageBar stages={dynamicStages} />
-                </div>
-              </div>
-
-              {/* Barangay Table */}
-              <BarangayTable data={barangayRows} />
-            </div>
-            </GlobalFilterProvider>
+            <AnalitikaView
+              stats={{
+                farmCount: registeredFarmCount,
+                activeHectares:
+                  parseFloat(dynamicStages.totalActive) ||
+                  (totalActiveHectares ?? 0),
+                openCases:
+                  analyticsSummary?.pendingExpertCases ?? pendingConsultations,
+                avgResponseHours: analitikaAvgResponseHours,
+              }}
+              damageReportTotal={
+                analyticsSummary?.disasterMetrics.totalReports ??
+                disasterReports.length
+              }
+              damageReportsByDate={analitikaDamageReportsByDate}
+              responseByWeek={analitikaResponseByWeek}
+              statusBreakdown={analitikaStatusBreakdown}
+              stageHectares={cropStageList}
+              barangays={analitikaBarangays}
+              dateRangeLabel={
+                dateRange === "7d"
+                  ? "7 araw"
+                  : dateRange === "30d"
+                  ? "30 araw"
+                  : "Season"
+              }
+              isLoading={pipelineLoading}
+              error={null}
+            />
           )}
 
           {/* ══════════════════════════════════════════════════════════════════
               TAB: PINSALA
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "PINSALA" && (
-            <div className="p-4 sm:p-5 space-y-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900">Mga Kaso ng Pinsala</h2>
-              </div>
-
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {([
-                  { key: "LAHAT", label: "Lahat" },
-                  { key: "BAGO", label: "Bago" },
-                  { key: "SINUSURI", label: "Sinusuri" },
-                  { key: "NA_VERIFY", label: "Na-verify" },
-                  { key: "APRUBADO", label: "Aprubado" },
-                ] as { key: DamageFilter; label: string }[]).map((f) => {
-                  const isActive = damageFilter === f.key;
-                  return (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setDamageFilter(f.key)}
-                      className={`rounded-full px-5 py-1.5 text-xs sm:text-sm font-bold transition shrink-0 cursor-pointer ${
-                        isActive ? "bg-[#0B2347] text-white shadow-2xs" : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {pipelineLoading ? (
-                <LoadingState label="Kinukuha ang mga kaso ng pinsala..." />
-              ) : filteredDamageList.length === 0 ? (
-                <EmptyState title="Walang nakatalang kaso ng pinsala" message="Walang kasong tumutugma sa napiling filter sa kasalukuyan." />
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                  <div className="lg:col-span-8 rounded-2xl border border-slate-200/90 bg-white overflow-hidden shadow-2xs">
-                    <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full text-left text-sm text-slate-700">
-                        <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
-                          <tr>
-                            <th className="px-5 py-3">Kaso</th>
-                            <th className="px-5 py-3">Magsasaka</th>
-                            <th className="px-5 py-3">Barangay</th>
-                            <th className="px-5 py-3">Pinsala</th>
-                            <th className="px-5 py-3">HA</th>
-                            <th className="px-5 py-3">Katayuan</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredDamageList.map((item, idx) => {
-                            const isSelected = selectedDisaster?.id === item.id;
-                            const parsed = parseDisasterNotes(item.notes);
-                            const farmerDisplay = item.farm?.name?.replace(/^Sakahan ni\s*/i, "") || parsed.cleanNotes?.slice(0, 24) || "Magsasaka";
-                            const statusLabel = item.status === "SUBMITTED" ? "Bago" : item.status === "UNDER_REVIEW" ? "Sinusuri" : item.status === "INSPECTED" ? "Na-verify" : "Aprubado";
-                            const affectedHa = Number(item.damagePercentage || 0) > 0 ? `${formatHa((Number(item.damagePercentage) / 100) * 2.5)} ha` : "1.0 ha";
-                            return (
-                              <tr key={item.id} onClick={() => setSelectedDisaster(item)} className={`cursor-pointer transition hover:bg-slate-50 ${isSelected ? "bg-blue-50/70 font-semibold" : ""}`}>
-                                <td className="px-5 py-3.5 font-bold text-slate-900">Blg. {idx + 1}</td>
-                                <td className="px-5 py-3.5 text-slate-800">{farmerDisplay}</td>
-                                <td className="px-5 py-3.5 text-slate-600">{item.farm?.barangay || "Centro Norte (Pob.)"}</td>
-                                <td className="px-5 py-3.5 text-slate-800 font-medium">{item.disasterType}</td>
-                                <td className="px-5 py-3.5 text-slate-600">{affectedHa}</td>
-                                <td className="px-5 py-3.5">
-                                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${item.status === "SUBMITTED" ? "bg-blue-100 text-blue-800" : item.status === "UNDER_REVIEW" ? "bg-amber-100 text-amber-800" : item.status === "INSPECTED" ? "bg-teal-100 text-teal-800" : "bg-emerald-100 text-emerald-800"}`}>
-                                    {statusLabel}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="md:hidden divide-y divide-slate-100 p-2">
-                      {filteredDamageList.map((item, idx) => {
-                        const isSelected = selectedDisaster?.id === item.id;
-                        const statusLabel = item.status === "SUBMITTED" ? "Bago" : item.status === "UNDER_REVIEW" ? "Sinusuri" : item.status === "INSPECTED" ? "Na-verify" : "Aprubado";
-                        return (
-                          <div key={item.id} onClick={() => setSelectedDisaster(item)} className={`p-3.5 rounded-xl cursor-pointer transition ${isSelected ? "bg-blue-50/80 border border-blue-200" : "hover:bg-slate-50"}`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="font-bold text-slate-900 text-sm">Blg. {idx + 1} · {item.disasterType}</p>
-                              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold shrink-0 ${item.status === "SUBMITTED" ? "bg-blue-100 text-blue-800" : item.status === "UNDER_REVIEW" ? "bg-amber-100 text-amber-800" : item.status === "INSPECTED" ? "bg-teal-100 text-teal-800" : "bg-emerald-100 text-emerald-800"}`}>
-                                {statusLabel}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs text-slate-500 font-medium">{item.farm?.name || "Sakahan"} · {item.farm?.barangay || "Centro Norte (Pob.)"}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {selectedDisaster && (
-                    <div className="lg:col-span-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs space-y-5">
-                      <div>
-                        <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">NAPILING KASO</p>
-                        <h3 className="mt-1 text-lg font-black text-slate-900">Blg. {filteredDamageList.findIndex((d) => d.id === selectedDisaster.id) + 1} · {selectedDisaster.disasterType}</h3>
-                        <p className="text-xs text-slate-500 font-medium">{selectedDisaster.farm?.name || "Sakahan"} · {selectedDisaster.farm?.barangay || "Centro Norte (Pob.)"}</p>
-                      </div>
-                      <div className="space-y-3.5 py-1">
-                        {[
-                          { step: 1, label: "Naisumite", key: "SUBMITTED" },
-                          { step: 2, label: "Sinusuri", key: "UNDER_REVIEW" },
-                          { step: 3, label: "Na-verify sa bukid", key: "INSPECTED" },
-                          { step: 4, label: "Aprubado", key: "RESOLVED" },
-                        ].map(({ step, label, key }) => {
-                          const statusOrder: Record<string, number> = { SUBMITTED: 1, UNDER_REVIEW: 2, INSPECTED: 3, RESOLVED: 4 };
-                          const currentVal = statusOrder[selectedDisaster.status] || 1;
-                          const thisVal = statusOrder[key];
-                          const isDone = thisVal < currentVal;
-                          const isCurrent = thisVal === currentVal;
-                          return (
-                            <div key={step} className="flex items-center gap-3">
-                              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition ${isDone ? "bg-emerald-600 text-white" : isCurrent ? "bg-amber-500 text-white" : "border-2 border-slate-300 text-slate-400 bg-white"}`}>
-                                {isDone ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : step}
-                              </div>
-                              <span className={`text-xs sm:text-sm font-bold ${isCurrent ? "text-slate-900 font-black" : isDone ? "text-slate-800" : "text-slate-400"}`}>{label}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {selectedDisaster.notes && (
-                        <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100 text-xs sm:text-sm text-slate-700 leading-relaxed">
-                          <p className="font-bold text-slate-900 mb-1">Tala sa Sakahan:</p>
-                          {parseDisasterNotes(selectedDisaster.notes).cleanNotes || selectedDisaster.notes}
-                        </div>
-                      )}
-                      <div className="space-y-2.5 pt-1">
-                        {selectedDisaster.status !== "RESOLVED" && (
-                          <button type="button" disabled={actionLoading} onClick={() => handleUpdateStatus(selectedDisaster.id, "INSPECTED")} className="w-full rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-sm font-bold text-white shadow-2xs transition active:scale-98 disabled:opacity-60 cursor-pointer">
-                            {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "I-verify sa Bukid"}
-                          </button>
-                        )}
-                        <button type="button" disabled={actionLoading} onClick={() => toast.info("Humihingi ng karagdagang dokumento o larawan para sa sakahan.")} className="w-full rounded-xl border border-[#0B2347] bg-white hover:bg-slate-50 py-3 text-sm font-bold text-[#0B2347] shadow-2xs transition active:scale-98 disabled:opacity-60 cursor-pointer">
-                          Humingi ng Dokumento
-                        </button>
-                        {selectedDisaster.status === "INSPECTED" && (
-                          <button type="button" disabled={actionLoading} onClick={() => handleUpdateStatus(selectedDisaster.id, "RESOLVED")} className="w-full rounded-xl bg-blue-700 hover:bg-blue-800 py-3 text-sm font-bold text-white shadow-2xs transition active:scale-98 disabled:opacity-60 cursor-pointer">
-                            Aprubahan ang Claim
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <PinsalaView
+              disasterReports={disasterReports}
+              isLoading={pipelineLoading}
+              error={null}
+              onVerifyCase={(caseId) => handleUpdateStatus(caseId, "INSPECTED")}
+              onRequestDocument={(caseItem) =>
+                toast.info(
+                  `Humihingi ng karagdagang dokumento o larawan para kay ${caseItem.farmerName} sa ${caseItem.barangay}.`
+                )
+              }
+              isVerifying={actionLoading}
+              selectedLocationKey={selectedRegisteredLocation}
+            />
           )}
 
           {/* ══════════════════════════════════════════════════════════════════

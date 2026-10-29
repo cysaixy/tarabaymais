@@ -11,7 +11,11 @@ import {
   Calendar,
   Phone,
   KeyRound,
+  MapPin,
+  RefreshCw,
 } from "lucide-react";
+import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import L from "leaflet";
 import { OtpInput } from "../../components/OtpInput";
 import { useAuth, isMunicipalRole } from "../../context/authContext";
 import {
@@ -31,6 +35,92 @@ import {
   CAGAYAN_LOCATION_DATA,
   CAGAYAN_MUNICIPALITIES,
 } from "../../data/cagayanLocations";
+
+// Approximate center of Cagayan Valley
+const CAGAYAN_CENTER: [number, number] = [17.6137, 121.7271];
+
+/** Map controller — handles click-to-pin and marker management. */
+function LocationMapController({
+  mapRef,
+  markerRef,
+  value,
+  onChange,
+}: {
+  mapRef: React.MutableRefObject<L.Map | null>;
+  markerRef: React.MutableRefObject<L.Marker | null>;
+  value: { latitude: number; longitude: number } | null;
+  onChange: (v: { latitude: number; longitude: number }) => void;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    mapRef.current = map;
+    return () => {
+      if (markerRef.current) {
+        markerRef.current.remove();
+        markerRef.current = null;
+      }
+    };
+  }, [map, mapRef, markerRef]);
+
+  useEffect(() => {
+    const placeMarker = (latlng: L.LatLng) => {
+      if (!markerRef.current) {
+        markerRef.current = L.marker(latlng, { draggable: true }).addTo(map);
+        markerRef.current.on("dragend", () => {
+          const pos = markerRef.current!.getLatLng();
+          onChange({ latitude: pos.lat, longitude: pos.lng });
+        });
+      } else {
+        markerRef.current.setLatLng(latlng);
+      }
+      onChange({ latitude: latlng.lat, longitude: latlng.lng });
+    };
+
+    if (value && markerRef.current) {
+      markerRef.current.setLatLng([value.latitude, value.longitude]);
+    } else if (value && !markerRef.current) {
+      placeMarker(L.latLng(value.latitude, value.longitude));
+    }
+
+    map.on("click", (e: L.LeafletMouseEvent) => placeMarker(e.latlng));
+    return () => { map.off("click"); };
+  }, [map, value, onChange, markerRef]);
+
+  return null;
+}
+
+/** Mini-map that lets the farmer drag a pin to set coordinates. */
+function OnboardingLocationPicker({
+  value,
+  onChange,
+}: {
+  value: { latitude: number; longitude: number } | null;
+  onChange: (v: { latitude: number; longitude: number }) => void;
+}) {
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  return (
+    <div className="w-full rounded-2xl border-2 border-slate-200 bg-white overflow-hidden" style={{ height: 200 }}>
+      <MapContainer
+        center={value ? [value.latitude, value.longitude] : CAGAYAN_CENTER}
+        zoom={value ? 13 : 10}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <LocationMapController
+          mapRef={mapRef}
+          markerRef={markerRef}
+          value={value}
+          onChange={onChange}
+        />
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        />
+      </MapContainer>
+    </div>
+  );
+}
 
 const CORN_VARIETIES = [
   "Pioneer 30T60 (Yellow Hybrid)",
@@ -113,6 +203,8 @@ export const FarmerOnboardingPage: React.FC = () => {
   );
   const [scope, setScope] = useState<"medium" | "above_medium">("medium");
   const [areaHectares, setAreaHectares] = useState<string>("2.5");
+  const [farmLocation, setFarmLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [farmLocating, setFarmLocating] = useState(false);
 
   // ── Step 3 State: Crop Cycle ──────────────────────────────────────────────
   const [cropType] = useState("Corn / Yellow Hybrid Corn (Mais)");
@@ -177,6 +269,30 @@ export const FarmerOnboardingPage: React.FC = () => {
 
     return { dap: diffDays, harvestDateStr, stageName };
   }, [plantingDate]);
+
+  // ── GPS handler for Step 2 ────────────────────────────────────────────────
+  const handleUseFarmLocation = async () => {
+    if (!navigator.geolocation) {
+      toast.error("Hindi sinusuportahan ng browser ang GPS.");
+      return;
+    }
+    setFarmLocating(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation!.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        })
+      );
+      setFarmLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      toast.success("Lokasyon na-set mula sa GPS.");
+    } catch {
+      toast.error("Hindi makuha ang GPS lokasyon. Maaari pumindot sa mapa.");
+    } finally {
+      setFarmLocating(false);
+    }
+  };
 
   // ── Navigation Back ───────────────────────────────────────────────────────
   const handleBack = () => {
@@ -337,6 +453,8 @@ export const FarmerOnboardingPage: React.FC = () => {
           municipality,
           barangay: barangay.trim(),
           areaHectares: numArea,
+          latitude: farmLocation?.latitude ?? null,
+          longitude: farmLocation?.longitude ?? null,
         });
         currentFarmId = farm.id;
         createdFarmRef.current = farm.id;
@@ -795,6 +913,48 @@ export const FarmerOnboardingPage: React.FC = () => {
                     required
                     className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50/80 px-4 py-2 text-base font-bold text-slate-900 outline-none transition"
                   />
+                </div>
+
+                {/* GPS Location Picker */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Lokasyon ng Sakahan (Opsyonal)
+                  </label>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={handleUseFarmLocation}
+                      disabled={farmLocating}
+                      className={`flex w-full items-center justify-center gap-2 h-11 rounded-xl border-2 ${
+                        farmLocating
+                          ? "border-dashed border-slate-300 bg-slate-100 text-slate-500"
+                          : "border-emerald-500 bg-emerald-50 text-emerald-700"
+                      } px-4 text-sm font-semibold transition hover:bg-emerald-100 disabled:opacity-60 cursor-pointer`}
+                    >
+                      <MapPin className="h-4 w-4" aria-hidden="true" />
+                      {farmLocating ? "Naghahanap ng GPS..." : "Gamitin ang aking Lokasyon"}
+                    </button>
+                    {farmLocation && (
+                      <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">
+                        <MapPin className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
+                        <span className="text-xs text-emerald-700 flex-1">
+                          GPS: {farmLocation.latitude.toFixed(4)}, {farmLocation.longitude.toFixed(4)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setFarmLocation(null)}
+                          className="text-emerald-500 hover:text-emerald-700"
+                          aria-label="Alisin ang lokasyon"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                    <OnboardingLocationPicker value={farmLocation} onChange={setFarmLocation} />
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Opsyonal. Pumindot sa mapa o gamitin ang GPS para itakda ang pin.
+                  </p>
                 </div>
               </div>
 
