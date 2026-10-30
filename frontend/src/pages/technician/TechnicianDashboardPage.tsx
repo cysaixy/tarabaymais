@@ -10,16 +10,13 @@ import { toast } from "sonner";
 import {
   AlertTriangle,
   LogOut,
-  Send,
   X,
   Loader2,
-  Download,
   FileSpreadsheet,
   BarChart3,
   Sprout,
   MessageSquare,
   FileDown,
-  Check,
   LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
@@ -69,8 +66,6 @@ import {
 } from "../../components/AccountSheet";
 import { NotificationBell } from "../../components/NotificationBell";
 import { clearReadNotifications } from "../../lib/notificationReadTracking";
-import { parseLegacyCaseDescription } from "../../lib/parseLegacyCaseDescription";
-import { parseDisasterNotes } from "../../lib/parseDisasterNotes";
 import { GlobalFilterProvider } from "../../context/filterContext";
 import { StageDonut } from "../../components/dashboard/StageDonut";
 import { TopIssuesChart } from "../../components/dashboard/TopIssuesChart";
@@ -78,352 +73,24 @@ import { DisasterLossChart } from "../../components/dashboard/DisasterLossChart"
 import { BarangayTable } from "../../components/dashboard/BarangayTable";
 import { ScanTrendsChart } from "../../components/dashboard/ScanTrendsChart";
 import { KpiOverview, PanahonNgMaisCard } from "../../components/dashboard";
+import { AnalitikaView } from "../../components/analytics";
+import { PinsalaView } from "../../components/pinsala";
+import { KonsultasyonView } from "../../components/konsultasyon";
+import { UlatView } from "../../components/ulat";
 
 // ─── Tab Keys ─────────────────────────────────────────────────────────────────
 export type TabKey = "BUOD" | "ANALITIKA" | "PINSALA" | "KONSULTASYON" | "ULAT";
-type DamageFilter = "LAHAT" | "BAGO" | "SINUSURI" | "NA_VERIFY" | "APRUBADO";
-type ConsultFilter = "BAGO" | "SINAGOT" | "LAHAT";
 type MapLayer = "TANIMAN" | "PINSALA" | "KONSULTASYON";
 
 function formatHa(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
-// ─── Analitika inline chart helpers ───────────────────────────────────────────
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts";
-
-const DisasterTrendChart: React.FC<{ data: DisasterGroup[] }> = ({ data }) => {
-  if (data.length === 0) {
-    const weeks = [
-      { week: "Linggo 1", count: 0 },
-      { week: "Linggo 2", count: 0 },
-      { week: "Linggo 3", count: 0 },
-      { week: "Linggo 4", count: 0 },
-    ];
-    return (
-      <div className="h-52 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={weeks}
-            margin={{ top: 8, right: 8, bottom: 0, left: -20 }}
-          >
-            <defs>
-              <linearGradient id="disasterGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#b45309" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#b45309" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="#f1f5f9"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="week"
-              tickLine={false}
-              axisLine={false}
-              fontSize={11}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              fontSize={11}
-              allowDecimals={false}
-            />
-            <Area
-              type="monotone"
-              dataKey="count"
-              stroke="#b45309"
-              strokeWidth={2}
-              fill="url(#disasterGrad)"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    );
-  }
-  const chartData = data.slice(0, 8).map((g, i) => ({
-    week: g.groupKey.length > 12 ? g.groupKey.slice(0, 10) + "…" : g.groupKey,
-    label: `Linggo ${i + 1}`,
-    count: g.count,
-  }));
-  return (
-    <div className="h-52 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          data={chartData}
-          margin={{ top: 8, right: 8, bottom: 0, left: -20 }}
-        >
-          <defs>
-            <linearGradient id="disasterGrad2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#b45309" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#b45309" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="#f1f5f9"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="week"
-            tickLine={false}
-            axisLine={false}
-            fontSize={11}
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            fontSize={11}
-            allowDecimals={false}
-          />
-          <Tooltip contentStyle={{ borderRadius: "10px", fontSize: "12px" }} />
-          <Area
-            type="monotone"
-            dataKey="count"
-            name="Ulat"
-            stroke="#b45309"
-            strokeWidth={2.5}
-            dot={{ r: 3, fill: "#b45309" }}
-            fill="url(#disasterGrad2)"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  );
-};
-
-const CasesByBarangayChart: React.FC<{ data: BarangayRow[] }> = ({ data }) => {
-  const sorted = [...data]
-    .sort((a, b) => b.openCases - a.openCases)
-    .slice(0, 5);
-  const max = Math.max(...sorted.map((r) => r.openCases), 1);
-  if (sorted.length === 0) {
-    return (
-      <p className="text-sm text-slate-400 text-center py-8">
-        Walang datos ng barangay.
-      </p>
-    );
-  }
-  return (
-    <div className="space-y-3">
-      {sorted.map((row) => {
-        const pct = Math.max((row.openCases / max) * 100, 3);
-        return (
-          <div
-            key={row.barangay}
-            className="grid grid-cols-[minmax(0,7rem)_1fr_auto] items-center gap-2"
-          >
-            <p
-              className="text-xs font-semibold text-slate-700 truncate"
-              title={row.barangay}
-            >
-              {row.barangay}
-            </p>
-            <div className="h-6 rounded-md bg-slate-100 overflow-hidden">
-              <div
-                className="h-full rounded-md bg-amber-700 flex items-center px-2 text-[10px] font-bold text-white transition-[width]"
-                style={{ width: `${pct}%`, minWidth: "1.5rem" }}
-              >
-                {row.openCases}
-              </div>
-            </div>
-            <span className="text-xs font-bold text-slate-500 w-8 text-right">
-              [bil.]
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-const CaseStatusBar: React.FC<{
-  sinusuri: number;
-  nainspeksyon: number;
-  aprubado: number;
-}> = ({ sinusuri, nainspeksyon, aprubado }) => {
-  const total = sinusuri + nainspeksyon + aprubado || 1;
-  const segments = [
-    { label: "Sinusuri", value: sinusuri, color: "#F59E0B" },
-    { label: "Nainspeksyon", value: nainspeksyon, color: "#8B5CF6" },
-    { label: "Aprubado", value: aprubado, color: "#10B981" },
-  ];
-  return (
-    <div className="space-y-3">
-      <div className="flex w-full h-6 rounded-full overflow-hidden gap-0.5">
-        {segments.map((s) => (
-          <div
-            key={s.label}
-            className="h-full transition-[width]"
-            style={{
-              width: `${Math.max((s.value / total) * 100, s.value > 0 ? 4 : 0)}%`,
-              backgroundColor: s.color,
-            }}
-          />
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px]">
-        {segments.map((s) => (
-          <span
-            key={s.label}
-            className="flex items-center gap-1.5 font-semibold text-slate-600"
-          >
-            <span
-              className="h-2.5 w-2.5 rounded-sm shrink-0"
-              style={{ backgroundColor: s.color }}
-            />
-            {s.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const ResponseTimeChart: React.FC<{
-  data: ScanTrendPoint[];
-  avgHours: number;
-}> = ({ data, avgHours }) => {
-  const chartData =
-    data.length > 0
-      ? data.slice(-4).map((_, i) => ({ week: `L${i + 1}`, hours: avgHours }))
-      : [
-          { week: "L1", hours: avgHours },
-          { week: "L2", hours: avgHours },
-          { week: "L3", hours: avgHours },
-          { week: "L4", hours: avgHours },
-        ];
-  return (
-    <div className="space-y-2">
-      <p className="text-[11px] text-slate-400 font-medium">
-        Average {avgHours.toFixed(1)} oras
-      </p>
-      <div className="h-36 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={chartData}
-            margin={{ top: 8, right: 8, bottom: 0, left: -20 }}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="#f1f5f9"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="week"
-              tickLine={false}
-              axisLine={false}
-              fontSize={11}
-            />
-            <YAxis tickLine={false} axisLine={false} fontSize={11} />
-            <Tooltip
-              contentStyle={{ borderRadius: "10px", fontSize: "12px" }}
-            />
-            <ReferenceLine
-              y={avgHours}
-              stroke="#94a3b8"
-              strokeDasharray="4 4"
-              label={{
-                value: `Avg ${avgHours.toFixed(1)}`,
-                fontSize: 10,
-                fill: "#64748b",
-                position: "insideTopLeft",
-              }}
-            />
-            <Bar
-              dataKey="hours"
-              name="Oras"
-              fill="#3B82F6"
-              radius={[4, 4, 0, 0]}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-};
-
-const STAGE_COLORS: Record<string, string> = {
-  planting: "#94A3B8",
-  vegetative: "#10B981",
-  flowering: "#F59E0B",
-  harvest: "#EAB308",
-};
-
-const CropStageBar: React.FC<{
-  stages: {
-    planting: string;
-    vegetative: string;
-    flowering: string;
-    harvest: string;
-  };
-}> = ({ stages }) => {
-  const items = [
-    {
-      key: "planting",
-      label: "Pagtatanim",
-      value: parseFloat(stages.planting) || 0,
-    },
-    {
-      key: "vegetative",
-      label: "Paglago",
-      value: parseFloat(stages.vegetative) || 0,
-    },
-    {
-      key: "flowering",
-      label: "Pagbubunga",
-      value: parseFloat(stages.flowering) || 0,
-    },
-    {
-      key: "harvest",
-      label: "Pag-ani",
-      value: parseFloat(stages.harvest) || 0,
-    },
-  ].filter((i) => i.value > 0);
-  const total = items.reduce((s, i) => s + i.value, 1);
-  return (
-    <div className="space-y-3">
-      <div className="flex w-full h-5 rounded-full overflow-hidden gap-0.5">
-        {items.map((s) => (
-          <div
-            key={s.key}
-            className="h-full transition-[width]"
-            style={{
-              width: `${Math.max((s.value / total) * 100, 4)}%`,
-              backgroundColor: STAGE_COLORS[s.key],
-            }}
-          />
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px]">
-        {items.map((s) => (
-          <span
-            key={s.key}
-            className="flex items-center gap-1.5 font-semibold text-slate-600"
-          >
-            <span
-              className="h-2.5 w-2.5 rounded-sm shrink-0"
-              style={{ backgroundColor: STAGE_COLORS[s.key] }}
-            />
-            {s.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-};
+const DATE_RANGE_OPTIONS = [
+  { key: "7d", label: "7 araw" },
+  { key: "30d", label: "30 araw" },
+  { key: "season", label: "Season" },
+] as const;
 
 export const TechnicianDashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -461,6 +128,7 @@ export const TechnicianDashboardPage: React.FC = () => {
   // ── Live Barangay Distribution from Backend ───────────────────────────────
   const [barangays, setBarangays] = useState<BarangayDistribution[]>([]);
   const [barangaysLoading, setBarangaysLoading] = useState(true);
+  const [barangaysError, setBarangaysError] = useState<string | null>(null);
 
   // ── Chart data from Officer Analytics endpoints ───────────────────────────
   const [topIssues, setTopIssues] = useState<TopIssue[]>([]);
@@ -470,8 +138,9 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   // ── Export state ──────────────────────────────────────────────────────────
   const [exportType, setExportType] = useState<ExportType>("disaster-claims");
-  const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
   const [exporting, setExporting] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   // ── Map interactive state ─────────────────────────────────────────────────
   const [mapLayer, setMapLayer] = useState<MapLayer>("TANIMAN");
@@ -479,7 +148,6 @@ export const TechnicianDashboardPage: React.FC = () => {
   const [focusTrigger] = useState(0);
 
   // ── Damage (Pinsala) Tab State ────────────────────────────────────────────
-  const [damageFilter, setDamageFilter] = useState<DamageFilter>("LAHAT");
   const [selectedDisaster, setSelectedDisaster] =
     useState<DisasterReport | null>(null);
   const [isAddDamageOpen, setIsAddDamageOpen] = useState(false);
@@ -493,9 +161,7 @@ export const TechnicianDashboardPage: React.FC = () => {
   });
 
   // ── Consultation Tab State ────────────────────────────────────────────────
-  const [consultFilter, setConsultFilter] = useState<ConsultFilter>("LAHAT");
   const [selectedCase, setSelectedCase] = useState<ExpertCase | null>(null);
-  const [chatReplyInput, setChatReplyInput] = useState("");
   const [isAddConsultOpen, setIsAddConsultOpen] = useState(false);
   const [newConsultForm, setNewConsultForm] = useState({
     farmerName: "",
@@ -654,11 +320,12 @@ export const TechnicianDashboardPage: React.FC = () => {
   // ── Fetch Barangay Distribution (Live API) ────────────────────────────────
   const fetchBarangays = useCallback(async () => {
     setBarangaysLoading(true);
+    setBarangaysError(null);
     try {
       const list = await getBarangayDistribution();
       setBarangays(list);
     } catch {
-      /* Non-fatal */
+      setBarangaysError("Hindi makuha ang distribusyon ng sakahan.");
     } finally {
       setBarangaysLoading(false);
     }
@@ -742,49 +409,14 @@ export const TechnicianDashboardPage: React.FC = () => {
       (cropStagesData["HARVEST"]?.totalAreaHectares || 0) +
       (cropStagesData["PAG_ANI"]?.totalAreaHectares || 0);
 
-    if (s1 + s2 + s3 + s4 === 0 && (totalActiveHectares ?? 0) > 0) {
-      return [
-        { key: "pagtatanim" as const, ha: 5 },
-        { key: "paglago" as const, ha: 0 },
-        { key: "pagbubunga" as const, ha: 10 },
-        { key: "pag-ani" as const, ha: 0 },
-      ];
-    }
-
     return [
       { key: "pagtatanim" as const, ha: s1 },
       { key: "paglago" as const, ha: s2 },
       { key: "pagbubunga" as const, ha: s3 },
       { key: "pag-ani" as const, ha: s4 },
     ];
-  }, [cropStagesData, totalActiveHectares]);
-
+  }, [cropStagesData]);
   // ── Filtered Lists ────────────────────────────────────────────────────────
-  const filteredDamageList = useMemo(() => {
-    if (damageFilter === "BAGO")
-      return disasterReports.filter((r) => r.status === "SUBMITTED");
-    if (damageFilter === "SINUSURI")
-      return disasterReports.filter((r) => r.status === "UNDER_REVIEW");
-    if (damageFilter === "NA_VERIFY")
-      return disasterReports.filter((r) => r.status === "INSPECTED");
-    if (damageFilter === "APRUBADO")
-      return disasterReports.filter((r) => r.status === "RESOLVED");
-    return disasterReports;
-  }, [disasterReports, damageFilter]);
-
-  const filteredConsultList = useMemo(() => {
-    if (consultFilter === "BAGO")
-      return expertCases.filter((c) =>
-        ["SUBMITTED", "UNDER_REVIEW"].includes(c.status),
-      );
-    if (consultFilter === "SINAGOT")
-      return expertCases.filter(
-        (c) =>
-          ["INSPECTED", "RESOLVED"].includes(c.status) ||
-          Boolean(c.recommendation),
-      );
-    return expertCases;
-  }, [expertCases, consultFilter]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleUpdateStatus = async (caseId: string, newStatus: CaseStatus) => {
@@ -804,27 +436,6 @@ export const TechnicianDashboardPage: React.FC = () => {
       await fetchPipeline(true);
     } catch {
       toast.error("Hindi na-update ang katayuan. Pakisubukan muli.");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleSendReply = async () => {
-    if (!selectedCase) return;
-    if (!chatReplyInput.trim()) {
-      toast.error("Mangyaring isulat muna ang iyong payo o rekomendasyon.");
-      return;
-    }
-    setActionLoading(true);
-    try {
-      await resolveExpertCase(selectedCase.id, {
-        recommendation: chatReplyInput.trim(),
-      });
-      toast.success("Naipadala ang rekomendasyon sa magsasaka.");
-      setChatReplyInput("");
-      await fetchPipeline(true);
-    } catch {
-      toast.error("Hindi naipadala ang payo. Pakisubukan muli.");
     } finally {
       setActionLoading(false);
     }
@@ -901,13 +512,36 @@ export const TechnicianDashboardPage: React.FC = () => {
   };
 
   const handleExport = async (format: ExportFormat = "xlsx") => {
-    setExportFormat(format);
     setExporting(true);
+    setDownloadSuccess(false);
+    setDownloadError(null);
     try {
-      await downloadAnalyticsReport({ type: exportType, format });
-      toast.success("Na-download ang opisyal na ulat ng DA.");
+      const selectedLocation = registeredFarmLocations.find(
+        (location) => location.key === selectedRegisteredLocation,
+      );
+      const blob = await downloadAnalyticsReport({
+        type: exportType,
+        format,
+        startDate: filterDates.from,
+        endDate: filterDates.to,
+        ...(selectedLocation
+          ? {
+              barangay: selectedLocation.barangay,
+              municipality: selectedLocation.municipality,
+            }
+          : {}),
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `TarabayMais_${exportType}_${filterDates.to}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setDownloadSuccess(true);
     } catch {
-      toast.info("Na-export ang ulat para sa kasalukuyang talaan.");
+      setDownloadError("Hindi na-download. Subukan muli.");
     } finally {
       setExporting(false);
     }
@@ -1030,11 +664,6 @@ export const TechnicianDashboardPage: React.FC = () => {
   const [dateRange, setDateRange] = useState<"7d" | "30d" | "season">("30d");
   const [selectedRegisteredLocation, setSelectedRegisteredLocation] =
     useState("");
-  const dateRangeOptions = [
-    { key: "7d" as const, label: "7 araw" },
-    { key: "30d" as const, label: "30 araw" },
-    { key: "season" as const, label: "Season" },
-  ];
 
   // Derive ISO from/to dates from the selected range
   const filterDates = useMemo(() => {
@@ -1087,10 +716,204 @@ export const TechnicianDashboardPage: React.FC = () => {
     [farmMarkers, selectedRegisteredLocation],
   );
 
+  const selectedLocation = registeredFarmLocations.find(
+    (location) => location.key === selectedRegisteredLocation,
+  );
+
+  const filteredDisasterReports = useMemo(
+    () =>
+      disasterReports.filter((report) => {
+        if (!report.createdAt) return false;
+        const reportDate = new Date(report.createdAt);
+        if (Number.isNaN(reportDate.getTime())) return false;
+        const dateParts = new Intl.DateTimeFormat("en", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        })
+          .formatToParts(reportDate)
+          .reduce<Record<string, string>>((parts, part) => {
+            if (part.type !== "literal") parts[part.type] = part.value;
+            return parts;
+          }, {});
+        const reportDateKey = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+        if (
+          reportDateKey < filterDates.from ||
+          reportDateKey > filterDates.to
+        ) {
+          return false;
+        }
+        if (
+          selectedLocation &&
+          registeredLocationKey(
+            report.farm?.municipality ?? "",
+            report.farm?.barangay ?? "",
+          ) !== selectedLocation.key
+        ) {
+          return false;
+        }
+        return report.farmId !== "manual-entry";
+      }),
+    [disasterReports, filterDates.from, filterDates.to, selectedLocation],
+  );
+
+  const reportScope = useMemo(() => {
+    const rowCount =
+      exportType === "disaster-claims"
+        ? filteredDisasterReports.length
+        : new Set(
+            filteredDisasterReports
+              .map((report) => report.farm?.barangay?.trim())
+              .filter((barangay): barangay is string => Boolean(barangay)),
+          ).size;
+    return {
+      barangayLabel: selectedLocation
+        ? `${selectedLocation.barangay} · ${selectedLocation.municipality}`
+        : "Lahat ng Barangay",
+      rangeLabel:
+        DATE_RANGE_OPTIONS.find((option) => option.key === dateRange)?.label ??
+        "30 araw",
+      rowCount,
+    };
+  }, [exportType, filteredDisasterReports, selectedLocation, dateRange]);
+
+  const distributionRows = useMemo(() => {
+    if (!selectedLocation) return barangays;
+    const farms = farmMarkers.filter(
+      (farm) =>
+        registeredLocationKey(farm.municipality, farm.barangay) ===
+        selectedLocation.key,
+    );
+    return farms.length
+      ? [
+          {
+            barangay: selectedLocation.barangay,
+            farmCount: farms.length,
+            totalHectares: farms.reduce(
+              (total, farm) => total + Number(farm.hectares || 0),
+              0,
+            ),
+          },
+        ]
+      : [];
+  }, [barangays, farmMarkers, selectedLocation]);
+
+  const distributionMunicipality =
+    selectedLocation?.municipality ??
+    (new Set(farmMarkers.map((farm) => farm.municipality)).size === 1
+      ? (farmMarkers[0]?.municipality ?? "Cagayan")
+      : "Cagayan");
+
   const registeredFarmCount = selectedRegisteredLocation
     ? visibleFarmMarkers.length
     : (totalFarms ??
       barangays.reduce((sum, barangay) => sum + barangay.farmCount, 0));
+
+  // ── Analitika Real Data Mappings ─────────────────────────────────────────
+  const analitikaAvgResponseHours = useMemo(() => {
+    if (
+      analyticsSummary &&
+      analyticsSummary.disasterMetrics.averageDamagePercentage > 0
+    ) {
+      return (
+        Math.round(
+          analyticsSummary.disasterMetrics.averageDamagePercentage * 10,
+        ) / 10
+      );
+    }
+    return 0;
+  }, [analyticsSummary]);
+
+  const analitikaDamageReportsByDate = useMemo(() => {
+    if (disasterReports.length === 0) return [];
+    const tagalogMonths = [
+      "Ene",
+      "Peb",
+      "Mar",
+      "Abr",
+      "May",
+      "Hun",
+      "Hul",
+      "Ago",
+      "Set",
+      "Okt",
+      "Nob",
+      "Dis",
+    ];
+    const countsByDate = new Map<string, number>();
+    disasterReports.forEach((r) => {
+      if (!r.createdAt) return;
+      const d = new Date(r.createdAt);
+      if (isNaN(d.getTime())) return;
+      const key = `${tagalogMonths[d.getMonth()]} ${d.getDate()}`;
+      countsByDate.set(key, (countsByDate.get(key) || 0) + 1);
+    });
+    return Array.from(countsByDate.entries()).map(([date, count]) => ({
+      date,
+      count,
+    }));
+  }, [disasterReports]);
+
+  const analitikaResponseByWeek = useMemo(() => {
+    if (scanTrends.length > 0) {
+      return scanTrends.slice(-4).map((_, i) => ({
+        weekLabel: `L${i + 1}`,
+        hours: analitikaAvgResponseHours,
+      }));
+    }
+    if (analitikaAvgResponseHours > 0) {
+      return [
+        { weekLabel: "L1", hours: analitikaAvgResponseHours },
+        { weekLabel: "L2", hours: analitikaAvgResponseHours },
+        { weekLabel: "L3", hours: analitikaAvgResponseHours },
+        { weekLabel: "L4", hours: analitikaAvgResponseHours },
+      ];
+    }
+    return [];
+  }, [scanTrends, analitikaAvgResponseHours]);
+
+  const analitikaStatusBreakdown = useMemo(() => {
+    const sinusuri =
+      disasterReports.filter((r) => r.status === "UNDER_REVIEW").length +
+      expertCases.filter((c) => c.status === "UNDER_REVIEW").length;
+    const nainspeksyon =
+      disasterReports.filter((r) => r.status === "INSPECTED").length +
+      expertCases.filter((c) => c.status === "INSPECTED").length;
+    const aprubado =
+      disasterReports.filter((r) => r.status === "RESOLVED").length +
+      expertCases.filter((c) => c.status === "RESOLVED").length;
+
+    return [
+      { status: "Sinusuri" as const, count: sinusuri },
+      { status: "Nainspeksyon" as const, count: nainspeksyon },
+      { status: "Aprubado" as const, count: aprubado },
+    ];
+  }, [disasterReports, expertCases]);
+
+  const analitikaBarangays = useMemo(() => {
+    let list = barangayRows.map((r) => ({
+      name: r.barangay,
+      farmCount: r.farms,
+      hectares: r.hectares,
+      openCases: r.openCases,
+      damageReports: r.disasterCount,
+      risk: r.riskScore,
+    }));
+    if (selectedRegisteredLocation) {
+      const selectedLocationObj = registeredFarmLocations.find(
+        (l) => l.key === selectedRegisteredLocation,
+      );
+      if (selectedLocationObj) {
+        list = list.filter((b) =>
+          b.name
+            .toLowerCase()
+            .includes(selectedLocationObj.barangay.toLowerCase()),
+        );
+      }
+    }
+    return list;
+  }, [barangayRows, selectedRegisteredLocation, registeredFarmLocations]);
 
   // ── Nav items ─────────────────────────────────────────────────────────────
   type NavItem = {
@@ -1246,7 +1069,7 @@ export const TechnicianDashboardPage: React.FC = () => {
 
             {/* Date range toggle */}
             <div className="hidden sm:flex items-center rounded-full border border-slate-200 bg-white p-1 gap-0.5">
-              {dateRangeOptions.map(({ key, label }) => {
+              {DATE_RANGE_OPTIONS.map(({ key, label }) => {
                 const isActive = dateRange === key;
                 return (
                   <button
@@ -1620,778 +1443,100 @@ export const TechnicianDashboardPage: React.FC = () => {
               TAB: ANALITIKA
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "ANALITIKA" && (
-            <GlobalFilterProvider>
-              <div className="p-4 sm:p-5 space-y-4">
-                {/* Header row */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <h2 className="text-xl font-black text-slate-900">
-                    Analitika
-                  </h2>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-500">
-                      FILTER
-                    </span>
-                    <label className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                      <span className="sr-only">
-                        Piliin ang rehistradong barangay
-                      </span>
-                      <select
-                        aria-label="Piliin ang rehistradong barangay"
-                        value={selectedRegisteredLocation}
-                        onChange={(event) =>
-                          setSelectedRegisteredLocation(event.target.value)
-                        }
-                        className="max-w-40 bg-transparent outline-none cursor-pointer"
-                      >
-                        <option value="">Lahat ng Barangay</option>
-                        {registeredFarmLocations.map((location) => (
-                          <option key={location.key} value={location.key}>
-                            {location.barangay} · {location.municipality}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="flex items-center rounded-full border border-slate-200 bg-white p-1 gap-0.5">
-                      {(["7d", "30d", "season"] as const).map((key) => {
-                        const label =
-                          key === "7d"
-                            ? "7 araw"
-                            : key === "30d"
-                              ? "30 araw"
-                              : "Season";
-                        const isActive = dateRange === key;
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => setDateRange(key)}
-                            className={`rounded-full px-3 py-1 text-xs font-semibold transition cursor-pointer ${isActive ? "bg-[#D1FAE5] text-[#065F46] font-bold" : "text-slate-500 hover:text-slate-700"}`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* KPI Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                      Rehistradong Sakahan
-                    </p>
-                    <p className="mt-2 text-3xl font-black text-slate-900 leading-none">
-                      {registeredFarmCount}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-1">sakahan</p>
-                  </div>
-                  <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                      Aktibong Taniman
-                    </p>
-                    <p className="mt-2 text-3xl font-black text-[#1D4ED8] leading-none">
-                      {dynamicStages.totalActive}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-1">ha</p>
-                  </div>
-                  <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                      Bukas na Kaso
-                    </p>
-                    <p className="mt-2 text-3xl font-black text-[#B45309] leading-none">
-                      {analyticsSummary?.pendingExpertCases ??
-                        pendingConsultations}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-1">kaso</p>
-                  </div>
-                  <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                      Karaniwang Oras ng Tugon
-                    </p>
-                    <p className="mt-2 text-3xl font-black text-slate-900 leading-none">
-                      {analyticsSummary
-                        ? analyticsSummary.disasterMetrics
-                            .averageDamagePercentage > 0
-                          ? analyticsSummary.disasterMetrics.averageDamagePercentage.toFixed(
-                              1,
-                            )
-                          : "27.4"
-                        : "27.4"}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-1">oras</p>
-                  </div>
-                </div>
-
-                {/* Row 2: Disaster Trend + Cases by Barangay */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  {/* Disaster Trend Area Chart */}
-                  <div className="lg:col-span-2 rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-sm font-extrabold text-slate-900">
-                        Mga Ulat ng Pinsala sa Paglipas ng Panahon
-                      </h3>
-                      <span className="text-[11px] text-slate-400 font-medium shrink-0 ml-2">
-                        {dateRange === "7d"
-                          ? "7 araw"
-                          : dateRange === "30d"
-                            ? "30 araw"
-                            : "Season"}{" "}
-                        · {disasterGroups.reduce((s, g) => s + g.count, 0)} ulat
-                      </span>
-                    </div>
-                    <DisasterTrendChart data={disasterGroups} />
-                  </div>
-
-                  {/* Cases by Barangay */}
-                  <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
-                    <h3 className="text-sm font-extrabold text-slate-900 mb-3">
-                      Mga Kaso ayon sa Barangay
-                    </h3>
-                    <CasesByBarangayChart data={barangayRows} />
-                  </div>
-                </div>
-
-                {/* Row 3: Case Status + Response Time + Crop Stage */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {/* Case Status stacked bar */}
-                  <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-extrabold text-slate-900">
-                        Katayuan ng mga Kaso
-                      </h3>
-                      <span className="text-[11px] text-amber-600 font-bold">
-                        {totalPending} bukas
-                      </span>
-                    </div>
-                    <CaseStatusBar
-                      sinusuri={
-                        disasterReports.filter(
-                          (r) => r.status === "UNDER_REVIEW",
-                        ).length +
-                        expertCases.filter((c) => c.status === "UNDER_REVIEW")
-                          .length
-                      }
-                      nainspeksyon={
-                        disasterReports.filter((r) => r.status === "INSPECTED")
-                          .length +
-                        expertCases.filter((c) => c.status === "INSPECTED")
-                          .length
-                      }
-                      aprubado={
-                        disasterReports.filter((r) => r.status === "RESOLVED")
-                          .length +
-                        expertCases.filter((c) => c.status === "RESOLVED")
-                          .length
-                      }
-                    />
-                  </div>
-
-                  {/* Response Time bar chart */}
-                  <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-extrabold text-slate-900">
-                        Oras ng Tugon
-                      </h3>
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        bawat linggo
-                      </span>
-                    </div>
-                    <ResponseTimeChart
-                      data={scanTrends}
-                      avgHours={
-                        analyticsSummary
-                          ? analyticsSummary.disasterMetrics
-                              .averageDamagePercentage > 0
-                            ? analyticsSummary.disasterMetrics
-                                .averageDamagePercentage
-                            : 27.4
-                          : 27.4
-                      }
-                    />
-                  </div>
-
-                  {/* Crop Stage horizontal bar */}
-                  <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-2xs">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-extrabold text-slate-900">
-                        Taniman ayon sa Yugto
-                      </h3>
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        {dynamicStages.totalActive} ha
-                      </span>
-                    </div>
-                    <CropStageBar stages={dynamicStages} />
-                  </div>
-                </div>
-
-                {/* Barangay Table */}
-                <BarangayTable data={barangayRows} />
-              </div>
-            </GlobalFilterProvider>
+            <AnalitikaView
+              stats={{
+                farmCount: registeredFarmCount,
+                activeHectares:
+                  parseFloat(dynamicStages.totalActive) ||
+                  (totalActiveHectares ?? 0),
+                openCases:
+                  analyticsSummary?.pendingExpertCases ?? pendingConsultations,
+                avgResponseHours: analitikaAvgResponseHours,
+              }}
+              damageReportTotal={
+                analyticsSummary?.disasterMetrics.totalReports ??
+                disasterReports.length
+              }
+              damageReportsByDate={analitikaDamageReportsByDate}
+              responseByWeek={analitikaResponseByWeek}
+              statusBreakdown={analitikaStatusBreakdown}
+              stageHectares={cropStageList}
+              barangays={analitikaBarangays}
+              dateRangeLabel={
+                dateRange === "7d"
+                  ? "7 araw"
+                  : dateRange === "30d"
+                    ? "30 araw"
+                    : "Season"
+              }
+              isLoading={pipelineLoading}
+              error={null}
+            />
           )}
 
           {/* ══════════════════════════════════════════════════════════════════
               TAB: PINSALA
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "PINSALA" && (
-            <div className="p-4 sm:p-5 space-y-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900">
-                  Mga Kaso ng Pinsala
-                </h2>
-              </div>
-
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {(
-                  [
-                    { key: "LAHAT", label: "Lahat" },
-                    { key: "BAGO", label: "Bago" },
-                    { key: "SINUSURI", label: "Sinusuri" },
-                    { key: "NA_VERIFY", label: "Na-verify" },
-                    { key: "APRUBADO", label: "Aprubado" },
-                  ] as { key: DamageFilter; label: string }[]
-                ).map((f) => {
-                  const isActive = damageFilter === f.key;
-                  return (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setDamageFilter(f.key)}
-                      className={`rounded-full px-5 py-1.5 text-xs sm:text-sm font-bold transition shrink-0 cursor-pointer ${
-                        isActive
-                          ? "bg-[#0B2347] text-white shadow-2xs"
-                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {pipelineLoading ? (
-                <LoadingState label="Kinukuha ang mga kaso ng pinsala..." />
-              ) : filteredDamageList.length === 0 ? (
-                <EmptyState
-                  title="Walang nakatalang kaso ng pinsala"
-                  message="Walang kasong tumutugma sa napiling filter sa kasalukuyan."
-                />
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                  <div className="lg:col-span-8 rounded-2xl border border-slate-200/90 bg-white overflow-hidden shadow-2xs">
-                    <div className="hidden md:block overflow-x-auto">
-                      <table className="w-full text-left text-sm text-slate-700">
-                        <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
-                          <tr>
-                            <th className="px-5 py-3">Kaso</th>
-                            <th className="px-5 py-3">Magsasaka</th>
-                            <th className="px-5 py-3">Barangay</th>
-                            <th className="px-5 py-3">Pinsala</th>
-                            <th className="px-5 py-3">HA</th>
-                            <th className="px-5 py-3">Katayuan</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredDamageList.map((item, idx) => {
-                            const isSelected = selectedDisaster?.id === item.id;
-                            const parsed = parseDisasterNotes(item.notes);
-                            const farmerDisplay =
-                              item.farm?.name?.replace(/^Sakahan ni\s*/i, "") ||
-                              parsed.cleanNotes?.slice(0, 24) ||
-                              "Magsasaka";
-                            const statusLabel =
-                              item.status === "SUBMITTED"
-                                ? "Bago"
-                                : item.status === "UNDER_REVIEW"
-                                  ? "Sinusuri"
-                                  : item.status === "INSPECTED"
-                                    ? "Na-verify"
-                                    : "Aprubado";
-                            const affectedHa =
-                              Number(item.damagePercentage || 0) > 0
-                                ? `${formatHa((Number(item.damagePercentage) / 100) * 2.5)} ha`
-                                : "1.0 ha";
-                            return (
-                              <tr
-                                key={item.id}
-                                onClick={() => setSelectedDisaster(item)}
-                                className={`cursor-pointer transition hover:bg-slate-50 ${isSelected ? "bg-blue-50/70 font-semibold" : ""}`}
-                              >
-                                <td className="px-5 py-3.5 font-bold text-slate-900">
-                                  Blg. {idx + 1}
-                                </td>
-                                <td className="px-5 py-3.5 text-slate-800">
-                                  {farmerDisplay}
-                                </td>
-                                <td className="px-5 py-3.5 text-slate-600">
-                                  {item.farm?.barangay || "Centro Norte (Pob.)"}
-                                </td>
-                                <td className="px-5 py-3.5 text-slate-800 font-medium">
-                                  {item.disasterType}
-                                </td>
-                                <td className="px-5 py-3.5 text-slate-600">
-                                  {affectedHa}
-                                </td>
-                                <td className="px-5 py-3.5">
-                                  <span
-                                    className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${item.status === "SUBMITTED" ? "bg-blue-100 text-blue-800" : item.status === "UNDER_REVIEW" ? "bg-amber-100 text-amber-800" : item.status === "INSPECTED" ? "bg-teal-100 text-teal-800" : "bg-emerald-100 text-emerald-800"}`}
-                                  >
-                                    {statusLabel}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="md:hidden divide-y divide-slate-100 p-2">
-                      {filteredDamageList.map((item, idx) => {
-                        const isSelected = selectedDisaster?.id === item.id;
-                        const statusLabel =
-                          item.status === "SUBMITTED"
-                            ? "Bago"
-                            : item.status === "UNDER_REVIEW"
-                              ? "Sinusuri"
-                              : item.status === "INSPECTED"
-                                ? "Na-verify"
-                                : "Aprubado";
-                        return (
-                          <div
-                            key={item.id}
-                            onClick={() => setSelectedDisaster(item)}
-                            className={`p-3.5 rounded-xl cursor-pointer transition ${isSelected ? "bg-blue-50/80 border border-blue-200" : "hover:bg-slate-50"}`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="font-bold text-slate-900 text-sm">
-                                Blg. {idx + 1} · {item.disasterType}
-                              </p>
-                              <span
-                                className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold shrink-0 ${item.status === "SUBMITTED" ? "bg-blue-100 text-blue-800" : item.status === "UNDER_REVIEW" ? "bg-amber-100 text-amber-800" : item.status === "INSPECTED" ? "bg-teal-100 text-teal-800" : "bg-emerald-100 text-emerald-800"}`}
-                              >
-                                {statusLabel}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs text-slate-500 font-medium">
-                              {item.farm?.name || "Sakahan"} ·{" "}
-                              {item.farm?.barangay || "Centro Norte (Pob.)"}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {selectedDisaster && (
-                    <div className="lg:col-span-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs space-y-5">
-                      <div>
-                        <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
-                          NAPILING KASO
-                        </p>
-                        <h3 className="mt-1 text-lg font-black text-slate-900">
-                          Blg.{" "}
-                          {filteredDamageList.findIndex(
-                            (d) => d.id === selectedDisaster.id,
-                          ) + 1}{" "}
-                          · {selectedDisaster.disasterType}
-                        </h3>
-                        <p className="text-xs text-slate-500 font-medium">
-                          {selectedDisaster.farm?.name || "Sakahan"} ·{" "}
-                          {selectedDisaster.farm?.barangay ||
-                            "Centro Norte (Pob.)"}
-                        </p>
-                      </div>
-                      <div className="space-y-3.5 py-1">
-                        {[
-                          { step: 1, label: "Naisumite", key: "SUBMITTED" },
-                          { step: 2, label: "Sinusuri", key: "UNDER_REVIEW" },
-                          {
-                            step: 3,
-                            label: "Na-verify sa bukid",
-                            key: "INSPECTED",
-                          },
-                          { step: 4, label: "Aprubado", key: "RESOLVED" },
-                        ].map(({ step, label, key }) => {
-                          const statusOrder: Record<string, number> = {
-                            SUBMITTED: 1,
-                            UNDER_REVIEW: 2,
-                            INSPECTED: 3,
-                            RESOLVED: 4,
-                          };
-                          const currentVal =
-                            statusOrder[selectedDisaster.status] || 1;
-                          const thisVal = statusOrder[key];
-                          const isDone = thisVal < currentVal;
-                          const isCurrent = thisVal === currentVal;
-                          return (
-                            <div key={step} className="flex items-center gap-3">
-                              <div
-                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition ${isDone ? "bg-emerald-600 text-white" : isCurrent ? "bg-amber-500 text-white" : "border-2 border-slate-300 text-slate-400 bg-white"}`}
-                              >
-                                {isDone ? (
-                                  <Check className="h-3.5 w-3.5 stroke-3" />
-                                ) : (
-                                  step
-                                )}
-                              </div>
-                              <span
-                                className={`text-xs sm:text-sm font-bold ${isCurrent ? "text-slate-900 font-black" : isDone ? "text-slate-800" : "text-slate-400"}`}
-                              >
-                                {label}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {selectedDisaster.notes && (
-                        <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100 text-xs sm:text-sm text-slate-700 leading-relaxed">
-                          <p className="font-bold text-slate-900 mb-1">
-                            Tala sa Sakahan:
-                          </p>
-                          {parseDisasterNotes(selectedDisaster.notes)
-                            .cleanNotes || selectedDisaster.notes}
-                        </div>
-                      )}
-                      <div className="space-y-2.5 pt-1">
-                        {selectedDisaster.status !== "RESOLVED" && (
-                          <button
-                            type="button"
-                            disabled={actionLoading}
-                            onClick={() =>
-                              handleUpdateStatus(
-                                selectedDisaster.id,
-                                "INSPECTED",
-                              )
-                            }
-                            className="w-full rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-sm font-bold text-white shadow-2xs transition active:scale-98 disabled:opacity-60 cursor-pointer"
-                          >
-                            {actionLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                            ) : (
-                              "I-verify sa Bukid"
-                            )}
-                          </button>
-                        )}
-                        {selectedDisaster.status === "INSPECTED" && (
-                          <button
-                            type="button"
-                            disabled={actionLoading}
-                            onClick={() =>
-                              handleUpdateStatus(
-                                selectedDisaster.id,
-                                "RESOLVED",
-                              )
-                            }
-                            className="w-full rounded-xl bg-blue-700 hover:bg-blue-800 py-3 text-sm font-bold text-white shadow-2xs transition active:scale-98 disabled:opacity-60 cursor-pointer"
-                          >
-                            Aprubahan ang Claim
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <PinsalaView
+              disasterReports={disasterReports}
+              isLoading={pipelineLoading}
+              error={null}
+              onVerifyCase={(caseId) => handleUpdateStatus(caseId, "INSPECTED")}
+              onApproveCase={(caseId) => handleUpdateStatus(caseId, "RESOLVED")}
+              isVerifying={actionLoading}
+              isApproving={actionLoading}
+              selectedLocationKey={selectedRegisteredLocation}
+            />
           )}
 
           {/* ══════════════════════════════════════════════════════════════════
               TAB: KONSULTASYON
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "KONSULTASYON" && (
-            <div className="p-4 sm:p-5 space-y-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900">
-                  Mga Konsultasyon
-                </h2>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {(
-                  [
-                    { key: "BAGO", label: "Bago" },
-                    { key: "SINAGOT", label: "Sinagot" },
-                    { key: "LAHAT", label: "Lahat" },
-                  ] as { key: ConsultFilter; label: string }[]
-                ).map((f) => {
-                  const isActive = consultFilter === f.key;
-                  return (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setConsultFilter(f.key)}
-                      className={`rounded-full px-5 py-1.5 text-xs sm:text-sm font-bold transition cursor-pointer ${isActive ? "bg-[#0B2347] text-white shadow-2xs" : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"}`}
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {pipelineLoading ? (
-                <LoadingState label="Kinukuha ang mga konsultasyon..." />
-              ) : filteredConsultList.length === 0 ? (
-                <EmptyState
-                  title="Walang nakatalang konsultasyon"
-                  message="Walang kasong naghihintay ng payo sa napiling filter."
-                />
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                  <div className="lg:col-span-5 space-y-3">
-                    {filteredConsultList.map((c) => {
-                      const isSelected = selectedCase?.id === c.id;
-                      const parsed = parseLegacyCaseDescription(
-                        c.observation?.description,
-                      );
-                      const farmerName = c.observation?.farmer
-                        ? `${c.observation.farmer.firstName} ${c.observation.farmer.lastName}`.trim()
-                        : parsed.farmerName || "Magsasaka";
-                      const isAnswered =
-                        Boolean(c.recommendation) || c.status === "RESOLVED";
-                      return (
-                        <div
-                          key={c.id}
-                          onClick={() => setSelectedCase(c)}
-                          className={`p-4 rounded-2xl border transition cursor-pointer shadow-2xs ${isSelected ? "bg-white border-blue-500 ring-2 ring-blue-500/20" : "bg-white border-slate-200 hover:border-slate-300"}`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="font-extrabold text-slate-900 text-sm sm:text-base">
-                              {farmerName}
-                            </p>
-                            <span
-                              className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${isAnswered ? "bg-slate-100 text-slate-700" : "bg-blue-100 text-blue-800"}`}
-                            >
-                              {isAnswered ? "Sinagot" : "Bago"}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs sm:text-sm font-medium text-slate-600 line-clamp-1">
-                            {c.observation?.title || "Konsultasyon sa Taniman"}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {selectedCase &&
-                    (() => {
-                      const parsed = parseLegacyCaseDescription(
-                        selectedCase.observation?.description,
-                      );
-                      const farmerName = selectedCase.observation?.farmer
-                        ? `${selectedCase.observation.farmer.firstName} ${selectedCase.observation.farmer.lastName}`.trim()
-                        : parsed.farmerName || "Magsasaka";
-                      const farmBarangay =
-                        selectedCase.observation?.cropCycle?.farm?.barangay ||
-                        parsed.barangay ||
-                        "Centro Norte (Pob.)";
-                      const questionText =
-                        parsed.message ||
-                        selectedCase.observation?.description ||
-                        "Kailangan ng payo ukol sa kalagayan ng taniman.";
-                      const aiRec =
-                        selectedCase.observation?.aiDiagnosis
-                          ?.recommendedAction ||
-                        "Batay sa yugto ng paglago ng mais, regular na inspeksyunin ang usbong at panatilihin ang sapat na moisture sa lupa.";
-
-                      return (
-                        <div className="lg:col-span-7 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs flex flex-col justify-between min-h-115 space-y-4">
-                          <div>
-                            <div className="flex items-baseline justify-between border-b border-slate-100 pb-3 mb-4">
-                              <h3 className="text-base sm:text-lg font-black text-slate-900">
-                                {selectedCase.observation?.title ||
-                                  "Konsultasyon"}
-                              </h3>
-                              <span className="text-xs text-slate-500 font-medium">
-                                {farmBarangay}
-                              </span>
-                            </div>
-                            <div className="space-y-4">
-                              <div className="flex flex-col items-start max-w-[85%]">
-                                <span className="text-xs font-bold text-slate-400 mb-1">
-                                  {farmerName}
-                                </span>
-                                <div className="rounded-2xl rounded-tl-xs bg-slate-100 p-3.5 text-xs sm:text-sm text-slate-800 leading-relaxed">
-                                  {questionText}
-                                </div>
-                              </div>
-                              {selectedCase.recommendation && (
-                                <div className="flex flex-col items-end max-w-[85%] ml-auto">
-                                  <span className="text-xs font-bold text-slate-400 mb-1">
-                                    Ikaw
-                                  </span>
-                                  <div className="rounded-2xl rounded-tr-xs bg-[#0B2347] p-3.5 text-xs sm:text-sm text-white leading-relaxed">
-                                    {selectedCase.recommendation}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="space-y-3 pt-3 border-t border-slate-100">
-                            <div className="rounded-2xl border border-amber-300 bg-[#FFFBEB] p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                              <div className="flex items-start gap-2.5">
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 p-0.5">
-                                  <img
-                                    src="/assets/mascot-maisy.png"
-                                    alt="Maisy"
-                                    className="h-7 w-7 shrink-0 object-contain drop-shadow-2xs"
-                                    style={{ imageRendering: "pixelated" }}
-                                  />
-                                </div>
-                                <div>
-                                  <p className="text-xs font-bold text-amber-900">
-                                    Mungkahi ni Maisy
-                                  </p>
-                                  <p className="text-xs text-amber-800 leading-snug">
-                                    {aiRec}
-                                  </p>
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setChatReplyInput(aiRec)}
-                                className="rounded-xl border border-amber-400 bg-white hover:bg-amber-50 px-3.5 py-1.5 text-xs font-bold text-amber-900 shadow-2xs transition active:scale-95 shrink-0 self-start sm:self-auto cursor-pointer"
-                              >
-                                Gamitin
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                value={chatReplyInput}
-                                onChange={(e) =>
-                                  setChatReplyInput(e.target.value)
-                                }
-                                placeholder="Isulat ang sagot..."
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") handleSendReply();
-                                }}
-                                className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                              />
-                              <button
-                                type="button"
-                                disabled={actionLoading}
-                                onClick={handleSendReply}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-[#065F46] hover:bg-emerald-800 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-2xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
-                              >
-                                <span>Ipadala</span>
-                                {actionLoading ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Send className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                </div>
-              )}
-            </div>
+            <KonsultasyonView
+              expertCases={expertCases}
+              isLoading={pipelineLoading}
+              error={null}
+              onSendReply={async (caseId, reply) => {
+                setActionLoading(true);
+                try {
+                  await resolveExpertCase(caseId, { recommendation: reply });
+                  toast.success("Naipadala ang rekomendasyon sa magsasaka.");
+                  await fetchPipeline(true);
+                } catch {
+                  toast.error("Hindi naipadala ang payo. Pakisubukan muli.");
+                } finally {
+                  setActionLoading(false);
+                }
+              }}
+              isSendingReply={actionLoading}
+              selectedLocationKey={selectedRegisteredLocation}
+            />
           )}
 
           {/* ══════════════════════════════════════════════════════════════════
               TAB: ULAT
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "ULAT" && (
-            <div className="p-4 sm:p-5">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                <div className="lg:col-span-6 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-2xs space-y-4">
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-slate-600" />
-                    <h3 className="text-lg font-bold text-slate-900">
-                      I-download ang Ulat
-                    </h3>
-                  </div>
-                  <p className="text-xs sm:text-sm text-slate-500">
-                    Pumili ng uri ng ulat para sa disaster claims o buod ng mga
-                    sakahan ng Cagayan Valley.
-                  </p>
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Uri ng Ulat
-                    </label>
-                    <select
-                      value={exportType}
-                      onChange={(e) =>
-                        setExportType(e.target.value as ExportType)
-                      }
-                      className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-600"
-                    >
-                      <option value="disaster-claims">
-                        Disaster Claims (Pinsala sa Taniman)
-                      </option>
-                      <option value="barangay-summary">
-                        Buod ng mga Sakahan sa Barangay
-                      </option>
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => handleExport("xlsx")}
-                      disabled={exporting}
-                      className="flex items-center justify-center gap-2 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-3 text-xs sm:text-sm font-bold text-white shadow-2xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
-                    >
-                      {exporting && exportFormat === "xlsx" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4" />
-                      )}
-                      Excel (.xlsx)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleExport("csv")}
-                      disabled={exporting}
-                      className="flex items-center justify-center gap-2 rounded-xl border border-[#065F46] hover:bg-emerald-50 py-3 text-xs sm:text-sm font-bold text-[#065F46] shadow-2xs transition active:scale-95 disabled:opacity-60 cursor-pointer"
-                    >
-                      {exporting && exportFormat === "csv" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4" />
-                      )}
-                      CSV
-                    </button>
-                  </div>
-                </div>
-
-                <div className="lg:col-span-6 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-2xs space-y-4">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-slate-600" />
-                    <h3 className="text-lg font-bold text-slate-900">
-                      Distribusyon ng Sakahan sa Solana
-                    </h3>
-                  </div>
-                  {barangaysLoading ? (
-                    <LoadingState label="Kinukuha ang tala ng mga barangay..." />
-                  ) : barangays.length === 0 ? (
-                    <EmptyState
-                      title="Walang tala ng barangay"
-                      message="Wala pang nakarehistrong sakahan ayon sa barangay."
-                    />
-                  ) : (
-                    <ul className="divide-y divide-slate-100">
-                      {barangays.map((b) => (
-                        <li
-                          key={b.barangay}
-                          className="py-2.5 flex items-center justify-between text-xs sm:text-sm"
-                        >
-                          <span className="font-bold text-slate-800">
-                            {b.barangay}
-                          </span>
-                          <span className="text-slate-500 font-medium">
-                            {b.farmCount} sakahan · {formatHa(b.totalHectares)}{" "}
-                            ha
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            </div>
+            <UlatView
+              selectedReportType={exportType}
+              onSelectReportType={(type) => {
+                setExportType(type);
+                setDownloadSuccess(false);
+                setDownloadError(null);
+              }}
+              scope={reportScope}
+              onDownload={handleExport}
+              isDownloading={exporting}
+              downloadSuccess={downloadSuccess}
+              downloadError={downloadError}
+              municipality={distributionMunicipality}
+              barangays={distributionRows}
+              barangaysLoading={barangaysLoading}
+              barangaysError={barangaysError}
+              isLoading={pipelineLoading}
+            />
           )}
         </main>
       </div>
