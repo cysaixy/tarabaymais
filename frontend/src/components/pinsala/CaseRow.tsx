@@ -17,7 +17,7 @@ export const CaseRow: React.FC<CaseRowProps> = ({ item, onSelect }) => {
         type="button"
         onClick={() => onSelect(item.id)}
         aria-label={`Piliin ang Kaso Blg. ${item.caseNo}: ${item.damageType}, ${item.farmerName}`}
-        className="w-full text-left bg-white border border-[#dde3d8] rounded-[16px] min-h-[60px] px-5 transition-colors hover:bg-[#fafbf9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f2a5c] focus-visible:ring-offset-2 cursor-pointer shadow-xs flex flex-col justify-center"
+        className="w-full text-left bg-white border border-[#dde3d8] rounded-2xl min-h-15 px-5 transition-colors hover:bg-[#fafbf9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f2a5c] focus-visible:ring-offset-2 cursor-pointer shadow-xs flex flex-col justify-center"
       >
         {/* Desktop View (>= 1024px) */}
         <div className="hidden lg:grid grid-cols-[70px_1fr_1.3fr_1.4fr_70px_96px] gap-3 items-center w-full text-[14px]">
@@ -94,4 +94,3 @@ export const CaseRow: React.FC<CaseRowProps> = ({ item, onSelect }) => {
     </li>
   );
 };
-

@@ -6,12 +6,7 @@ export interface AffectedAreaPanelProps {
   cases: CaseItem[];
 }
 
-const DEFAULT_TYPES = [
-  "Bagyo",
-  "Baha",
-  "Pagdami ng Peste",
-  "Tagtuyot",
-];
+const DEFAULT_TYPES = ["Bagyo", "Baha", "Pagdami ng Peste", "Tagtuyot"];
 
 export const AffectedAreaPanel: React.FC<AffectedAreaPanelProps> = ({
   cases,
@@ -40,7 +35,11 @@ export const AffectedAreaPanel: React.FC<AffectedAreaPanelProps> = ({
         fillColor: getDamageBarColor(damageType),
       }))
       // Filter out zero-hectare non-default types, or keep default types if cases exist
-      .filter((item) => (cases.length > 0 ? item.hectares > 0 || DEFAULT_TYPES.includes(item.damageType) : true))
+      .filter((item) =>
+        cases.length > 0
+          ? item.hectares > 0 || DEFAULT_TYPES.includes(item.damageType)
+          : true,
+      )
       .sort((a, b) => b.hectares - a.hectares);
 
     const max = Math.max(...list.map((item) => item.hectares), 0);
@@ -60,7 +59,7 @@ export const AffectedAreaPanel: React.FC<AffectedAreaPanelProps> = ({
       <div>
         <p
           id="affected-area-title"
-          className="text-[12px] font-bold tracking-[0.1em] text-[#bfe8d3] uppercase"
+          className="text-[12px] font-bold tracking-widest text-[#bfe8d3] uppercase"
         >
           APEKTADONG TANIMAN
         </p>
@@ -88,9 +87,7 @@ export const AffectedAreaPanel: React.FC<AffectedAreaPanelProps> = ({
                 <span className="text-white font-medium">
                   {item.damageType}
                 </span>
-                <span className="text-white font-bold">
-                  {item.hectares} ha
-                </span>
+                <span className="text-white font-bold">{item.hectares} ha</span>
               </div>
               {/* 10px tall track */}
               <div
@@ -99,7 +96,7 @@ export const AffectedAreaPanel: React.FC<AffectedAreaPanelProps> = ({
                 aria-valuemin={0}
                 aria-valuemax={maxHectares}
                 aria-label={`${item.damageType}: ${item.hectares} ha`}
-                className="h-[10px] w-full rounded-full bg-[#1d5a45] overflow-hidden"
+                className="h-2.5 w-full rounded-full bg-[#1d5a45] overflow-hidden"
               >
                 <div
                   style={{
@@ -116,4 +113,3 @@ export const AffectedAreaPanel: React.FC<AffectedAreaPanelProps> = ({
     </section>
   );
 };
-

@@ -27,8 +27,8 @@ export const SelectedCaseSkeleton: React.FC = () => {
       <div className="bg-[#f4f6f2] rounded-[14px] p-[12px_16px] h-16 w-full" />
 
       <div className="flex flex-col sm:flex-row gap-3 pt-1">
-        <div className="min-h-[52px] sm:flex-[2] rounded-[14px] bg-slate-200" />
-        <div className="min-h-[52px] sm:flex-1 rounded-[14px] bg-slate-200" />
+        <div className="min-h-13 sm:flex-2 rounded-[14px] bg-slate-200" />
+        <div className="min-h-13 sm:flex-1 rounded-[14px] bg-slate-200" />
       </div>
     </div>
   );
@@ -36,7 +36,7 @@ export const SelectedCaseSkeleton: React.FC = () => {
 
 export const CaseRowSkeleton: React.FC = () => {
   return (
-    <div className="w-full bg-white border border-[#dde3d8] rounded-[16px] min-h-[60px] px-5 flex items-center animate-pulse shadow-xs">
+    <div className="w-full bg-white border border-[#dde3d8] rounded-2xl min-h-15 px-5 flex items-center animate-pulse shadow-xs">
       <div className="hidden lg:grid grid-cols-[70px_1fr_1.3fr_1.4fr_70px_96px] gap-3 items-center w-full">
         <div className="h-4 w-12 bg-slate-200 rounded-md" />
         <div className="h-4 w-24 bg-slate-200 rounded-md" />
@@ -74,7 +74,7 @@ export const DarkPanelSkeleton: React.FC = () => {
               <div className="h-4 w-24 bg-[#16533f] rounded-md" />
               <div className="h-4 w-12 bg-[#16533f] rounded-md" />
             </div>
-            <div className="h-[10px] w-full rounded-full bg-[#16533f]" />
+            <div className="h-2.5 w-full rounded-full bg-[#16533f]" />
           </div>
         ))}
       </div>
@@ -111,7 +111,7 @@ export const PinsalaViewSkeleton: React.FC = () => {
         {[1, 2, 3, 4, 5].map((i) => (
           <div
             key={i}
-            className="min-h-[44px] w-28 rounded-full bg-slate-200 animate-pulse shrink-0"
+            className="min-h-11 w-28 rounded-full bg-slate-200 animate-pulse shrink-0"
           />
         ))}
       </div>
@@ -141,4 +141,3 @@ export const PinsalaViewSkeleton: React.FC = () => {
     </div>
   );
 };
-
