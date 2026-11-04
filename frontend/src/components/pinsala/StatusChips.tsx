@@ -37,7 +37,7 @@ export const StatusChips: React.FC<StatusChipsProps> = ({
             role="tab"
             aria-selected={isActive}
             onClick={() => onSelect(key)}
-            className={`inline-flex items-center gap-1.5 shrink-0 min-h-[44px] px-4 rounded-full text-[14px] font-bold transition-colors cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f2a5c] focus-visible:ring-offset-2 ${
+            className={`inline-flex items-center gap-1.5 shrink-0 min-h-11 px-4 rounded-full text-[14px] font-bold transition-colors cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0f2a5c] focus-visible:ring-offset-2 ${
               isActive
                 ? "bg-[#0f2a5c] text-white shadow-xs"
                 : "bg-white text-[#14213d] border border-[#c8d0c2] hover:bg-slate-50"
@@ -57,4 +57,3 @@ export const StatusChips: React.FC<StatusChipsProps> = ({
     </div>
   );
 };
-

@@ -60,12 +60,17 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
       const hectares = extractHectares(
         item.notes,
         item.damagePercentage,
-        (item.farm as { areaHectares?: string | number } | undefined)?.areaHectares
+        (item.farm as { areaHectares?: string | number } | undefined)
+          ?.areaHectares,
       );
       const verifiedFarmer = item.farm?.farmer
         ? `${item.farm.farmer.firstName || ""} ${item.farm.farmer.lastName || ""}`.trim()
         : null;
-      const farmerName = extractFarmerName(item.farm?.name, item.notes, verifiedFarmer);
+      const farmerName = extractFarmerName(
+        item.farm?.name,
+        item.notes,
+        verifiedFarmer,
+      );
       const barangay = item.farm?.barangay || "Centro Norte (Pob.)";
       const status = mapCaseStatus(item.status);
       const farmNote = extractFarmNote(item.notes);
@@ -132,7 +137,7 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
       }}
       className="min-h-full w-full p-6 text-[#14213d]"
     >
-      <div className="mx-auto max-w-[1152px] w-full flex flex-col gap-4">
+      <div className="mx-auto max-w-6xl w-full flex flex-col gap-4">
         {/* Header */}
         <header className="flex flex-col gap-3 w-full">
           <h1 className="text-[28px] font-extrabold text-[#14213d] tracking-tight leading-none">
@@ -167,7 +172,7 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
             {/* Left Column (Columns 1-8 on desktop, gap 10px) */}
             <div className="contents lg:flex lg:flex-col lg:gap-2.5 lg:col-span-8">
               {casesForActiveChip.length === 0 ? (
-                <div className="order-1 w-full bg-white border border-[#dde3d8] rounded-[24px] p-8 text-center text-[#4b5563] text-[15px] font-semibold shadow-xs">
+                <div className="order-1 w-full bg-white border border-[#dde3d8] rounded-3xl p-8 text-center text-[#4b5563] text-[15px] font-semibold shadow-xs">
                   Walang kaso sa napiling katayuan.
                 </div>
               ) : selectedCase ? (
@@ -185,7 +190,10 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
               {/* Other Cases: Compact rows */}
               {otherCases.length > 0 ? (
                 <div className="order-4 w-full flex flex-col gap-2">
-                  <ul role="list" className="flex flex-col gap-2 w-full m-0 p-0">
+                  <ul
+                    role="list"
+                    className="flex flex-col gap-2 w-full m-0 p-0"
+                  >
                     {otherCases.map((item) => (
                       <CaseRow
                         key={item.id}

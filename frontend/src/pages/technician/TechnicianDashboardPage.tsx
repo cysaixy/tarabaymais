@@ -108,8 +108,12 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   // ── Live Analytics & Crop Stages from Backend ─────────────────────────────
   const [totalFarms, setTotalFarms] = useState<number | null>(null);
-  const [totalActiveHectares, setTotalActiveHectares] = useState<number | null>(null);
-  const [cropStagesData, setCropStagesData] = useState<Record<string, CropStage>>({});
+  const [totalActiveHectares, setTotalActiveHectares] = useState<number | null>(
+    null,
+  );
+  const [cropStagesData, setCropStagesData] = useState<
+    Record<string, CropStage>
+  >({});
   const [analyticsSummary, setAnalyticsSummary] = useState<{
     totalFarmers: number;
     activeCropCycles: number;
@@ -144,7 +148,8 @@ export const TechnicianDashboardPage: React.FC = () => {
   const [focusTrigger] = useState(0);
 
   // ── Damage (Pinsala) Tab State ────────────────────────────────────────────
-  const [selectedDisaster, setSelectedDisaster] = useState<DisasterReport | null>(null);
+  const [selectedDisaster, setSelectedDisaster] =
+    useState<DisasterReport | null>(null);
   const [isAddDamageOpen, setIsAddDamageOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [newDamageForm, setNewDamageForm] = useState({
@@ -174,120 +179,143 @@ export const TechnicianDashboardPage: React.FC = () => {
   const userId = profile?.id ?? user?.uid ?? "";
 
   // ── Fetch Pipeline Data (Live API) ────────────────────────────────────────
-  const fetchPipeline = useCallback(async (silent = false) => {
-    if (!silent) setPipelineLoading(true);
-    try {
-      const data = await getCasePipeline();
-      const disasters = data.disasterCases ?? [];
-      const experts = data.expertCases ?? [];
-      setDisasterReports(disasters);
-      setExpertCases(experts);
-      if (disasters.length > 0 && !selectedDisaster) setSelectedDisaster(disasters[0]);
-      if (experts.length > 0 && !selectedCase) setSelectedCase(experts[0]);
-    } catch {
-      // Non-fatal
-    } finally {
-      if (!silent) setPipelineLoading(false);
-    }
-  }, [selectedDisaster, selectedCase]);
+  const fetchPipeline = useCallback(
+    async (silent = false) => {
+      if (!silent) setPipelineLoading(true);
+      try {
+        const data = await getCasePipeline();
+        const disasters = data.disasterCases ?? [];
+        const experts = data.expertCases ?? [];
+        setDisasterReports(disasters);
+        setExpertCases(experts);
+        if (disasters.length > 0 && !selectedDisaster)
+          setSelectedDisaster(disasters[0]);
+        if (experts.length > 0 && !selectedCase) setSelectedCase(experts[0]);
+      } catch {
+        // Non-fatal
+      } finally {
+        if (!silent) setPipelineLoading(false);
+      }
+    },
+    [selectedDisaster, selectedCase],
+  );
 
   // ── Fetch Overview & Crop Stages (Live API) ───────────────────────────────
-  const fetchAnalytics = useCallback(async (
-    params?: { barangay?: string; from?: string; to?: string }
-  ) => {
-    const q = params ?? {};
-    try {
-      const summary = await getAnalyticsSummary();
-      setTotalFarms(summary.totalFarms);
-      setTotalActiveHectares(Math.round(Number(summary.totalActiveHectares) * 10) / 10);
-      setAnalyticsSummary({
-        totalFarmers: summary.totalFarmers,
-        activeCropCycles: summary.activeCropCycles,
-        pendingExpertCases: summary.pendingExpertCases,
-        disasterMetrics: summary.disasterMetrics,
-      });
-    } catch { /* Non-fatal */ }
-
-    try {
-      const stagesRes = await getCropStages(q);
-      if (stagesRes?.stages) setCropStagesData(stagesRes.stages);
-    } catch { /* Non-fatal */ }
-
-    try {
-      const geo = await getFarmsGeo(q);
-      if (geo?.features) {
-        const markers: FarmMarkerData[] = [];
-        for (const feat of geo.features) {
-          if (!("kind" in feat.properties)) {
-            const p = feat.properties as FarmGeoFeatureProperties;
-            let lat: number;
-            let lng: number;
-            if (feat.geometry) {
-              lat = feat.geometry.coordinates[1];
-              lng = feat.geometry.coordinates[0];
-            } else {
-              // Match the registered municipality and barangay to their reference point.
-              const normalizeName = (s: string) =>
-                s.toLowerCase().trim()
-                  .replace(/\s*\(pob\.?\)\s*/gi, "")
-                  .replace(/\s*\(poblacion\)\s*/gi, "")
-                  .replace(/\s+/g, " ")
-                  .trim();
-
-              const muniLower = p.municipality?.toLowerCase().trim() ?? "";
-              const bgyNorm = normalizeName(p.barangay);
-
-              const bc = cagayanBarangays.find(
-                (b) =>
-                  normalizeName(b.name) === bgyNorm &&
-                  b.municipality.toLowerCase().trim() === muniLower
-              );
-
-              // Do not invent a point elsewhere when this registered location
-              // has no matching reference coordinate.
-              if (!bc) continue;
-              lat = bc.lat;
-              lng = bc.lng;
-            }
-            markers.push({
-              id: p.id,
-              name: p.name,
-              barangay: p.barangay,
-              municipality: p.municipality,
-              hectares: p.hectares,
-              growthStage: p.growthStage,
-              healthStatus: p.healthStatus,
-              openCases: p.openCaseCount,
-              noGps: p.noGps,
-              latitude: lat,
-              longitude: lng,
-            });
-          }
-        }
-        setFarmMarkers(markers);
+  const fetchAnalytics = useCallback(
+    async (params?: { barangay?: string; from?: string; to?: string }) => {
+      const q = params ?? {};
+      try {
+        const summary = await getAnalyticsSummary();
+        setTotalFarms(summary.totalFarms);
+        setTotalActiveHectares(
+          Math.round(Number(summary.totalActiveHectares) * 10) / 10,
+        );
+        setAnalyticsSummary({
+          totalFarmers: summary.totalFarmers,
+          activeCropCycles: summary.activeCropCycles,
+          pendingExpertCases: summary.pendingExpertCases,
+          disasterMetrics: summary.disasterMetrics,
+        });
+      } catch {
+        /* Non-fatal */
       }
-    } catch { /* Non-fatal */ }
 
-    try {
-      const issues = await getTopIssues(q);
-      setTopIssues(issues);
-    } catch { /* Non-fatal */ }
+      try {
+        const stagesRes = await getCropStages(q);
+        if (stagesRes?.stages) setCropStagesData(stagesRes.stages);
+      } catch {
+        /* Non-fatal */
+      }
 
-    try {
-      const disasters = await getDisasters({ ...q, groupBy: "barangay" });
-      setDisasterGroups(disasters.groups);
-    } catch { /* Non-fatal */ }
+      try {
+        const geo = await getFarmsGeo(q);
+        if (geo?.features) {
+          const markers: FarmMarkerData[] = [];
+          for (const feat of geo.features) {
+            if (!("kind" in feat.properties)) {
+              const p = feat.properties as FarmGeoFeatureProperties;
+              let lat: number;
+              let lng: number;
+              if (feat.geometry) {
+                lat = feat.geometry.coordinates[1];
+                lng = feat.geometry.coordinates[0];
+              } else {
+                // Match the registered municipality and barangay to their reference point.
+                const normalizeName = (s: string) =>
+                  s
+                    .toLowerCase()
+                    .trim()
+                    .replace(/\s*\(pob\.?\)\s*/gi, "")
+                    .replace(/\s*\(poblacion\)\s*/gi, "")
+                    .replace(/\s+/g, " ")
+                    .trim();
 
-    try {
-      const rows = await getBarangays();
-      setBarangayRows(rows);
-    } catch { /* Non-fatal */ }
+                const muniLower = p.municipality?.toLowerCase().trim() ?? "";
+                const bgyNorm = normalizeName(p.barangay);
 
-    try {
-      const trends = await getScanTrends(q);
-      setScanTrends(trends);
-    } catch { /* Non-fatal */ }
-  }, []);
+                const bc = cagayanBarangays.find(
+                  (b) =>
+                    normalizeName(b.name) === bgyNorm &&
+                    b.municipality.toLowerCase().trim() === muniLower,
+                );
+
+                // Do not invent a point elsewhere when this registered location
+                // has no matching reference coordinate.
+                if (!bc) continue;
+                lat = bc.lat;
+                lng = bc.lng;
+              }
+              markers.push({
+                id: p.id,
+                name: p.name,
+                barangay: p.barangay,
+                municipality: p.municipality,
+                hectares: p.hectares,
+                growthStage: p.growthStage,
+                healthStatus: p.healthStatus,
+                openCases: p.openCaseCount,
+                noGps: p.noGps,
+                latitude: lat,
+                longitude: lng,
+              });
+            }
+          }
+          setFarmMarkers(markers);
+        }
+      } catch {
+        /* Non-fatal */
+      }
+
+      try {
+        const issues = await getTopIssues(q);
+        setTopIssues(issues);
+      } catch {
+        /* Non-fatal */
+      }
+
+      try {
+        const disasters = await getDisasters({ ...q, groupBy: "barangay" });
+        setDisasterGroups(disasters.groups);
+      } catch {
+        /* Non-fatal */
+      }
+
+      try {
+        const rows = await getBarangays();
+        setBarangayRows(rows);
+      } catch {
+        /* Non-fatal */
+      }
+
+      try {
+        const trends = await getScanTrends(q);
+        setScanTrends(trends);
+      } catch {
+        /* Non-fatal */
+      }
+    },
+    [],
+  );
 
   // ── Fetch Barangay Distribution (Live API) ────────────────────────────────
   const fetchBarangays = useCallback(async () => {
@@ -298,8 +326,9 @@ export const TechnicianDashboardPage: React.FC = () => {
       setBarangays(list);
     } catch {
       setBarangaysError("Hindi makuha ang distribusyon ng sakahan.");
+    } finally {
+      setBarangaysLoading(false);
     }
-    finally { setBarangaysLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -316,36 +345,69 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   // ── Computed Counts ───────────────────────────────────────────────────────
   const pendingConsultations = useMemo(
-    () => expertCases.filter((c) => ["SUBMITTED", "UNDER_REVIEW", "INSPECTED"].includes(c.status)).length,
-    [expertCases]
+    () =>
+      expertCases.filter((c) =>
+        ["SUBMITTED", "UNDER_REVIEW", "INSPECTED"].includes(c.status),
+      ).length,
+    [expertCases],
   );
   const pendingDisasters = useMemo(
-    () => disasterReports.filter((r) => ["SUBMITTED", "UNDER_REVIEW"].includes(r.status)).length,
-    [disasterReports]
+    () =>
+      disasterReports.filter((r) =>
+        ["SUBMITTED", "UNDER_REVIEW"].includes(r.status),
+      ).length,
+    [disasterReports],
   );
   const totalPending = pendingConsultations + pendingDisasters;
 
   // ── Dynamic Crop Stages ───────────────────────────────────────────────────
   const dynamicStages = useMemo(() => {
-    const s1 = (cropStagesData["SEEDLING"]?.totalAreaHectares || 0) + (cropStagesData["PAGTATANIM"]?.totalAreaHectares || 0);
-    const s2 = (cropStagesData["VEGETATIVE"]?.totalAreaHectares || 0) + (cropStagesData["PAGLAGO"]?.totalAreaHectares || 0);
-    const s3 = (cropStagesData["TASSELING"]?.totalAreaHectares || 0) + (cropStagesData["SILKING"]?.totalAreaHectares || 0) + (cropStagesData["GRAIN_FILL"]?.totalAreaHectares || 0) + (cropStagesData["PAGBUBUNGA"]?.totalAreaHectares || 0);
-    const s4 = (cropStagesData["HARVEST_READY"]?.totalAreaHectares || 0) + (cropStagesData["HARVEST"]?.totalAreaHectares || 0) + (cropStagesData["PAG_ANI"]?.totalAreaHectares || 0);
+    const s1 =
+      (cropStagesData["SEEDLING"]?.totalAreaHectares || 0) +
+      (cropStagesData["PAGTATANIM"]?.totalAreaHectares || 0);
+    const s2 =
+      (cropStagesData["VEGETATIVE"]?.totalAreaHectares || 0) +
+      (cropStagesData["PAGLAGO"]?.totalAreaHectares || 0);
+    const s3 =
+      (cropStagesData["TASSELING"]?.totalAreaHectares || 0) +
+      (cropStagesData["SILKING"]?.totalAreaHectares || 0) +
+      (cropStagesData["GRAIN_FILL"]?.totalAreaHectares || 0) +
+      (cropStagesData["PAGBUBUNGA"]?.totalAreaHectares || 0);
+    const s4 =
+      (cropStagesData["HARVEST_READY"]?.totalAreaHectares || 0) +
+      (cropStagesData["HARVEST"]?.totalAreaHectares || 0) +
+      (cropStagesData["PAG_ANI"]?.totalAreaHectares || 0);
     const totalActive = s1 + s2 + s3 + s4 || (totalActiveHectares ?? 0);
     return {
       planting: s1 > 0 ? formatHa(s1) : "—",
       vegetative: s2 > 0 ? formatHa(s2) : "—",
       flowering: s3 > 0 ? formatHa(s3) : "—",
       harvest: s4 > 0 ? formatHa(s4) : "—",
-      totalActive: totalActive > 0 ? formatHa(totalActive) : (totalActiveHectares !== null ? formatHa(totalActiveHectares) : "0"),
+      totalActive:
+        totalActive > 0
+          ? formatHa(totalActive)
+          : totalActiveHectares !== null
+            ? formatHa(totalActiveHectares)
+            : "0",
     };
   }, [cropStagesData, totalActiveHectares]);
 
   const cropStageList = useMemo(() => {
-    const s1 = (cropStagesData["SEEDLING"]?.totalAreaHectares || 0) + (cropStagesData["PAGTATANIM"]?.totalAreaHectares || 0);
-    const s2 = (cropStagesData["VEGETATIVE"]?.totalAreaHectares || 0) + (cropStagesData["PAGLAGO"]?.totalAreaHectares || 0);
-    const s3 = (cropStagesData["TASSELING"]?.totalAreaHectares || 0) + (cropStagesData["SILKING"]?.totalAreaHectares || 0) + (cropStagesData["GRAIN_FILL"]?.totalAreaHectares || 0) + (cropStagesData["PAGBUBUNGA"]?.totalAreaHectares || 0);
-    const s4 = (cropStagesData["HARVEST_READY"]?.totalAreaHectares || 0) + (cropStagesData["HARVEST"]?.totalAreaHectares || 0) + (cropStagesData["PAG_ANI"]?.totalAreaHectares || 0);
+    const s1 =
+      (cropStagesData["SEEDLING"]?.totalAreaHectares || 0) +
+      (cropStagesData["PAGTATANIM"]?.totalAreaHectares || 0);
+    const s2 =
+      (cropStagesData["VEGETATIVE"]?.totalAreaHectares || 0) +
+      (cropStagesData["PAGLAGO"]?.totalAreaHectares || 0);
+    const s3 =
+      (cropStagesData["TASSELING"]?.totalAreaHectares || 0) +
+      (cropStagesData["SILKING"]?.totalAreaHectares || 0) +
+      (cropStagesData["GRAIN_FILL"]?.totalAreaHectares || 0) +
+      (cropStagesData["PAGBUBUNGA"]?.totalAreaHectares || 0);
+    const s4 =
+      (cropStagesData["HARVEST_READY"]?.totalAreaHectares || 0) +
+      (cropStagesData["HARVEST"]?.totalAreaHectares || 0) +
+      (cropStagesData["PAG_ANI"]?.totalAreaHectares || 0);
 
     return [
       { key: "pagtatanim" as const, ha: s1 },
@@ -360,8 +422,17 @@ export const TechnicianDashboardPage: React.FC = () => {
   const handleUpdateStatus = async (caseId: string, newStatus: CaseStatus) => {
     setActionLoading(true);
     try {
-      await updateCaseStatus(caseId, { caseType: "DISASTER_REPORT", status: newStatus });
-      toast.success(newStatus === "INSPECTED" ? "Na-verify sa bukid ang pinsala ng sakahan." : newStatus === "RESOLVED" ? "Naaprubahan ang disaster claim." : "Na-update ang katayuan ng claim.");
+      await updateCaseStatus(caseId, {
+        caseType: "DISASTER_REPORT",
+        status: newStatus,
+      });
+      toast.success(
+        newStatus === "INSPECTED"
+          ? "Na-verify sa bukid ang pinsala ng sakahan."
+          : newStatus === "RESOLVED"
+            ? "Naaprubahan ang disaster claim."
+            : "Na-update ang katayuan ng claim.",
+      );
       await fetchPipeline(true);
     } catch {
       toast.error("Hindi na-update ang katayuan. Pakisubukan muli.");
@@ -372,7 +443,10 @@ export const TechnicianDashboardPage: React.FC = () => {
 
   const handleAddDamageSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDamageForm.farmerName.trim()) { toast.error("Ilagay ang pangalan ng magsasaka."); return; }
+    if (!newDamageForm.farmerName.trim()) {
+      toast.error("Ilagay ang pangalan ng magsasaka.");
+      return;
+    }
     const newReport: DisasterReport = {
       id: `claim-${Date.now()}`,
       farmId: "manual-entry",
@@ -381,18 +455,31 @@ export const TechnicianDashboardPage: React.FC = () => {
       status: "SUBMITTED",
       notes: `${newDamageForm.notes.trim() || "Ulat ng pinsala mula sa bukid."} (Magsasaka: ${newDamageForm.farmerName.trim()} · ${newDamageForm.barangay})`,
       createdAt: new Date().toISOString(),
-      farm: { name: `Sakahan ni ${newDamageForm.farmerName.trim()}`, barangay: newDamageForm.barangay, municipality: "Solana" },
+      farm: {
+        name: `Sakahan ni ${newDamageForm.farmerName.trim()}`,
+        barangay: newDamageForm.barangay,
+        municipality: "Solana",
+      },
     };
     setDisasterReports((prev) => [newReport, ...prev]);
     setSelectedDisaster(newReport);
     setIsAddDamageOpen(false);
-    setNewDamageForm({ farmerName: "", barangay: "Centro Norte (Pob.)", disasterType: "Bagyo (Typhoon)", hectares: "1.0", notes: "" });
+    setNewDamageForm({
+      farmerName: "",
+      barangay: "Centro Norte (Pob.)",
+      disasterType: "Bagyo (Typhoon)",
+      hectares: "1.0",
+      notes: "",
+    });
     toast.success("Naitala ang bagong kaso ng pinsala.");
   };
 
   const handleAddConsultSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newConsultForm.farmerName.trim() || !newConsultForm.topic.trim()) { toast.error("Pakilagay ang pangalan at paksa ng tanong."); return; }
+    if (!newConsultForm.farmerName.trim() || !newConsultForm.topic.trim()) {
+      toast.error("Pakilagay ang pangalan at paksa ng tanong.");
+      return;
+    }
     const newCase: ExpertCase = {
       id: `consult-${Date.now()}`,
       observationId: `consult-${Date.now()}`,
@@ -403,13 +490,24 @@ export const TechnicianDashboardPage: React.FC = () => {
         description: `${newConsultForm.question.trim() || "Katanungan mula sa bukid."}\n\nMagsasaka: ${newConsultForm.farmerName.trim()}\nSakahan: Sakahan (${newConsultForm.barangay})`,
         severity: "MEDIUM",
         farmer: { firstName: newConsultForm.farmerName.trim(), lastName: "" },
-        cropCycle: { farm: { name: `Sakahan ni ${newConsultForm.farmerName.trim()}`, barangay: newConsultForm.barangay, municipality: "Solana" } },
+        cropCycle: {
+          farm: {
+            name: `Sakahan ni ${newConsultForm.farmerName.trim()}`,
+            barangay: newConsultForm.barangay,
+            municipality: "Solana",
+          },
+        },
       },
     };
     setExpertCases((prev) => [newCase, ...prev]);
     setSelectedCase(newCase);
     setIsAddConsultOpen(false);
-    setNewConsultForm({ farmerName: "", barangay: "Centro Norte (Pob.)", topic: "", question: "" });
+    setNewConsultForm({
+      farmerName: "",
+      barangay: "Centro Norte (Pob.)",
+      topic: "",
+      question: "",
+    });
     toast.success("Naitala ang bagong konsultasyon.");
   };
 
@@ -466,48 +564,71 @@ export const TechnicianDashboardPage: React.FC = () => {
   // ── Profile Helpers ───────────────────────────────────────────────────────
   const technicianDisplayName = profile
     ? `${profile.firstName} ${profile.lastName}`.trim()
-    : (user?.displayName || "DA Field");
+    : user?.displayName || "DA Field";
 
   const technicianInitials = profile
-    ? `${profile.firstName?.[0] || ""}${profile.lastName?.[0] || ""}`.toUpperCase() || "DF"
+    ? `${profile.firstName?.[0] || ""}${profile.lastName?.[0] || ""}`.toUpperCase() ||
+      "DF"
     : "DF";
 
   const technicianRoleSubtitle =
-    profile?.role === "OFFICER" ? "Municipal Officer" : "Agricultural Technician";
+    profile?.role === "OFFICER"
+      ? "Municipal Officer"
+      : "Agricultural Technician";
 
   const formattedDate = useMemo(() => {
     try {
-      return new Intl.DateTimeFormat("fil-PH", { weekday: "long", month: "long", day: "numeric" })
-        .format(new Date()).toLocaleUpperCase("fil-PH");
+      return new Intl.DateTimeFormat("fil-PH", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      })
+        .format(new Date())
+        .toLocaleUpperCase("fil-PH");
     } catch {
-      return new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }).toUpperCase();
+      return new Date()
+        .toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        })
+        .toUpperCase();
     }
   }, []);
 
-  const accountMenuItems: AccountMenuItem[] = useMemo(() => [
-    {
-      key: "download-reports",
-      title: "I-download ang Ulat",
-      subtitle: "Excel at CSV ng claims at barangay",
-      icon: FileDown,
-      iconBg: "bg-emerald-100",
-      iconColor: "text-emerald-700",
-      onClick: () => { setIsAccountOpen(false); setActiveTab("ULAT"); },
-    },
-    {
-      key: "logout",
-      title: "Mag-logout",
-      subtitle: "Kakailanganin mong mag-login muli",
-      icon: LogOut,
-      iconBg: "bg-rose-100",
-      iconColor: "text-rose-700",
-      itemBg: "bg-[#FFF1F2] hover:bg-rose-100/70",
-      titleColor: "text-[#B91C1C]",
-      subtitleColor: "text-[#DC2626]",
-      chevronColor: "text-rose-400",
-      onClick: () => { setIsAccountOpen(false); setConfirmLogout(true); },
-    },
-  ], []);
+  const accountMenuItems: AccountMenuItem[] = useMemo(
+    () => [
+      {
+        key: "download-reports",
+        title: "I-download ang Ulat",
+        subtitle: "Excel at CSV ng claims at barangay",
+        icon: FileDown,
+        iconBg: "bg-emerald-100",
+        iconColor: "text-emerald-700",
+        onClick: () => {
+          setIsAccountOpen(false);
+          setActiveTab("ULAT");
+        },
+      },
+      {
+        key: "logout",
+        title: "Mag-logout",
+        subtitle: "Kakailanganin mong mag-login muli",
+        icon: LogOut,
+        iconBg: "bg-rose-100",
+        iconColor: "text-rose-700",
+        itemBg: "bg-[#FFF1F2] hover:bg-rose-100/70",
+        titleColor: "text-[#B91C1C]",
+        subtitleColor: "text-[#DC2626]",
+        chevronColor: "text-rose-400",
+        onClick: () => {
+          setIsAccountOpen(false);
+          setConfirmLogout(true);
+        },
+      },
+    ],
+    [],
+  );
 
   // ── Urgent cases for BUOD tab (combines disasters + expert cases) ─────────
   const urgentCases = useMemo(() => {
@@ -534,13 +655,15 @@ export const TechnicianDashboardPage: React.FC = () => {
         createdAt: c.createdAt ?? "",
       }));
     return [...dc, ...ec].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }, [disasterReports, expertCases]);
 
   // ── Date range + registered barangay filter ──────────────────────────────
   const [dateRange, setDateRange] = useState<"7d" | "30d" | "season">("30d");
-  const [selectedRegisteredLocation, setSelectedRegisteredLocation] = useState("");
+  const [selectedRegisteredLocation, setSelectedRegisteredLocation] =
+    useState("");
 
   // Derive ISO from/to dates from the selected range
   const filterDates = useMemo(() => {
@@ -615,7 +738,10 @@ export const TechnicianDashboardPage: React.FC = () => {
             return parts;
           }, {});
         const reportDateKey = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
-        if (reportDateKey < filterDates.from || reportDateKey > filterDates.to) {
+        if (
+          reportDateKey < filterDates.from ||
+          reportDateKey > filterDates.to
+        ) {
           return false;
         }
         if (
@@ -650,12 +776,7 @@ export const TechnicianDashboardPage: React.FC = () => {
         "30 araw",
       rowCount,
     };
-  }, [
-    exportType,
-    filteredDisasterReports,
-    selectedLocation,
-    dateRange,
-  ]);
+  }, [exportType, filteredDisasterReports, selectedLocation, dateRange]);
 
   const distributionRows = useMemo(() => {
     if (!selectedLocation) return barangays;
@@ -681,24 +802,45 @@ export const TechnicianDashboardPage: React.FC = () => {
   const distributionMunicipality =
     selectedLocation?.municipality ??
     (new Set(farmMarkers.map((farm) => farm.municipality)).size === 1
-      ? farmMarkers[0]?.municipality ?? "Cagayan"
+      ? (farmMarkers[0]?.municipality ?? "Cagayan")
       : "Cagayan");
 
   const registeredFarmCount = selectedRegisteredLocation
     ? visibleFarmMarkers.length
-    : totalFarms ?? barangays.reduce((sum, barangay) => sum + barangay.farmCount, 0);
+    : (totalFarms ??
+      barangays.reduce((sum, barangay) => sum + barangay.farmCount, 0));
 
   // ── Analitika Real Data Mappings ─────────────────────────────────────────
   const analitikaAvgResponseHours = useMemo(() => {
-    if (analyticsSummary && analyticsSummary.disasterMetrics.averageDamagePercentage > 0) {
-      return Math.round(analyticsSummary.disasterMetrics.averageDamagePercentage * 10) / 10;
+    if (
+      analyticsSummary &&
+      analyticsSummary.disasterMetrics.averageDamagePercentage > 0
+    ) {
+      return (
+        Math.round(
+          analyticsSummary.disasterMetrics.averageDamagePercentage * 10,
+        ) / 10
+      );
     }
     return 0;
   }, [analyticsSummary]);
 
   const analitikaDamageReportsByDate = useMemo(() => {
     if (disasterReports.length === 0) return [];
-    const tagalogMonths = ["Ene", "Peb", "Mar", "Abr", "May", "Hun", "Hul", "Ago", "Set", "Okt", "Nob", "Dis"];
+    const tagalogMonths = [
+      "Ene",
+      "Peb",
+      "Mar",
+      "Abr",
+      "May",
+      "Hun",
+      "Hul",
+      "Ago",
+      "Set",
+      "Okt",
+      "Nob",
+      "Dis",
+    ];
     const countsByDate = new Map<string, number>();
     disasterReports.forEach((r) => {
       if (!r.createdAt) return;
@@ -707,7 +849,10 @@ export const TechnicianDashboardPage: React.FC = () => {
       const key = `${tagalogMonths[d.getMonth()]} ${d.getDate()}`;
       countsByDate.set(key, (countsByDate.get(key) || 0) + 1);
     });
-    return Array.from(countsByDate.entries()).map(([date, count]) => ({ date, count }));
+    return Array.from(countsByDate.entries()).map(([date, count]) => ({
+      date,
+      count,
+    }));
   }, [disasterReports]);
 
   const analitikaResponseByWeek = useMemo(() => {
@@ -757,11 +902,13 @@ export const TechnicianDashboardPage: React.FC = () => {
     }));
     if (selectedRegisteredLocation) {
       const selectedLocationObj = registeredFarmLocations.find(
-        (l) => l.key === selectedRegisteredLocation
+        (l) => l.key === selectedRegisteredLocation,
       );
       if (selectedLocationObj) {
         list = list.filter((b) =>
-          b.name.toLowerCase().includes(selectedLocationObj.barangay.toLowerCase())
+          b.name
+            .toLowerCase()
+            .includes(selectedLocationObj.barangay.toLowerCase()),
         );
       }
     }
@@ -769,12 +916,27 @@ export const TechnicianDashboardPage: React.FC = () => {
   }, [barangayRows, selectedRegisteredLocation, registeredFarmLocations]);
 
   // ── Nav items ─────────────────────────────────────────────────────────────
-  type NavItem = { key: TabKey; label: string; icon: React.ElementType; badge?: number };
+  type NavItem = {
+    key: TabKey;
+    label: string;
+    icon: React.ElementType;
+    badge?: number;
+  };
   const navItems: NavItem[] = [
     { key: "BUOD", label: "Buod", icon: LayoutDashboard },
     { key: "ANALITIKA", label: "Analitika", icon: BarChart3 },
-    { key: "PINSALA", label: "Pinsala", icon: AlertTriangle, badge: pendingDisasters },
-    { key: "KONSULTASYON", label: "Konsultasyon", icon: MessageSquare, badge: pendingConsultations },
+    {
+      key: "PINSALA",
+      label: "Pinsala",
+      icon: AlertTriangle,
+      badge: pendingDisasters,
+    },
+    {
+      key: "KONSULTASYON",
+      label: "Konsultasyon",
+      icon: MessageSquare,
+      badge: pendingConsultations,
+    },
     { key: "ULAT", label: "Ulat", icon: FileSpreadsheet },
   ];
 
@@ -783,7 +945,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       {/* ══════════════════════════════════════════════════════════════════════
           LEFT SIDEBAR
       ══════════════════════════════════════════════════════════════════════ */}
-      <aside className="hidden md:flex flex-col w-[168px] shrink-0 bg-[#0B2347] text-white">
+      <aside className="hidden md:flex flex-col w-42 shrink-0 bg-[#0B2347] text-white">
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-4 pt-5 pb-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FBBF24]">
@@ -791,7 +953,9 @@ export const TechnicianDashboardPage: React.FC = () => {
           </div>
           <div>
             <p className="text-sm font-black leading-tight">TarabayMais</p>
-            <p className="text-[10px] text-slate-400 leading-tight">DA Region II</p>
+            <p className="text-[10px] text-slate-400 leading-tight">
+              DA Region II
+            </p>
           </div>
         </div>
 
@@ -810,7 +974,10 @@ export const TechnicianDashboardPage: React.FC = () => {
                     : "text-slate-300 hover:bg-white/10 hover:text-white"
                 }`}
               >
-                <Icon className="h-4 w-4 shrink-0" strokeWidth={isActive ? 2.5 : 2} />
+                <Icon
+                  className="h-4 w-4 shrink-0"
+                  strokeWidth={isActive ? 2.5 : 2}
+                />
                 <span className="flex-1 text-left">{label}</span>
                 {badge !== undefined && badge > 0 && (
                   <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 text-[10px] font-black text-slate-900 px-1">
@@ -859,7 +1026,6 @@ export const TechnicianDashboardPage: React.FC = () => {
           MAIN AREA
       ══════════════════════════════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
         {/* ── TOP BAR ──────────────────────────────────────────────────────── */}
         <header className="bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-4 shrink-0">
           {/* Left: date + greeting */}
@@ -868,7 +1034,11 @@ export const TechnicianDashboardPage: React.FC = () => {
               {formattedDate}
             </p>
             <h1 className="text-lg sm:text-xl font-black text-slate-900 leading-tight truncate">
-              Mabuhay, {profile?.firstName || user?.displayName?.split(" ")[0] || "DA Field"}!
+              Mabuhay,{" "}
+              {profile?.firstName ||
+                user?.displayName?.split(" ")[0] ||
+                "DA Field"}
+              !
             </h1>
           </div>
 
@@ -961,16 +1131,25 @@ export const TechnicianDashboardPage: React.FC = () => {
                     isActive ? "text-white" : "text-slate-400"
                   }`}
                 >
-                  {isActive && <span className="absolute top-0 inset-x-3 h-0.5 rounded-b-full bg-amber-400" />}
+                  {isActive && (
+                    <span className="absolute top-0 inset-x-3 h-0.5 rounded-b-full bg-amber-400" />
+                  )}
                   <div className="relative">
-                    <Icon className="h-4.5 w-4.5" strokeWidth={isActive ? 2.5 : 2} />
+                    <Icon
+                      className="h-4.5 w-4.5"
+                      strokeWidth={isActive ? 2.5 : 2}
+                    />
                     {badge !== undefined && badge > 0 && (
                       <span className="absolute -top-1.5 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-slate-900">
                         {badge}
                       </span>
                     )}
                   </div>
-                  <span className={`text-[10px] ${isActive ? "font-extrabold" : "font-medium"}`}>{label}</span>
+                  <span
+                    className={`text-[10px] ${isActive ? "font-extrabold" : "font-medium"}`}
+                  >
+                    {label}
+                  </span>
                 </button>
               );
             })}
@@ -979,13 +1158,11 @@ export const TechnicianDashboardPage: React.FC = () => {
 
         {/* ── SCROLLABLE CONTENT ───────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
-
           {/* ══════════════════════════════════════════════════════════════════
               TAB: BUOD
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === "BUOD" && (
             <div className="p-4 sm:p-5 space-y-4">
-
               {/* Asymmetrical KPI Overview (Replaces equal-sized KPI cards) */}
               <KpiOverview
                 activeHectares={
@@ -997,14 +1174,16 @@ export const TechnicianDashboardPage: React.FC = () => {
                 farmsDelta={{ value: 0, percent: 0 }}
                 avgResponseHours={
                   analyticsSummary
-                    ? analyticsSummary.disasterMetrics.averageDamagePercentage > 0
+                    ? analyticsSummary.disasterMetrics.averageDamagePercentage >
+                      0
                       ? analyticsSummary.disasterMetrics.averageDamagePercentage
                       : 68.0
                     : 68.0
                 }
                 responseDelta={{ value: 27.4, percent: 100 }}
                 damageReports={
-                  analyticsSummary?.disasterMetrics.totalReports ?? disasterReports.length
+                  analyticsSummary?.disasterMetrics.totalReports ??
+                  disasterReports.length
                 }
                 openConsultations={
                   analyticsSummary?.pendingExpertCases ?? pendingConsultations
@@ -1018,7 +1197,6 @@ export const TechnicianDashboardPage: React.FC = () => {
 
               {/* Two-column main content */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-
                 {/* LEFT: Kailangan ng Aksyon Ngayon */}
                 <div className="lg:col-span-5 rounded-2xl bg-white border border-slate-200 shadow-2xs overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
@@ -1026,7 +1204,8 @@ export const TechnicianDashboardPage: React.FC = () => {
                       Kailangan ng Aksyon Ngayon
                     </h2>
                     <span className="text-xs font-bold text-slate-500">
-                      {urgentCases.length} sa {disasterReports.length + expertCases.length}
+                      {urgentCases.length} sa{" "}
+                      {disasterReports.length + expertCases.length}
                     </span>
                   </div>
 
@@ -1042,14 +1221,17 @@ export const TechnicianDashboardPage: React.FC = () => {
                       />
                     </div>
                   ) : (
-                    <ul className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto">
+                    <ul className="divide-y divide-slate-100 max-h-105 overflow-y-auto">
                       {urgentCases.map((item) => {
                         const isCritical = item.status === "SUBMITTED";
                         const statusLabel =
-                          item.status === "SUBMITTED" ? "Kritikal"
-                          : item.status === "UNDER_REVIEW" ? "Sinusuri"
-                          : item.status === "INSPECTED" ? "Naiimbestigahan"
-                          : "Naimpeksyon";
+                          item.status === "SUBMITTED"
+                            ? "Kritikal"
+                            : item.status === "UNDER_REVIEW"
+                              ? "Sinusuri"
+                              : item.status === "INSPECTED"
+                                ? "Naiimbestigahan"
+                                : "Naimpeksyon";
 
                         return (
                           <li
@@ -1068,7 +1250,9 @@ export const TechnicianDashboardPage: React.FC = () => {
                                 {statusLabel}
                               </span>
                               <span className="rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                                {item.type === "PINSALA" ? "Pinsala" : "Sinusuri"}
+                                {item.type === "PINSALA"
+                                  ? "Pinsala"
+                                  : "Sinusuri"}
                               </span>
                             </div>
                             {/* Barangay */}
@@ -1082,17 +1266,30 @@ export const TechnicianDashboardPage: React.FC = () => {
                             {/* Footer row */}
                             <div className="flex items-center justify-between">
                               <p className="text-[11px] text-slate-400">
-                                naghihintay ng {(Number(item.waitingHa) > 0) ? `${formatHa((Number(item.waitingHa) / 100) * 2.5)} oras` : "0 oras"}
+                                naghihintay ng{" "}
+                                {Number(item.waitingHa) > 0
+                                  ? `${formatHa((Number(item.waitingHa) / 100) * 2.5)} oras`
+                                  : "0 oras"}
                               </p>
                               <button
                                 type="button"
                                 onClick={() => {
                                   if (item.type === "PINSALA") {
-                                    const dr = disasterReports.find((r) => r.id === item.id);
-                                    if (dr) { setSelectedDisaster(dr); setActiveTab("PINSALA"); }
+                                    const dr = disasterReports.find(
+                                      (r) => r.id === item.id,
+                                    );
+                                    if (dr) {
+                                      setSelectedDisaster(dr);
+                                      setActiveTab("PINSALA");
+                                    }
                                   } else {
-                                    const ec = expertCases.find((c) => c.id === item.id);
-                                    if (ec) { setSelectedCase(ec); setActiveTab("KONSULTASYON"); }
+                                    const ec = expertCases.find(
+                                      (c) => c.id === item.id,
+                                    );
+                                    if (ec) {
+                                      setSelectedCase(ec);
+                                      setActiveTab("KONSULTASYON");
+                                    }
                                   }
                                 }}
                                 className="rounded-xl bg-[#065F46] hover:bg-emerald-800 px-4 py-1.5 text-xs font-black text-white transition active:scale-95 cursor-pointer"
@@ -1117,16 +1314,25 @@ export const TechnicianDashboardPage: React.FC = () => {
                       </h2>
                       {/* Layer toggle */}
                       <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-white">
-                        {(["TANIMAN", "PINSALA", "KONSULTASYON"] as MapLayer[]).map((layer) => {
+                        {(
+                          ["TANIMAN", "PINSALA", "KONSULTASYON"] as MapLayer[]
+                        ).map((layer) => {
                           const isActive = mapLayer === layer;
-                          const label = layer === "TANIMAN" ? "Taniman" : layer === "PINSALA" ? "Pinsala" : "Konsultasyon";
+                          const label =
+                            layer === "TANIMAN"
+                              ? "Taniman"
+                              : layer === "PINSALA"
+                                ? "Pinsala"
+                                : "Konsultasyon";
                           return (
                             <button
                               key={layer}
                               type="button"
                               onClick={() => setMapLayer(layer)}
                               className={`px-3 py-1 text-[11px] font-bold rounded-md transition cursor-pointer ${
-                                isActive ? "bg-[#0B2347] text-white shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                                isActive
+                                  ? "bg-[#0B2347] text-white shadow-2xs"
+                                  : "text-slate-600 hover:text-slate-900"
                               }`}
                             >
                               {label}
@@ -1136,7 +1342,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="relative w-full h-[260px] sm:h-[300px] rounded-xl overflow-hidden">
+                    <div className="relative w-full h-65 sm:h-75 rounded-xl overflow-hidden">
                       <TechnicianLeafletMap
                         selectedLocationKey={selectedRegisteredLocation}
                         onSelectLocation={setSelectedRegisteredLocation}
@@ -1190,7 +1396,8 @@ export const TechnicianDashboardPage: React.FC = () => {
                         Trend ng Pagsusuri ng AI
                       </h3>
                       <p className="text-[11px] text-slate-400">
-                        Malusog vs May Pinsala (lingguhang bilang sa napiling panahon)
+                        Malusog vs May Pinsala (lingguhang bilang sa napiling
+                        panahon)
                       </p>
                     </div>
                     <ScanTrendsChart data={scanTrends} />
@@ -1259,8 +1466,8 @@ export const TechnicianDashboardPage: React.FC = () => {
                 dateRange === "7d"
                   ? "7 araw"
                   : dateRange === "30d"
-                  ? "30 araw"
-                  : "Season"
+                    ? "30 araw"
+                    : "Season"
               }
               isLoading={pipelineLoading}
               error={null}
@@ -1331,51 +1538,140 @@ export const TechnicianDashboardPage: React.FC = () => {
               isLoading={pipelineLoading}
             />
           )}
-
         </main>
       </div>
 
       {/* ── MODAL: MAGDAGDAG NG KASO NG PINSALA ─────────────────────────────── */}
       {isAddDamageOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4" role="dialog" aria-modal="true">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4"
+          role="dialog"
+          aria-modal="true"
+        >
           <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-xl font-extrabold text-slate-900">Magdagdag ng Kaso ng Pinsala</h3>
-              <button type="button" onClick={() => setIsAddDamageOpen(false)} className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition cursor-pointer">
+              <h3 className="text-xl font-extrabold text-slate-900">
+                Magdagdag ng Kaso ng Pinsala
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddDamageOpen(false)}
+                className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition cursor-pointer"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <form onSubmit={handleAddDamageSubmit} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Pangalan ng Magsasaka</label>
-                <input type="text" required value={newDamageForm.farmerName} onChange={(e) => setNewDamageForm({ ...newDamageForm, farmerName: e.target.value })} placeholder="Hal. Juan Dela Cruz" className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none" />
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Pangalan ng Magsasaka
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newDamageForm.farmerName}
+                  onChange={(e) =>
+                    setNewDamageForm({
+                      ...newDamageForm,
+                      farmerName: e.target.value,
+                    })
+                  }
+                  placeholder="Hal. Juan Dela Cruz"
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Barangay</label>
-                  <input type="text" value={newDamageForm.barangay} onChange={(e) => setNewDamageForm({ ...newDamageForm, barangay: e.target.value })} className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none" />
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Barangay
+                  </label>
+                  <input
+                    type="text"
+                    value={newDamageForm.barangay}
+                    onChange={(e) =>
+                      setNewDamageForm({
+                        ...newDamageForm,
+                        barangay: e.target.value,
+                      })
+                    }
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Uri ng Pinsala</label>
-                  <select value={newDamageForm.disasterType} onChange={(e) => setNewDamageForm({ ...newDamageForm, disasterType: e.target.value })} className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none">
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Uri ng Pinsala
+                  </label>
+                  <select
+                    value={newDamageForm.disasterType}
+                    onChange={(e) =>
+                      setNewDamageForm({
+                        ...newDamageForm,
+                        disasterType: e.target.value,
+                      })
+                    }
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                  >
                     <option value="Bagyo (Typhoon)">Bagyo (Typhoon)</option>
-                    <option value="Baha (Flash Flood)">Baha (Flash Flood)</option>
+                    <option value="Baha (Flash Flood)">
+                      Baha (Flash Flood)
+                    </option>
                     <option value="Fall Armyworm">Fall Armyworm</option>
-                    <option value="Tagtuyot (Drought)">Tagtuyot (Drought)</option>
+                    <option value="Tagtuyot (Drought)">
+                      Tagtuyot (Drought)
+                    </option>
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Sukat ng Taniman na Apektado (ha)</label>
-                <input type="number" step="0.1" required value={newDamageForm.hectares} onChange={(e) => setNewDamageForm({ ...newDamageForm, hectares: e.target.value })} placeholder="Hal. 2.5" className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none" />
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Sukat ng Taniman na Apektado (ha)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  required
+                  value={newDamageForm.hectares}
+                  onChange={(e) =>
+                    setNewDamageForm({
+                      ...newDamageForm,
+                      hectares: e.target.value,
+                    })
+                  }
+                  placeholder="Hal. 2.5"
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tala / Obserbasyon</label>
-                <textarea rows={3} value={newDamageForm.notes} onChange={(e) => setNewDamageForm({ ...newDamageForm, notes: e.target.value })} placeholder="Deskripsyon ng pinsala sa mais..." className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none" />
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Tala / Obserbasyon
+                </label>
+                <textarea
+                  rows={3}
+                  value={newDamageForm.notes}
+                  onChange={(e) =>
+                    setNewDamageForm({
+                      ...newDamageForm,
+                      notes: e.target.value,
+                    })
+                  }
+                  placeholder="Deskripsyon ng pinsala sa mais..."
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setIsAddDamageOpen(false)} className="flex-1 rounded-xl border border-slate-300 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer">Kanselahin</button>
-                <button type="submit" className="flex-1 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-2.5 text-xs sm:text-sm font-bold text-white transition cursor-pointer">I-save ang Kaso</button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddDamageOpen(false)}
+                  className="flex-1 rounded-xl border border-slate-300 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Kanselahin
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-2.5 text-xs sm:text-sm font-bold text-white transition cursor-pointer"
+                >
+                  I-save ang Kaso
+                </button>
               </div>
             </form>
           </div>
@@ -1384,30 +1680,92 @@ export const TechnicianDashboardPage: React.FC = () => {
 
       {/* ── MODAL: BAGONG TALA NG KONSULTASYON ──────────────────────────────── */}
       {isAddConsultOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4" role="dialog" aria-modal="true">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4"
+          role="dialog"
+          aria-modal="true"
+        >
           <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-xl font-extrabold text-slate-900">Bagong Tala ng Konsultasyon</h3>
-              <button type="button" onClick={() => setIsAddConsultOpen(false)} className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition cursor-pointer">
+              <h3 className="text-xl font-extrabold text-slate-900">
+                Bagong Tala ng Konsultasyon
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddConsultOpen(false)}
+                className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition cursor-pointer"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <form onSubmit={handleAddConsultSubmit} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Pangalan ng Magsasaka</label>
-                <input type="text" required value={newConsultForm.farmerName} onChange={(e) => setNewConsultForm({ ...newConsultForm, farmerName: e.target.value })} placeholder="Hal. Pedro Santos" className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none" />
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Pangalan ng Magsasaka
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newConsultForm.farmerName}
+                  onChange={(e) =>
+                    setNewConsultForm({
+                      ...newConsultForm,
+                      farmerName: e.target.value,
+                    })
+                  }
+                  placeholder="Hal. Pedro Santos"
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Paksa ng Tanong</label>
-                <input type="text" required value={newConsultForm.topic} onChange={(e) => setNewConsultForm({ ...newConsultForm, topic: e.target.value })} placeholder="Hal. Tamang timpla ng pestisidyo" className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none" />
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Paksa ng Tanong
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newConsultForm.topic}
+                  onChange={(e) =>
+                    setNewConsultForm({
+                      ...newConsultForm,
+                      topic: e.target.value,
+                    })
+                  }
+                  placeholder="Hal. Tamang timpla ng pestisidyo"
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tanong ng Magsasaka</label>
-                <textarea rows={3} value={newConsultForm.question} onChange={(e) => setNewConsultForm({ ...newConsultForm, question: e.target.value })} placeholder="Ilagay ang katanungan ng magsasaka..." className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none" />
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Tanong ng Magsasaka
+                </label>
+                <textarea
+                  rows={3}
+                  value={newConsultForm.question}
+                  onChange={(e) =>
+                    setNewConsultForm({
+                      ...newConsultForm,
+                      question: e.target.value,
+                    })
+                  }
+                  placeholder="Ilagay ang katanungan ng magsasaka..."
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setIsAddConsultOpen(false)} className="flex-1 rounded-xl border border-slate-300 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer">Kanselahin</button>
-                <button type="submit" className="flex-1 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-2.5 text-xs sm:text-sm font-bold text-white transition cursor-pointer">I-tala ang Konsultasyon</button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddConsultOpen(false)}
+                  className="flex-1 rounded-xl border border-slate-300 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Kanselahin
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 rounded-xl bg-[#065F46] hover:bg-emerald-800 py-2.5 text-xs sm:text-sm font-bold text-white transition cursor-pointer"
+                >
+                  I-tala ang Konsultasyon
+                </button>
               </div>
             </form>
           </div>
@@ -1427,14 +1785,38 @@ export const TechnicianDashboardPage: React.FC = () => {
 
       {/* ── LOGOUT MODAL ───────────────────────────────────────────────────── */}
       {confirmLogout && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4" role="dialog" aria-modal="true">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4"
+          role="dialog"
+          aria-modal="true"
+        >
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl space-y-4">
-            <h3 className="text-xl font-bold text-slate-900">Sigurado ka bang nais mong mag-logout?</h3>
-            <p className="text-xs sm:text-sm text-slate-500">Kakailanganin mong mag-login muli gamit ang iyong municipal account.</p>
+            <h3 className="text-xl font-bold text-slate-900">
+              Sigurado ka bang nais mong mag-logout?
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500">
+              Kakailanganin mong mag-login muli gamit ang iyong municipal
+              account.
+            </p>
             <div className="grid grid-cols-2 gap-3 pt-2">
-              <button type="button" onClick={() => setConfirmLogout(false)} className="rounded-xl border border-slate-300 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer">Bumalik</button>
-              <button type="button" onClick={handleLogout} disabled={loggingOut} className="rounded-xl bg-red-600 hover:bg-red-700 py-2.5 text-xs sm:text-sm font-bold text-white transition disabled:opacity-60 flex items-center justify-center gap-1.5 cursor-pointer">
-                {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+              <button
+                type="button"
+                onClick={() => setConfirmLogout(false)}
+                className="rounded-xl border border-slate-300 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Bumalik
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="rounded-xl bg-red-600 hover:bg-red-700 py-2.5 text-xs sm:text-sm font-bold text-white transition disabled:opacity-60 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {loggingOut ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LogOut className="h-4 w-4" />
+                )}
                 <span>Mag-logout</span>
               </button>
             </div>

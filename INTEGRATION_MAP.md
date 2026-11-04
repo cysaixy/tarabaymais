@@ -29,7 +29,7 @@ Read-only analysis. **No code changed.** Source-of-truth priority: backend **cod
 | Page/Component | File path | Static element | Needed operation | Matching endpoint | Status |
 |---|---|---|---|---|---|
 | FarmerLoginPage | `frontend/src/pages/auth/FarmerLoginPage.tsx` | default phone `"0917 000 0000"` | login + getMe | Firebase OTP → `GET /auth/me` | ✅ MATCH (clear demo value) |
-| OfficerLoginPage | `frontend/src/pages/auth/OfficerLoginPage.tsx` | hardcoded test phone `+639170000002` | officer login + role gate | Firebase OTP → `GET /auth/me` | ⚠️ remove demo number |
+| (removed - unified login) | N/A | N/A | replaced by UnifiedLoginPage | N/A | 🗑️ removed |
 | FarmerOnboardingPage | `frontend/src/pages/auth/FarmerOnboardingPage.tsx` | `CAGAYAN_MUNICIPALITIES`(25), `CORN_VARIETIES`(6), `ownership`, `scope`, demo defaults | register + create farm + crop cycle | `POST /auth/sync`, `POST /farm`, `POST /crop-cycles/farm/:farmId` | ⚠️ SHAPE MISMATCH (ownership/scope have no API sink) + ❓ |
 | FarmerDashboardPage | `frontend/src/pages/farmer/FarmerDashboardPage.tsx` | welcome chat seed; duplicated feature logic | load active cycle + feature actions | `getActiveCropCycle` composite + feature endpoints | ✅ MATCH (dedupe later) |
 | FarmerActivityPage | `frontend/src/pages/farmer/FarmerActivityPage.tsx` | `ACTIVITY_SUGGESTIONS` (mirrors enum) | create/list activity, offline queue | `POST /activities/:cropCycleId`, `GET /activities` | ✅ MATCH |

@@ -6,9 +6,8 @@ import { GlobalFilterProvider } from "../context/filterContext";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { isMunicipalRole, useAuth } from "../context/authContext";
 
-import FarmerLoginPage from "../pages/auth/FarmerLoginPage";
+import UnifiedLoginPage from "../pages/auth/UnifiedLoginPage";
 import FarmerOnboardingPage from "../pages/auth/FarmerOnboardingPage";
-import OfficerLoginPage from "../pages/auth/OfficerLoginPage";
 import FarmerDashboardPage from "../pages/farmer/FarmerDashboardPage";
 import FarmerChatPage from "../pages/farmer/FarmerChatPage";
 import FarmerObservationPage from "../pages/farmer/FarmerObservationPage";
@@ -87,8 +86,9 @@ const RootRedirect: React.FC = () => {
 const publicRoutes = (
   <>
     <Route path="/" element={<RootRedirect />} />
-    <Route path="/login" element={<FarmerLoginPage />} />
-    <Route path="/officer/login" element={<OfficerLoginPage />} />
+    <Route path="/login" element={<UnifiedLoginPage />} />
+    {/* Legacy /officer/login route redirected to unified login */}
+    <Route path="/officer/login" element={<Navigate to="/login" replace />} />
     {/* Onboarding handles its own Firebase phone auth before registering. */}
     <Route path="/onboarding" element={<FarmerOnboardingPage />} />
     {/* Legacy alias kept so existing links to /register still work. */}

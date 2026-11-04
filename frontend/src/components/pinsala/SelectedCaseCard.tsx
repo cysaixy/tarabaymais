@@ -55,7 +55,7 @@ export const SelectedCaseCard: React.FC<SelectedCaseCardProps> = ({
       {/* Top Row */}
       <div className="flex flex-col-reverse sm:flex-row sm:items-start justify-between gap-3">
         <div className="flex flex-col gap-1 min-w-0">
-          <p className="text-[12px] font-bold tracking-[0.1em] text-[#4b5563] uppercase">
+          <p className="text-[12px] font-bold tracking-widest text-[#4b5563] uppercase">
             NAPILING KASO · BLG. {selectedCase.caseNo}
           </p>
           <h2
@@ -93,7 +93,7 @@ export const SelectedCaseCard: React.FC<SelectedCaseCardProps> = ({
       {/* Step Row */}
       <ol
         aria-label="Proseso ng Kaso"
-        className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-3 sm:gap-[22px] py-1"
+        className="grid grid-cols-2 md:flex md:flex-wrap items-center gap-3 sm:gap-5.5 py-1"
       >
         {STEPS.map((step) => {
           const isDone = step.num < currentStepNum;
@@ -107,12 +107,12 @@ export const SelectedCaseCard: React.FC<SelectedCaseCardProps> = ({
                   isDone
                     ? "bg-[#0a6b45] text-white"
                     : isCurrent
-                    ? "bg-[#f5c518] text-[#0f2a5c]"
-                    : "bg-white text-[#4b5563] border-2 border-[#c8d0c2]"
+                      ? "bg-[#f5c518] text-[#0f2a5c]"
+                      : "bg-white text-[#4b5563] border-2 border-[#c8d0c2]"
                 }`}
               >
                 {isDone ? (
-                  <Check className="w-4 h-4 text-white stroke-[3]" />
+                  <Check className="w-4 h-4 text-white stroke-3" />
                 ) : (
                   step.num
                 )}
@@ -122,8 +122,8 @@ export const SelectedCaseCard: React.FC<SelectedCaseCardProps> = ({
                   isCurrent
                     ? "font-extrabold text-[#14213d]"
                     : isDone
-                    ? "font-semibold text-[#14213d]"
-                    : "font-semibold text-[#4b5563]"
+                      ? "font-semibold text-[#14213d]"
+                      : "font-semibold text-[#4b5563]"
                 }`}
               >
                 {step.label}
@@ -152,18 +152,21 @@ export const SelectedCaseCard: React.FC<SelectedCaseCardProps> = ({
           disabled={isVerifyDisabled}
           onClick={() => onVerify(selectedCase.id)}
           aria-label={`I-verify sa bukid ang kaso blg. ${selectedCase.caseNo}`}
-          className={`min-h-[52px] sm:flex-1 rounded-[14px] px-6 text-[15px] font-extrabold flex items-center justify-center gap-2 transition select-none ${
+          className={`min-h-13 sm:flex-1 rounded-[14px] px-6 text-[15px] font-extrabold flex items-center justify-center gap-2 transition select-none ${
             isVerifyDisabled
               ? "bg-[#e8ebe4] text-[#6b7280] border border-[#c8d0c2] cursor-not-allowed"
               : isAwaitingVerification
-              ? "bg-[#0a6b45] text-white hover:bg-[#085336] active:scale-[0.99] cursor-pointer shadow-xs"
-              : "bg-white text-[#0a6b45] border border-[#0a6b45] hover:bg-emerald-50 active:scale-[0.99] cursor-pointer"
+                ? "bg-[#0a6b45] text-white hover:bg-[#085336] active:scale-[0.99] cursor-pointer shadow-xs"
+                : "bg-white text-[#0a6b45] border border-[#0a6b45] hover:bg-emerald-50 active:scale-[0.99] cursor-pointer"
           }`}
         >
           {isVerifying ? (
             <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
           ) : isAlreadyVerified ? (
-            <Check className="w-4 h-4 text-[#0a6b45] stroke-[3]" aria-hidden="true" />
+            <Check
+              className="w-4 h-4 text-[#0a6b45] stroke-3"
+              aria-hidden="true"
+            />
           ) : null}
           <span>
             {isAlreadyVerified ? "Na-verify na sa Bukid" : "I-verify sa Bukid"}
@@ -175,18 +178,21 @@ export const SelectedCaseCard: React.FC<SelectedCaseCardProps> = ({
           disabled={isApproveDisabled}
           onClick={() => onApprove(selectedCase.id)}
           aria-label={`Aprubahan ang kaso blg. ${selectedCase.caseNo}`}
-          className={`min-h-[52px] sm:flex-1 rounded-[14px] px-6 text-[15px] font-extrabold flex items-center justify-center gap-2 transition select-none ${
+          className={`min-h-13 sm:flex-1 rounded-[14px] px-6 text-[15px] font-extrabold flex items-center justify-center gap-2 transition select-none ${
             isApproveDisabled
               ? "bg-[#d9f3e5] text-[#0a6b45] border border-[#a3e2c3] cursor-not-allowed"
               : isAwaitingApproval
-              ? "bg-[#0a6b45] text-white hover:bg-[#085336] active:scale-[0.99] cursor-pointer shadow-xs"
-              : "bg-[#0f2a5c] text-white hover:bg-[#1b3f9a] active:scale-[0.99] cursor-pointer shadow-xs"
+                ? "bg-[#0a6b45] text-white hover:bg-[#085336] active:scale-[0.99] cursor-pointer shadow-xs"
+                : "bg-[#0f2a5c] text-white hover:bg-[#1b3f9a] active:scale-[0.99] cursor-pointer shadow-xs"
           }`}
         >
           {isApproving ? (
             <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
           ) : isAlreadyApproved ? (
-            <Check className="w-4 h-4 text-[#0a6b45] stroke-[3]" aria-hidden="true" />
+            <Check
+              className="w-4 h-4 text-[#0a6b45] stroke-3"
+              aria-hidden="true"
+            />
           ) : null}
           <span>{isAlreadyApproved ? "Aprubado na" : "Aprubahan"}</span>
         </button>
