@@ -10,9 +10,9 @@ import {
 } from "../components/dashboard/KpiOverview";
 
 describe("KpiOverview formatters", () => {
-  it("formats hours with .0 if integer and preserves float if already decimal", () => {
-    expect(formatHours(68)).toBe("68.0");
-    expect(formatHours(68.0)).toBe("68.0");
+  it("formats hours with exactly two decimal places", () => {
+    expect(formatHours(68)).toBe("68.00");
+    expect(formatHours(68.0)).toBe("68.00");
     expect(formatHours(70.45)).toBe("70.45");
   });
 
@@ -68,7 +68,7 @@ describe("KpiOverview component", () => {
   it("renders response time card with clock and delta", () => {
     render(<KpiOverview {...defaultProps} />);
     expect(
-      screen.getByLabelText("68.0 oras na karaniwang tugon")
+      screen.getByLabelText("68.00 oras na karaniwang tugon")
     ).toBeInTheDocument();
     expect(screen.getByText("Oras ng Tugon")).toBeInTheDocument();
     expect(screen.getByText("oras")).toBeInTheDocument();

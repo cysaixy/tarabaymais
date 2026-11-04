@@ -173,15 +173,12 @@ export function formatDelta(
 }
 
 /**
- * Formats hours with 1 decimal if needed (e.g. 68 -> "68.0", 70.45 stays "70.45")
+ * Formats hours with exactly two decimal places.
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function formatHours(val: number): string {
-  if (val === null || val === undefined || isNaN(val)) return "0.0";
-  if (Number.isInteger(val)) {
-    return `${val}.0`;
-  }
-  return `${val}`;
+  if (val === null || val === undefined || isNaN(val)) return "0.00";
+  return Number(val).toFixed(2);
 }
 
 /**

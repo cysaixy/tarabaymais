@@ -75,9 +75,9 @@ export const ResponsePanel: React.FC<ResponsePanelProps> = ({
         <div className="flex items-baseline mt-2">
           <span
             className="text-[44px] sm:text-[48px] font-black text-slate-900 leading-none tracking-tight"
-            aria-label={`${avgResponseHours.toFixed(1)} oras karaniwang tugon`}
+            aria-label={`${avgResponseHours.toFixed(2)} oras karaniwang tugon`}
           >
-            {avgResponseHours.toFixed(1)}
+            {avgResponseHours.toFixed(2)}
           </span>
           <span className="text-[16px] font-bold text-slate-600 ml-1.5 leading-none">
             oras avg
@@ -91,7 +91,7 @@ export const ResponsePanel: React.FC<ResponsePanelProps> = ({
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           className="w-full max-w-[280px] h-[130px] overflow-visible"
           role="img"
-          aria-label={`Oras ng tugon bawat linggo mula L1 hanggang L4 na may karaniwang ${avgResponseHours.toFixed(1)} oras`}
+          aria-label={`Oras ng tugon bawat linggo mula L1 hanggang L4 na may karaniwang ${avgResponseHours.toFixed(2)} oras`}
         >
           {/* Dashed Horizontal Average Line (#14213d, 2px, dashes 6 5) */}
           <line

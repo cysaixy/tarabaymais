@@ -112,9 +112,9 @@ export const StatBar: React.FC<StatBarProps> = ({
         <div className="flex items-baseline shrink-0">
           <span
             className="text-[30px] font-black leading-none text-[#14213d] tracking-tight"
-            aria-label={`${avgResponseHours.toFixed(1)} oras karaniwang tugon`}
+            aria-label={`${avgResponseHours.toFixed(2)} oras karaniwang tugon`}
           >
-            {avgResponseHours.toFixed(1)}
+            {avgResponseHours.toFixed(2)}
           </span>
           <span className="text-[14px] font-bold text-[#14213d] ml-1 leading-none">
             oras
