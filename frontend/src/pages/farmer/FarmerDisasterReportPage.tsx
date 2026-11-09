@@ -9,10 +9,12 @@ import {
   FileText,
   Clock,
   Check,
+  Camera,
 } from "lucide-react";
 import {
   createDisasterReport,
   getCasePipeline,
+  uploadDisasterPhotos,
   type DisasterReport,
 } from "../../services/case.service";
 import { queueOfflineAction } from "../../services/sync.service";
@@ -22,6 +24,7 @@ import { FarmCycleSelector } from "../../components/FarmCycleSelector";
 import { caseStatusDisplay, CASE_STATUS_TIMELINE } from "../../lib/caseStatus";
 import { useSyncQueue } from "../../hooks/useSyncQueue";
 import { QUEUE_UPDATED_EVENT } from "../../lib/offlineQueue";
+import { InspectionPhotoUpload } from "../../components/pinsala/InspectionPhotoUpload";
 
 /** Suggested loss per hectare (₱) — an estimate only, farmer can override. */
 const SUGGESTED_LOSS_PER_HA = 36000;
@@ -57,6 +60,9 @@ export const FarmerDisasterReportPage: React.FC = () => {
   const [lossEdited, setLossEdited] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Farmer evidence photos (optional)
+  const [evidencePhotos, setEvidencePhotos] = useState<File[]>([]);
 
   // Pipeline Status List
   const [claimList, setClaimList] = useState<DisasterReport[]>([]);
@@ -127,12 +133,24 @@ export const FarmerDisasterReportPage: React.FC = () => {
     const notesWithContext = `${description.trim()}\n\n[Petsa ng Kalamidad: ${eventDate}] [Naapektuhan: ${haNum} ha mula sa ${totalHa} ha (${damagePct}%)]`;
 
     try {
-      await createDisasterReport(farmId, {
+      const report = await createDisasterReport(farmId, {
         disasterType,
         damagePercentage: damagePct,
         estimatedLoss: estimatedLossPhp,
         notes: notesWithContext,
       });
+
+      // Upload evidence photos if the farmer attached any
+      if (evidencePhotos.length > 0 && report?.id) {
+        try {
+          await uploadDisasterPhotos(report.id, evidencePhotos);
+        } catch (uploadErr) {
+          console.error("Disaster photo upload error:", uploadErr);
+          toast.warning("Naisumite ang ulat ngunit nagkaroon ng aberya sa larawan. Pakisuri sa Status tab.");
+        }
+      }
+
+      setEvidencePhotos([]);
 
       toast.success("Naisumite ang Ulat ng Kalamidad!", {
         description:
@@ -140,6 +158,7 @@ export const FarmerDisasterReportPage: React.FC = () => {
       });
 
       setActiveTab("status");
+      void refreshClaims();
     } catch (err) {
       // Queue connectivity and transient server failures; validation/client
       // errors must be shown directly instead of being retried indefinitely.
@@ -406,8 +425,17 @@ export const FarmerDisasterReportPage: React.FC = () => {
                 />
               </div>
 
-              {/* Photo evidence deferred: the backend has no disaster-image
-                  field yet, so the control is intentionally omitted (PWA phase). */}
+              {/* Section 5: Larawan bilang Patunay (optional) */}
+              <div className="space-y-2 bg-rose-50/60 border border-rose-200/60 rounded-2xl p-3.5">
+                <InspectionPhotoUpload
+                  onFilesChange={setEvidencePhotos}
+                  disabled={submitting}
+                  maxPhotos={3}
+                />
+                <p className="text-[10px] font-medium text-slate-500 leading-snug">
+                  Opsyonal. Mag-attach ng hanggang 3 larawan ng nasirang pananim bilang patunay para sa DA at PCIC.
+                </p>
+              </div>
 
               {/* Section 6: Oversized Submit Button */}
               <button
@@ -598,6 +626,22 @@ export const FarmerDisasterReportPage: React.FC = () => {
                                     <p className="text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/80 leading-snug whitespace-pre-line">
                                       {c.notes}
                                     </p>
+                                  </div>
+                                )}
+
+                                {c.photoUrls && c.photoUrls.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1 flex items-center gap-1.5">
+                                      <Camera className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+                                      <span>Mga Larawan ng Patunay / Inspeksyon</span>
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                      {c.photoUrls.map((url, idx) => (
+                                        <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="w-16 h-16 rounded-xl overflow-hidden border border-slate-300 block hover:opacity-85 transition shadow-xs">
+                                          <img src={url} alt={`Patunay ${idx + 1}`} className="w-full h-full object-cover" />
+                                        </a>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
                               </>

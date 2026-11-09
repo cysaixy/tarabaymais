@@ -12,7 +12,8 @@ const CHIP_KEYS: FilterChipKey[] = [
   "Bago",
   "Sinusuri",
   "Na-verify",
-  "Aprubado",
+  "Aksyon",
+  "Resolved",
 ];
 
 export const StatusChips: React.FC<StatusChipsProps> = ({

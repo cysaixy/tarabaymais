@@ -12,6 +12,7 @@ export type CaseStatus =
   | "SUBMITTED"
   | "UNDER_REVIEW"
   | "INSPECTED"
+  | "ACTION"
   | "RESOLVED"
   | "REJECTED";
 
@@ -23,6 +24,7 @@ export interface DisasterReport {
   estimatedLoss?: string | number | null;
   status: CaseStatus;
   notes?: string | null;
+  photoUrls?: string[];
   createdAt: string;
   updatedAt?: string;
   verifiedBy?: { firstName: string; lastName: string } | null;
@@ -118,4 +120,22 @@ export const resolveExpertCase = async (
   payload: { recommendation: string },
 ): Promise<void> => {
   await api.patch(`/case/expert-requests/${caseId}/resolve`, payload);
+};
+
+/**
+ * Uploads inspection or farmer-evidence photos for a disaster report (up to 3).
+ * Endpoint: POST /api/v1/case/disaster-report/:caseId/photos
+ * Returns the saved public photo URLs.
+ */
+export const uploadDisasterPhotos = async (
+  caseId: string,
+  photos: File[],
+): Promise<string[]> => {
+  const formData = new FormData();
+  photos.forEach((photo) => formData.append("photos", photo));
+  const { data } = await api.post(
+    `/case/disaster-report/${caseId}/photos`,
+    formData,
+  );
+  return data.data.photoUrls as string[];
 };

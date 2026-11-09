@@ -429,9 +429,11 @@ export const TechnicianDashboardPage: React.FC = () => {
       toast.success(
         newStatus === "INSPECTED"
           ? "Na-verify sa bukid ang pinsala ng sakahan."
-          : newStatus === "RESOLVED"
-            ? "Naaprubahan ang disaster claim."
-            : "Na-update ang katayuan ng claim.",
+          : newStatus === "ACTION"
+            ? "Naka-aksyon na ang kaso. Ihanda ang tulong para sa magsasaka."
+            : newStatus === "RESOLVED"
+              ? "Nalutas na ang kaso ng pinsala."
+              : "Na-update ang katayuan ng claim.",
       );
       await fetchPipeline(true);
     } catch {
@@ -1483,6 +1485,7 @@ export const TechnicianDashboardPage: React.FC = () => {
               isLoading={pipelineLoading}
               error={null}
               onVerifyCase={(caseId) => handleUpdateStatus(caseId, "INSPECTED")}
+              onActionCase={(caseId) => handleUpdateStatus(caseId, "ACTION")}
               onApproveCase={(caseId) => handleUpdateStatus(caseId, "RESOLVED")}
               isVerifying={actionLoading}
               isApproving={actionLoading}

@@ -1,4 +1,5 @@
 import React from "react";
+import { Camera } from "lucide-react";
 import type { CaseItem } from "./types";
 import { getDamageDotColor, getStatusChipStyle } from "./formatters";
 
@@ -10,6 +11,7 @@ export interface CaseRowProps {
 export const CaseRow: React.FC<CaseRowProps> = ({ item, onSelect }) => {
   const dotColor = getDamageDotColor(item.damageType);
   const chipStyle = getStatusChipStyle(item.status);
+  const hasPhotos = item.photoUrls && item.photoUrls.length > 0;
 
   return (
     <li role="listitem" className="list-none w-full">
@@ -21,7 +23,14 @@ export const CaseRow: React.FC<CaseRowProps> = ({ item, onSelect }) => {
       >
         {/* Desktop View (>= 1024px) */}
         <div className="hidden lg:grid grid-cols-[70px_1fr_1.3fr_1.4fr_70px_96px] gap-3 items-center w-full text-[14px]">
-          <span className="font-bold text-[#14213d]">Blg. {item.caseNo}</span>
+          <div className="flex items-center gap-1.5 font-bold text-[#14213d]">
+            <span>Blg. {item.caseNo}</span>
+            {hasPhotos && (
+              <span title={`${item.photoUrls!.length} larawan`} className="inline-flex items-center text-emerald-700">
+                <Camera className="w-3.5 h-3.5" />
+              </span>
+            )}
+          </div>
           <span className="text-[#14213d] truncate font-medium">
             {item.farmerName}
           </span>
@@ -57,6 +66,11 @@ export const CaseRow: React.FC<CaseRowProps> = ({ item, onSelect }) => {
               <span className="font-bold text-[#14213d]">
                 Blg. {item.caseNo}
               </span>
+              {hasPhotos && (
+                <span title={`${item.photoUrls!.length} larawan`} className="inline-flex items-center text-emerald-700">
+                  <Camera className="w-3.5 h-3.5" />
+                </span>
+              )}
               <span className="text-[#4b5563]" aria-hidden="true">
                 ·
               </span>

@@ -2,8 +2,7 @@ import type { CaseStatus } from "../services/case.service";
 
 /**
  * Single source of truth for rendering a backend `CaseStatus` in the farmer UI.
- * The backend enum is: SUBMITTED, UNDER_REVIEW, INSPECTED, RESOLVED, REJECTED.
- * (There is no `IN_PROGRESS` — that was a UI invention and is removed.)
+ * The backend enum is: SUBMITTED, UNDER_REVIEW, INSPECTED, ACTION, RESOLVED, REJECTED.
  */
 export interface CaseStatusDisplay {
   /** Short Tagalog label for a badge. */
@@ -30,15 +29,20 @@ const DISPLAY: Record<CaseStatus, CaseStatusDisplay> = {
     badge: "bg-purple-100 text-purple-800 border-purple-300",
     step: 2,
   },
+  ACTION: {
+    label: "Naka-Aksyon (In Action)",
+    badge: "bg-amber-100 text-amber-900 border-amber-300",
+    step: 3,
+  },
   RESOLVED: {
     label: "Nalutas na",
     badge: "bg-emerald-100 text-emerald-800 border-emerald-300",
-    step: 3,
+    step: 4,
   },
   REJECTED: {
     label: "Hindi Naaprubahan",
     badge: "bg-rose-100 text-rose-800 border-rose-300",
-    step: 3,
+    step: 4,
   },
 };
 
@@ -59,5 +63,6 @@ export const CASE_STATUS_TIMELINE: {
   { key: "SUBMITTED", label: "Naipasa" },
   { key: "UNDER_REVIEW", label: "Sinusuri" },
   { key: "INSPECTED", label: "Na-inspeksyon" },
+  { key: "ACTION", label: "Aksyon" },
   { key: "RESOLVED", label: "Nalutas" },
 ];

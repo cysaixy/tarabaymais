@@ -40,7 +40,8 @@ export function mapCaseStatus(status?: string | null): CaseStatusTL {
   if (upper === "SUBMITTED" || upper === "BAGO") return "Bago";
   if (upper === "UNDER_REVIEW" || upper === "SINUSURI") return "Sinusuri";
   if (upper === "INSPECTED" || upper === "NA_VERIFY" || upper === "NA-VERIFY") return "Na-verify";
-  if (upper === "RESOLVED" || upper === "APRUBADO") return "Aprubado";
+  if (upper === "ACTION" || upper === "AKSYON" || upper === "APRUBADO") return "Aksyon";
+  if (upper === "RESOLVED") return "Resolved";
   return "Bago";
 }
 
@@ -196,7 +197,9 @@ export function getStatusChipStyle(status: CaseStatusTL): {
       return { backgroundColor: "#fdeccd", color: "#7a3a04" };
     case "Na-verify":
       return { backgroundColor: "#ede4ff", color: "#5b21b6" };
-    case "Aprubado":
+    case "Aksyon":
+      return { backgroundColor: "#fef3c7", color: "#92400e" };
+    case "Resolved":
       return { backgroundColor: "#d9f3e5", color: "#0a6b45" };
     default:
       return { backgroundColor: "#dde8ff", color: "#1b3f9a" };

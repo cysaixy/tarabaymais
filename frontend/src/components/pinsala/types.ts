@@ -3,9 +3,15 @@ export type FilterChipKey =
   | "Bago"
   | "Sinusuri"
   | "Na-verify"
-  | "Aprubado";
+  | "Aksyon"
+  | "Resolved";
 
-export type CaseStatusTL = "Bago" | "Sinusuri" | "Na-verify" | "Aprubado";
+export type CaseStatusTL =
+  | "Bago"
+  | "Sinusuri"
+  | "Na-verify"
+  | "Aksyon"
+  | "Resolved";
 
 export interface CaseItem {
   id: string;
@@ -16,6 +22,7 @@ export interface CaseItem {
   hectares: number;
   status: CaseStatusTL;
   farmNote: string;
+  photoUrls?: string[];
   rawStatus?: string;
   createdAt?: string;
 }

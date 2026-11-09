@@ -92,7 +92,8 @@ describe("PinsalaView Component", () => {
     expect(tabs[1]).toHaveTextContent("Bago4");
     expect(tabs[2]).toHaveTextContent("Sinusuri0");
     expect(tabs[3]).toHaveTextContent("Na-verify0");
-    expect(tabs[4]).toHaveTextContent("Aprubado1");
+    expect(tabs[4]).toHaveTextContent("Aksyon0");
+    expect(tabs[5]).toHaveTextContent("Resolved1");
   });
 
   it("renders the selected case card with Filipino labels and mapped enums", () => {
@@ -104,7 +105,7 @@ describe("PinsalaView Component", () => {
     );
 
     // Selected case is Blg. 1 (case-1): PEST_OUTBREAK -> Pagdami ng Peste
-    expect(screen.getByText(/NAPILING KASO · BLG\. 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/NAPILING KASO/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Pagdami ng Peste" })).toBeInTheDocument();
     expect(screen.getByText("ang bilis ng pag dami ng mga pest")).toBeInTheDocument();
     expect(screen.getByText("Tala sa Sakahan")).toBeInTheDocument();
@@ -114,7 +115,7 @@ describe("PinsalaView Component", () => {
     expect(within(stepList).getByText("Naisumite")).toBeInTheDocument();
     expect(within(stepList).getByText("Sinusuri")).toBeInTheDocument();
     expect(within(stepList).getByText("Na-verify sa bukid")).toBeInTheDocument();
-    expect(within(stepList).getByText("Aprubado")).toBeInTheDocument();
+    expect(within(stepList).getByText("Aksyon")).toBeInTheDocument();
   });
 
   it("calculates total hectares in dark summary panel and groups by damage type", () => {
@@ -155,7 +156,7 @@ describe("PinsalaView Component", () => {
     fireEvent.click(row2Btn);
 
     // Now Selected Case should be Blg. 2 Bagyo
-    expect(screen.getByText(/NAPILING KASO · BLG\. 2/i)).toBeInTheDocument();
+    expect(screen.getByText(/NAPILING KASO/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Bagyo" })).toBeInTheDocument();
 
     // Blg. 1 should now be in the other cases list
@@ -171,11 +172,12 @@ describe("PinsalaView Component", () => {
     );
 
     // Click Aprubado chip
-    const aprubadoTab = screen.getByRole("tab", { name: /Aprubado/i });
+    const aprubadoTab = screen.getByRole("tab", { name: /Resolved/i });
     fireEvent.click(aprubadoTab);
 
     // Only Case 5 is Aprubado (Tagtuyot, 1.3 ha)
-    expect(screen.getByText(/NAPILING KASO · BLG\. 5/i)).toBeInTheDocument();
+    expect(screen.getByText(/NAPILING KASO/i)).toBeInTheDocument();
+    expect(screen.getByText(/BLG\. 5/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Tagtuyot" })).toBeInTheDocument();
 
     // Exactly one case: other-cases list is hidden!
@@ -235,20 +237,21 @@ describe("PinsalaView Component", () => {
     expect(onVerify).toHaveBeenCalledWith("case-1");
   });
 
-  it("calls onApproveCase when Aprubahan button is clicked", () => {
-    const onApprove = vi.fn();
+  it("calls onActionCase when Markahan bilang Aksyon button is clicked", () => {
+    const onAction = vi.fn();
     render(
       <PinsalaView
         disasterReports={mockDisasterReports}
         onVerifyCase={vi.fn()}
-        onApproveCase={onApprove}
+        onActionCase={onAction}
+        onApproveCase={vi.fn()}
       />
     );
 
-    const approveBtn = screen.getByRole("button", { name: /Aprubahan/i });
+    const approveBtn = screen.getByRole("button", { name: /Markahan ang kaso/i });
     expect(approveBtn).not.toBeDisabled();
     fireEvent.click(approveBtn);
-    expect(onApprove).toHaveBeenCalledWith("case-1");
+    expect(onAction).toHaveBeenCalledWith("case-1");
   });
 
   it("does not render Humingi ng Dokumento button", () => {

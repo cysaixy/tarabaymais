@@ -5,8 +5,9 @@ const BUCKET_NAME = process.env.SUPABASE_STORAGE_BUCKET || "observation-photos";
 
 export const uploadToSupabase = async (
   file: Express.Multer.File,
+  folder: string = "observations",
 ): Promise<string> => {
-  const fileName = `observations/${uuidv4()}_${file.originalname}`;
+  const fileName = `${folder}/${uuidv4()}_${file.originalname}`;
 
   const { error: uploadError } = await supabase.storage
     .from(BUCKET_NAME)

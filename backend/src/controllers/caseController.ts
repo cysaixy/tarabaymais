@@ -8,6 +8,7 @@ import { ApiError } from "../utils/ApiError";
 import { z } from "zod";
 import { invalidateAnalyticsCache } from "./analyticsController";
 import { invalidateOfficerAnalyticsCache } from "./officerAnalyticsController";
+import { uploadToSupabase } from "../utils/uploadToSupabase";
 
 // ── Input schemas (Zod v4 compatible) ─────────────────────────────────────────
 
@@ -25,6 +26,7 @@ const createDisasterReportSchema = z.object({
   damagePercentage: z.coerce.number().min(0).max(100),
   estimatedLoss: z.coerce.number().nonnegative().optional().nullable(),
   notes: z.string().optional().nullable(),
+  photoUrls: z.array(z.string().url()).optional().default([]),
 });
 
 const resolveExpertCaseSchema = z.object({
@@ -183,7 +185,7 @@ export const createDisasterReport = asyncHandler(
       );
     }
 
-    const { disasterType, damagePercentage, estimatedLoss, notes } =
+    const { disasterType, damagePercentage, estimatedLoss, notes, photoUrls } =
       parseResult.data;
 
     const farm = await prisma.farm.findFirst({
@@ -201,6 +203,7 @@ export const createDisasterReport = asyncHandler(
         damagePercentage,
         estimatedLoss: estimatedLoss ?? null,
         notes: notes ?? null,
+        photoUrls: photoUrls ?? [],
         status: CaseStatus.SUBMITTED,
       },
     });
@@ -260,5 +263,59 @@ export const resolveExpertCase = asyncHandler(
     await invalidateAnalyticsCache();
 
     return sendSuccess(res, 200, { data: { resolvedCase: updatedCase } });
+  },
+);
+
+/**
+ * POST /api/v1/case/disaster-report/:caseId/photos
+ * Uploads up to 3 photos for a disaster report (farmer evidence or DA inspection proof).
+ * Uses multer memory storage; files are uploaded to Supabase and URLs saved to the report.
+ */
+export const uploadDisasterPhotos = asyncHandler(
+  async (req: Request, res: Response) => {
+    const caseId = req.params["caseId"] as string;
+
+    const files = req.files as Express.Multer.File[] | undefined;
+    if (!files || files.length === 0) {
+      throw ApiError.badRequest("At least one photo is required.");
+    }
+    if (files.length > 3) {
+      throw ApiError.badRequest("Maximum of 3 photos allowed per report.");
+    }
+
+    // Verify the report exists and the caller has access
+    const report = await prisma.disasterReport.findUnique({
+      where: { id: caseId },
+      include: { farm: { select: { farmerId: true } } },
+    });
+
+    if (!report) {
+      throw ApiError.notFound("Disaster report not found.");
+    }
+
+    const caller = req.user!;
+    const isFarmerOwner = report.farm.farmerId === caller.id;
+    const isStaff =
+      caller.role === Role.TECHNICIAN || caller.role === Role.OFFICER;
+
+    if (!isFarmerOwner && !isStaff) {
+      throw ApiError.forbidden("Access denied.");
+    }
+
+    // Upload each file to Supabase under disaster-photos/
+    const uploadedUrls: string[] = await Promise.all(
+      files.map((file) => uploadToSupabase(file, "disaster-photos")),
+    );
+
+    // Merge with existing URLs (keep old ones, add new ones, cap at 3 total)
+    const merged = [...(report.photoUrls ?? []), ...uploadedUrls].slice(0, 3);
+
+    const updated = await prisma.disasterReport.update({
+      where: { id: caseId },
+      data: { photoUrls: merged },
+      select: { id: true, photoUrls: true },
+    });
+
+    return sendSuccess(res, 200, { data: { photoUrls: updated.photoUrls } });
   },
 );

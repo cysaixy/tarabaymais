@@ -403,7 +403,7 @@ export const FarmerObservationsHistoryPage: React.FC = () => {
                     category="OBSERVATION"
                     date={observation.createdAt.split("T")[0]}
                     description={observation.description}
-                    detailHighlight={`${severityConfig.label} Severity ${hasPhoto ? "📷" : ""}${hasAI ? " 🤖" : ""}`}
+                    detailHighlight={`${severityConfig.label} Severity${hasPhoto ? " • May Larawan" : ""}${hasAI ? " • AI" : ""}`}
                     status="Synced"
                     onClick={() => openDetail(observation)}
                     expanded={selectedObservation?.id === observation.id}

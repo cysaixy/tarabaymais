@@ -6,7 +6,9 @@ import {
   updateCaseStatus,
   createDisasterReport,
   resolveExpertCase,
+  uploadDisasterPhotos,
 } from "../controllers/caseController";
+import { upload } from "../middlewares/uploadMiddleware";
 import { Role } from "@prisma/client";
 
 const router = Router();
@@ -31,6 +33,14 @@ router.post(
   "/disaster-report/:farmId",
   authorize([Role.FARMER]),
   createDisasterReport,
+);
+
+// Upload inspection / farmer-evidence photos (up to 3) for a disaster report
+router.post(
+  "/disaster-report/:caseId/photos",
+  authorize([Role.FARMER, Role.TECHNICIAN, Role.OFFICER]),
+  upload.array("photos", 3),
+  uploadDisasterPhotos,
 );
 
 // Technician/Officer resolves an expert request with diagnostic notes

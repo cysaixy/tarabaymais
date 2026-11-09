@@ -173,6 +173,13 @@ export const FarmerDisastersHistoryPage: React.FC = () => {
           bg: "bg-cyan-100",
           step: 2,
         };
+      case "ACTION":
+        return {
+          label: "Aksyon",
+          color: "text-amber-700",
+          bg: "bg-amber-100",
+          step: 3,
+        };
       case "RESOLVED":
         return {
           label: "Naresolba",
@@ -207,6 +214,8 @@ export const FarmerDisastersHistoryPage: React.FC = () => {
         return "Under Review";
       case "INSPECTED":
         return "Under Review";
+      case "ACTION":
+        return "Under Review";
       case "RESOLVED":
         return "Resolved";
       case "REJECTED":
@@ -220,7 +229,8 @@ export const FarmerDisastersHistoryPage: React.FC = () => {
     { key: "submitted", label: "Naipadala", step: 0 },
     { key: "review", label: "Sinusuri", step: 1 },
     { key: "inspected", label: "Na-inspect", step: 2 },
-    { key: "resolved", label: "Naresolba", step: 3 },
+    { key: "action", label: "Aksyon", step: 3 },
+    { key: "resolved", label: "Naresolba", step: 4 },
   ] as const;
 
   const formatCurrency = (amount: string | number | null | undefined) => {
@@ -329,6 +339,7 @@ export const FarmerDisastersHistoryPage: React.FC = () => {
             {(
               [
                 "RESOLVED",
+                "ACTION",
                 "INSPECTED",
                 "UNDER_REVIEW",
                 "SUBMITTED",

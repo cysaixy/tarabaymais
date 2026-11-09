@@ -20,18 +20,21 @@ export interface PinsalaViewProps {
   isLoading?: boolean;
   error?: string | null;
   onVerifyCase: (caseId: string) => Promise<void> | void;
+  /** Move Na-verify -> Aksyon */
+  onActionCase?: (caseId: string) => Promise<void> | void;
+  /** Move Aksyon -> Resolved */
   onApproveCase?: (caseId: string) => Promise<void> | void;
   onRequestDocument?: (caseItem: CaseItem) => void;
   isVerifying?: boolean;
   isApproving?: boolean;
   selectedLocationKey?: string;
 }
-
 export const PinsalaView: React.FC<PinsalaViewProps> = ({
   disasterReports,
   isLoading = false,
   error = null,
   onVerifyCase,
+  onActionCase,
   onApproveCase,
   isVerifying = false,
   isApproving = false,
@@ -84,6 +87,7 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
         hectares,
         status,
         farmNote,
+        photoUrls: (item as { photoUrls?: string[] }).photoUrls ?? [],
         rawStatus: item.status,
         createdAt: item.createdAt,
       };
@@ -97,7 +101,8 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
       Bago: 0,
       Sinusuri: 0,
       "Na-verify": 0,
-      Aprubado: 0,
+      Aksyon: 0,
+      Resolved: 0,
     };
 
     allCases.forEach((c) => {
@@ -180,7 +185,8 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
                   <SelectedCaseCard
                     selectedCase={selectedCase}
                     onVerify={onVerifyCase}
-                    onApprove={onApproveCase || onVerifyCase}
+                    onAction={onActionCase || onVerifyCase}
+                    onResolve={onApproveCase || onVerifyCase}
                     isVerifying={isVerifying}
                     isApproving={isApproving}
                   />

@@ -8,6 +8,7 @@ const CONFIG: Record<string, { label: string; tailwind: string }> = {
   SUBMITTED: { label: "Naipasa", tailwind: "border-blue-200 bg-blue-50 text-blue-700" },
   UNDER_REVIEW: { label: "Sinusuri", tailwind: "border-amber-200 bg-amber-50 text-amber-700" },
   INSPECTED: { label: "Nainspeksyon", tailwind: "border-purple-200 bg-purple-50 text-purple-700" },
+  ACTION: { label: "Aksyon", tailwind: "border-amber-200 bg-amber-50 text-amber-700" },
   RESOLVED: { label: "Nalutas", tailwind: "border-emerald-200 bg-emerald-50 text-emerald-700" },
   REJECTED: { label: "Hindi Naaprubahan", tailwind: "border-rose-200 bg-rose-50 text-rose-700" },
 };

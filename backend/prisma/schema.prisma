@@ -51,6 +51,7 @@ enum CaseStatus {
   SUBMITTED    @map("submitted")
   UNDER_REVIEW @map("under_review")
   INSPECTED    @map("inspected")
+  ACTION       @map("action")
   RESOLVED     @map("resolved")
   REJECTED     @map("rejected")
 
@@ -210,6 +211,7 @@ model DisasterReport {
   status           CaseStatus @default(SUBMITTED)
   verifiedById     String?    @map("verified_by_id") @db.VarChar(128)
   notes            String?    @db.Text
+  photoUrls        String[]   @default([]) @map("photo_urls")
   createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
