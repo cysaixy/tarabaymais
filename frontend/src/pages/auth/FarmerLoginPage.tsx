@@ -446,7 +446,8 @@ export const FarmerLoginPage: React.FC = () => {
                 className="inline-flex items-center gap-1 text-[11px] sm:text-xs text-slate-500 hover:text-emerald-700 font-medium transition-colors cursor-pointer py-1"
               >
                 <Building2 className="w-3.5 h-3.5" />
-                <span>Pumunta sa Officer / Technician Portal ➔</span>
+                <span>Pumunta sa Officer / Technician Portal</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>

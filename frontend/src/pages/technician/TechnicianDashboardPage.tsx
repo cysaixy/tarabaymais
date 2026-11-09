@@ -18,6 +18,7 @@ import {
   MessageSquare,
   FileDown,
   LayoutDashboard,
+  MapPin,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import {
@@ -706,17 +707,84 @@ export const TechnicianDashboardPage: React.FC = () => {
     );
   }, [farmMarkers]);
 
-  const visibleFarmMarkers = useMemo(
-    () =>
-      selectedRegisteredLocation
-        ? farmMarkers.filter(
-            (farm) =>
-              registeredLocationKey(farm.municipality, farm.barangay) ===
-              selectedRegisteredLocation,
-          )
-        : farmMarkers,
-    [farmMarkers, selectedRegisteredLocation],
-  );
+  const enrichedFarmMarkers = useMemo(() => {
+    return farmMarkers.map((farm) => {
+      // Find all active (non-resolved, non-rejected) disaster reports for this farm
+      const activeReports = disasterReports.filter((dr) => {
+        if (dr.status === "RESOLVED" || dr.status === "REJECTED") return false;
+        if (dr.farmId && dr.farmId === farm.id) return true;
+        if (dr.farm?.name && dr.farm.name.toLowerCase().includes(farm.name.toLowerCase())) {
+          return true;
+        }
+        return false;
+      });
+
+      if (activeReports.length === 0) {
+        return farm;
+      }
+
+      // Check if any report is critical (damagePercentage >= 50 or notes contain critical / malubha / wasak)
+      const hasCritical = activeReports.some((dr) => {
+        const pct = Number(dr.damagePercentage || 0);
+        const notes = (dr.notes || "").toLowerCase();
+        return (
+          pct >= 50 ||
+          notes.includes("critical") ||
+          notes.includes("malubha") ||
+          notes.includes("wasak")
+        );
+      });
+
+      const latestReport = activeReports[0];
+      const damagePct = Number(latestReport.damagePercentage || 0);
+
+      if (hasCritical) {
+        return {
+          ...farm,
+          healthStatus: "critical",
+          damageType: latestReport.disasterType,
+          damagePercentage: damagePct > 0 ? damagePct : undefined,
+          damageStatus: latestReport.status,
+        };
+      }
+
+      // Otherwise if it's under review / submitted / inspected / action: ORANGE (watch)
+      return {
+        ...farm,
+        healthStatus: "watch",
+        damageType: latestReport.disasterType,
+        damagePercentage: damagePct > 0 ? damagePct : undefined,
+        damageStatus: latestReport.status,
+      };
+    });
+  }, [farmMarkers, disasterReports]);
+
+  const visibleFarmMarkers = useMemo(() => {
+    let list = enrichedFarmMarkers;
+
+    if (selectedRegisteredLocation) {
+      list = list.filter(
+        (farm) =>
+          registeredLocationKey(farm.municipality, farm.barangay) ===
+          selectedRegisteredLocation,
+      );
+    }
+
+    if (mapLayer === "PINSALA") {
+      const withPinsala = list.filter(
+        (f) =>
+          f.healthStatus === "critical" ||
+          f.healthStatus === "watch" ||
+          Boolean(f.damageType),
+      );
+      if (withPinsala.length > 0) return withPinsala;
+    } else if (mapLayer === "KONSULTASYON") {
+      const withCases = list.filter((f) => (f.openCases ?? 0) > 0);
+      if (withCases.length > 0) return withCases;
+    }
+
+    return list;
+  }, [enrichedFarmMarkers, selectedRegisteredLocation, mapLayer]);
 
   const selectedLocation = registeredFarmLocations.find(
     (location) => location.key === selectedRegisteredLocation,
@@ -1258,8 +1326,9 @@ export const TechnicianDashboardPage: React.FC = () => {
                               </span>
                             </div>
                             {/* Barangay */}
-                            <p className="text-[11px] text-slate-400 font-semibold mb-0.5">
-                              ✦ {item.barangay}
+                            <p className="text-[11px] text-slate-400 font-semibold mb-0.5 flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-slate-400" />
+                              <span>{item.barangay}</span>
                             </p>
                             {/* Title */}
                             <p className="text-sm font-extrabold text-slate-900 mb-2 line-clamp-1">
@@ -1354,14 +1423,18 @@ export const TechnicianDashboardPage: React.FC = () => {
                     </div>
 
                     {/* Legend */}
-                    <div className="flex items-center gap-4 text-[11px] text-slate-500 font-medium">
+                    <div className="flex items-center flex-wrap gap-4 text-[11px] text-slate-600 font-medium">
                       <div className="flex items-center gap-1.5">
-                        <span className="h-2.5 w-2.5 rounded-full bg-[#10B981]" />
-                        <span>Sakahan</span>
+                        <span className="h-2.5 w-2.5 rounded-full bg-[#059669]" />
+                        <span>Malusog</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full bg-[#F97316]" />
+                        <span>Sinusuri ang Ulat (Orange)</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="h-2.5 w-2.5 rounded-full bg-[#DC2626]" />
-                        <span>Ulat ng pinsala</span>
+                        <span>Kritikal (Automatic Pula)</span>
                       </div>
                     </div>
                   </div>

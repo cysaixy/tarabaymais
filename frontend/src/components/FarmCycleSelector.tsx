@@ -131,8 +131,9 @@ export const FarmCycleSelector: React.FC<FarmCycleSelectorProps> = ({
                   </p>
                 </div>
               </div>
-              <span className="shrink-0 text-[11px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full whitespace-nowrap">
-                🌱 {Number(selectedFarm.areaHectares).toFixed(1)} ha
+              <span className="shrink-0 text-[11px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full whitespace-nowrap inline-flex items-center gap-1">
+                <Sprout className="w-3.5 h-3.5 text-emerald-700" />
+                <span>{Number(selectedFarm.areaHectares).toFixed(1)} ha</span>
               </span>
             </div>
           </div>
@@ -170,8 +171,8 @@ export const FarmCycleSelector: React.FC<FarmCycleSelectorProps> = ({
               Kinukuha ang mga pananim...
             </div>
           ) : needsCycle ? (
-            <div className="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 px-4 py-4 text-sm font-semibold text-amber-800 flex items-start gap-2">
-              <span className="text-lg leading-none">🌱</span>
+            <div className="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 px-4 py-4 text-sm font-semibold text-amber-800 flex items-start gap-2.5">
+              <Sprout className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold text-amber-900">Wala pang pananim</p>
                 <p className="text-xs text-amber-700 mt-0.5">
@@ -186,11 +187,13 @@ export const FarmCycleSelector: React.FC<FarmCycleSelectorProps> = ({
                 <div className="rounded-2xl bg-slate-50 border-2 border-slate-200 px-4 py-3 pointer-events-none select-none">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="font-black text-base text-slate-900 leading-tight">
-                        🌽{" "}
-                        {selectedCycle.variety ||
-                          selectedCycle.cropType ||
-                          "Mais"}
+                      <p className="font-black text-base text-slate-900 leading-tight flex items-center gap-1.5">
+                        <Sprout className="w-4 h-4 text-emerald-700 shrink-0" />
+                        <span>
+                          {selectedCycle.variety ||
+                            selectedCycle.cropType ||
+                            "Mais"}
+                        </span>
                       </p>
                       {selectedCycle.plantingDate && (
                         <p className="text-xs text-slate-500 font-medium mt-1">

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, useMap, CircleMarker, Popup, Tooltip } from "react-leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
-import { MapPin } from "lucide-react";
+import { MapPin, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { registeredLocationKey } from "../../data/cagayanBarangays";
 
 export type MapLayerType = "TANIMAN" | "PINSALA" | "KONSULTASYON";
@@ -18,6 +18,8 @@ export interface FarmMarkerData {
   longitude: number;
   noGps?: boolean;
   damageType?: string;
+  damagePercentage?: number;
+  damageStatus?: string;
   openCases?: number;
 }
 
@@ -88,7 +90,18 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
   const barangayGroups = useMemo(() => {
     const groups: Record<
       string,
-      { key: string; name: string; municipality: string; lat: number; lng: number; count: number }
+      {
+        key: string;
+        name: string;
+        municipality: string;
+        lat: number;
+        lng: number;
+        count: number;
+        hasCritical: boolean;
+        hasWatch: boolean;
+        criticalCount: number;
+        watchCount: number;
+      }
     > = {};
 
     for (const farm of farms) {
@@ -101,6 +114,10 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
           lat: farm.latitude,
           lng: farm.longitude,
           count: 0,
+          hasCritical: false,
+          hasWatch: false,
+          criticalCount: 0,
+          watchCount: 0,
         };
       }
       // Running average of coordinates
@@ -108,9 +125,49 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
       g.lat = (g.lat * g.count + farm.latitude) / (g.count + 1);
       g.lng = (g.lng * g.count + farm.longitude) / (g.count + 1);
       g.count++;
+      if (farm.healthStatus === "critical") {
+        g.hasCritical = true;
+        g.criticalCount++;
+      } else if (farm.healthStatus === "watch" || farm.healthStatus === "sinusuri") {
+        g.hasWatch = true;
+        g.watchCount++;
+      }
     }
 
     return Object.values(groups);
+  }, [farms]);
+
+  // Displace co-located farms (e.g. without GPS) so each pin is separately clickable
+  const positionedFarms = useMemo(() => {
+    const coordCounts: Record<string, number> = {};
+    const coordIndices: Record<string, number> = {};
+
+    farms.forEach((f) => {
+      const coordKey = `${f.latitude.toFixed(4)},${f.longitude.toFixed(4)}`;
+      coordCounts[coordKey] = (coordCounts[coordKey] || 0) + 1;
+    });
+
+    return farms.map((f) => {
+      const coordKey = `${f.latitude.toFixed(4)},${f.longitude.toFixed(4)}`;
+      const totalAtCoord = coordCounts[coordKey] || 1;
+
+      if (totalAtCoord <= 1) return f;
+
+      const idx = coordIndices[coordKey] || 0;
+      coordIndices[coordKey] = idx + 1;
+
+      // Gentle radial spread (~160m) so pins do not completely overlap
+      const angle = (idx / totalAtCoord) * 2 * Math.PI;
+      const radiusDeg = 0.0018;
+      const latOffset = Math.sin(angle) * radiusDeg;
+      const lngOffset = Math.cos(angle) * radiusDeg;
+
+      return {
+        ...f,
+        latitude: f.latitude + latOffset,
+        longitude: f.longitude + lngOffset,
+      };
+    });
   }, [farms]);
 
   // ── Derive target coords for focus / flyTo ───────────────────────────────
@@ -173,7 +230,13 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
           const isSelected = b.key === selectedLocationKey;
           const farmCount = barangayFarmCounts[b.key] ?? b.count;
 
-          const markerColor = isSelected ? "#065F46" : "#10B981";
+          const markerColor = b.hasCritical
+            ? "#DC2626"
+            : b.hasWatch
+            ? "#F97316"
+            : isSelected
+            ? "#065F46"
+            : "#10B981";
           const strokeColor = isSelected ? "#FBBF24" : "#FFFFFF";
 
           return (
@@ -192,7 +255,7 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
               )}
               <CircleMarker
                 center={[b.lat, b.lng]}
-                radius={isSelected ? 12 : 9}
+                radius={isSelected ? 13 : 10}
                 eventHandlers={{ click: () => onSelectLocation(b.key) }}
                 pathOptions={{
                   color: strokeColor,
@@ -204,23 +267,48 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
                 <Tooltip direction="top" offset={[0, -8]} opacity={0.97}>
                   <div className="text-xs">
                     <p className="font-bold text-slate-900">{b.name}</p>
-                    <p className="text-emerald-600 font-semibold">
+                    <p className="text-emerald-700 font-semibold">
                       {farmCount} sakahan · {b.municipality}
                     </p>
+                    {b.hasCritical && (
+                      <p className="text-red-600 font-bold text-[10px] flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block" />
+                        <span>{b.criticalCount} may kritikal na pinsala</span>
+                      </p>
+                    )}
+                    {!b.hasCritical && b.hasWatch && (
+                      <p className="text-orange-600 font-bold text-[10px] flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block" />
+                        <span>{b.watchCount} sinusuri ang ulat</span>
+                      </p>
+                    )}
                   </div>
                 </Tooltip>
                 <Popup>
-                  <div className="p-1 space-y-1 text-xs">
+                  <div className="p-1.5 space-y-1 text-xs">
                     <p className="font-bold text-sm text-slate-900">{b.name}</p>
                     <p className="text-slate-500">{b.municipality}, Cagayan</p>
-                    <p className="text-emerald-700 font-semibold">
-                      ✓ {farmCount} rehistradong sakahan
+                    <p className="text-emerald-700 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{farmCount} rehistradong sakahan</span>
                     </p>
+                    {b.hasCritical && (
+                      <p className="text-red-600 font-bold flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-red-600 inline-block shrink-0" />
+                        <span>May {b.criticalCount} sakahan na may kritikal na pinsala</span>
+                      </p>
+                    )}
+                    {b.hasWatch && !b.hasCritical && (
+                      <p className="text-orange-600 font-bold flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-orange-500 inline-block shrink-0" />
+                        <span>May {b.watchCount} sakahan na sinusuri ang ulat</span>
+                      </p>
+                    )}
                     <div className="pt-1">
                       <button
                         type="button"
                         onClick={() => onSelectLocation(b.key)}
-                        className="rounded-lg bg-[#065F46] text-white px-2.5 py-1 text-xs font-bold shadow-xs hover:bg-emerald-800 transition"
+                        className="rounded-lg bg-[#065F46] text-white px-2.5 py-1 text-xs font-bold shadow-xs hover:bg-emerald-800 transition cursor-pointer"
                       >
                         Piliin ang Barangay
                       </button>
@@ -233,7 +321,7 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
         })}
 
         {/* ── INDIVIDUAL FARM PINS ── */}
-        {farms.map((f) => {
+        {positionedFarms.map((f) => {
           const locationKey = registeredLocationKey(
             f.municipality,
             f.barangay,
@@ -241,12 +329,9 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
           const isSelected = locationKey === selectedLocationKey;
           const noGps = f.noGps === true;
 
-          const farmColor =
-            f.healthStatus === "critical"
-              ? "#DC2626"
-              : f.healthStatus === "watch"
-              ? "#D97706"
-              : "#059669";
+          const isCritical = f.healthStatus === "critical";
+          const isWatch = f.healthStatus === "watch" || f.healthStatus === "sinusuri";
+          const farmColor = isCritical ? "#DC2626" : isWatch ? "#F97316" : "#059669";
 
           return (
             <CircleMarker
@@ -266,19 +351,35 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
                 <div className="text-xs">
                   <p className="font-bold text-slate-900">{f.name}</p>
                   <p className="text-slate-600">{f.hectares} ha · {f.barangay}, {f.municipality}</p>
+                  {isCritical && (
+                    <p className="text-red-600 font-bold text-[10px] flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block shrink-0" />
+                      <span>Kritikal na Pinsala{f.damagePercentage ? ` (${f.damagePercentage}%)` : ""}</span>
+                    </p>
+                  )}
+                  {!isCritical && isWatch && (
+                    <p className="text-orange-600 font-bold text-[10px] flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block shrink-0" />
+                      <span>Sinusuri ang Ulat</span>
+                    </p>
+                  )}
                   {noGps && (
-                    <p className="text-amber-600 text-[10px]">⚠ Tinatayang lokasyon (walang GPS)</p>
+                    <p className="text-amber-600 text-[10px] flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+                      <span>Tinatayang lokasyon (walang GPS)</span>
+                    </p>
                   )}
                 </div>
               </Tooltip>
               <Popup>
-                <div className="p-1.5 space-y-1.5 text-xs min-w-[190px]">
+                <div className="p-1.5 space-y-1.5 text-xs min-w-[200px]">
                   <div className="border-b border-slate-100 pb-1">
                     <p className="font-black text-sm text-slate-900">{f.name}</p>
                     <p className="text-[11px] text-slate-500">{f.barangay}, {f.municipality}</p>
                     {noGps && (
-                      <p className="text-[10px] text-amber-600 font-medium mt-0.5">
-                        ⚠ Walang exact na GPS — ipinapakita sa gitna ng barangay
+                      <p className="text-[10px] text-amber-600 font-medium mt-0.5 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+                        <span>Walang exact na GPS &mdash; ipinapakita sa gitna ng barangay</span>
                       </p>
                     )}
                   </div>
@@ -286,11 +387,24 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
                     <p><span className="font-semibold">Sukat:</span> {f.hectares} ha</p>
                     <p><span className="font-semibold">Yugto:</span> {f.growthStage || "Maisan"}</p>
                     <p>
-                      <span className="font-semibold">Kalusugan:</span>{" "}
+                      <span className="font-semibold">Kalagayan:</span>{" "}
                       <span className="font-bold capitalize" style={{ color: farmColor }}>
-                        {f.healthStatus || "Malusog"}
+                        {isCritical
+                          ? "Kritikal na Pinsala"
+                          : isWatch
+                            ? "Sinusuri ang Ulat"
+                            : "Malusog"}
                       </span>
                     </p>
+                    {f.damageType && (
+                      <p>
+                        <span className="font-semibold">Ulat ng Pinsala:</span>{" "}
+                        <span className="font-semibold text-slate-900">
+                          {f.damageType}
+                          {f.damagePercentage ? ` (${f.damagePercentage}% sira)` : ""}
+                        </span>
+                      </p>
+                    )}
                   </div>
                 </div>
               </Popup>
@@ -309,16 +423,20 @@ export const TechnicianLeafletMap: React.FC<TechnicianLeafletMapProps> = ({
       <div className="absolute bottom-3 right-3 z-20 rounded-xl bg-white/95 p-2.5 shadow-2xs border border-slate-200 text-[11px] text-slate-700 backdrop-blur-xs space-y-1">
         <p className="font-bold text-[10px] text-slate-400 uppercase tracking-widest pb-0.5">Mapa</p>
         <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#059669] border border-white shadow-xs" />
+          <span className="font-medium">Malusog / Walang Pinsala</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#F97316] border border-white shadow-xs" />
+          <span className="font-medium">Sinusuri ang Ulat (Orange)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#DC2626] border border-white shadow-xs" />
+          <span className="font-medium">Kritikal na Pinsala (Pula)</span>
+        </div>
+        <div className="flex items-center gap-2 pt-0.5 border-t border-slate-100">
           <span className="h-2.5 w-2.5 rounded-full bg-[#10B981] border border-white shadow-xs" />
-          <span className="font-medium">Barangay (may sakahan)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#059669] border-2 border-white" />
-          <span>Individual na sakahan</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#065F46] ring-1 ring-[#FBBF24]" />
-          <span>Napiling barangay</span>
+          <span>Barangay Centro</span>
         </div>
       </div>
     </div>

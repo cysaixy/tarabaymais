@@ -11,6 +11,7 @@ import {
   MessageSquarePlus,
   Sprout,
   Globe,
+  BookOpen,
 } from "lucide-react";
 import { BottomNav } from "../../components/BottomNav";
 import { sendRagChat } from "../../services/ai.service";
@@ -385,14 +386,16 @@ export const FarmerChatPage: React.FC = () => {
                   {msg.sources.map((s, idx) => (
                     <span
                       key={idx}
-                      className="rounded-lg bg-teal-50 border border-teal-200 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-teal-800"
+                      className="rounded-lg bg-teal-50 border border-teal-200 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-teal-800 inline-flex items-center gap-1"
                     >
-                      📖 {s.title}
+                      <BookOpen className="w-3 h-3 text-teal-700 shrink-0" />
+                      <span>{s.title}</span>
                     </span>
                   ))}
                   {msg.farmContextUsed && (
-                    <span className="rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-emerald-800">
-                      🌾 Naka-angkla sa {farmData.variety} (DAP {farmData.dap})
+                    <span className="rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-emerald-800 inline-flex items-center gap-1">
+                      <Sprout className="w-3 h-3 text-emerald-700 shrink-0" />
+                      <span>Naka-angkla sa {farmData.variety} (DAP {farmData.dap})</span>
                     </span>
                   )}
                 </div>

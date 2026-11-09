@@ -8,6 +8,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import L, { circleMarker } from "leaflet";
+import { MapPin } from "lucide-react";
 import { HEALTH_COLORS } from "../../lib/growthStageLabels";
 
 export interface FarmFeature {
@@ -141,9 +142,7 @@ export const FarmMap: React.FC<FarmMapProps> = ({
 
       {noCoords ? (
         <div className="flex-1 flex flex-col items-center justify-center rounded-xl bg-slate-50 border-2 border-dashed border-slate-200">
-          <span className="text-slate-400" aria-hidden="true">
-            📍
-          </span>
+          <MapPin className="h-6 w-6 text-slate-400" aria-hidden="true" />
           <p className="mt-2 text-sm font-medium text-slate-600">
             Wala pang lokasyon
           </p>

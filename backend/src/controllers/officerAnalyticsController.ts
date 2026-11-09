@@ -711,6 +711,12 @@ export const getFarmsGeo = asyncHandler(
                   ${GROWTH_STAGE_SQL_CASE} AS "growthStage",
                   CASE
                     WHEN EXISTS (
+                      SELECT 1 FROM "disaster_reports" dr
+                      WHERE dr."farm_id" = f.id
+                        AND dr.status IN ('submitted','under_review','inspected','action')
+                        AND (dr."damage_percentage" >= 50 OR dr."notes" ILIKE '%critical%' OR dr."notes" ILIKE '%malubha%')
+                    ) THEN 'critical'
+                    WHEN EXISTS (
                       SELECT 1 FROM "expert_requests" er
                       JOIN "observations" o ON er."observation_id" = o.id
                       JOIN "crop_cycles" cc ON o."crop_cycle_id" = cc.id
@@ -718,6 +724,11 @@ export const getFarmsGeo = asyncHandler(
                         AND er.status IN ('submitted','under_review','inspected')
                         AND o."severity" IN ('critical')
                     ) THEN 'critical'
+                    WHEN EXISTS (
+                      SELECT 1 FROM "disaster_reports" dr
+                      WHERE dr."farm_id" = f.id
+                        AND dr.status IN ('submitted','under_review','inspected','action')
+                    ) THEN 'watch'
                     WHEN EXISTS (
                       SELECT 1 FROM "expert_requests" er
                       JOIN "observations" o ON er."observation_id" = o.id
