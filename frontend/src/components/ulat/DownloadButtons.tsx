@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, Loader2 } from "lucide-react";
+import { Download, FileText, Loader2 } from "lucide-react";
 import type { ExportFormat } from "../../services/analytics.service";
 
 export interface DownloadButtonsProps {
@@ -64,6 +64,26 @@ export const DownloadButtons: React.FC<DownloadButtonsProps> = ({
             <Download className="w-[18px] h-[18px] shrink-0" aria-hidden="true" />
           )}
           <span>{isDownloading ? "Inihahanda..." : "CSV"}</span>
+        </button>
+
+        {/* PDF */}
+        <button
+          type="button"
+          disabled={isDisabled}
+          onClick={() => onDownload("pdf")}
+          aria-label="I-download ang ulat bilang PDF"
+          className={`flex-[2] min-w-[160px] min-h-[60px] rounded-[16px] flex items-center justify-center gap-2.5 text-[16px] font-extrabold transition select-none border-2 ${
+            isDisabled
+              ? "border-[#c8d0c2] text-[#6b7280] bg-white cursor-not-allowed"
+              : "border-[#9b1c1c] text-[#9b1c1c] bg-white hover:bg-[#fdf0f0] active:scale-[0.99] cursor-pointer"
+          }`}
+        >
+          {isDownloading ? (
+            <Loader2 className="w-[18px] h-[18px] animate-spin shrink-0" aria-hidden="true" />
+          ) : (
+            <FileText className="w-[18px] h-[18px] shrink-0" aria-hidden="true" />
+          )}
+          <span>{isDownloading ? "Inihahanda..." : "PDF"}</span>
         </button>
       </div>
 

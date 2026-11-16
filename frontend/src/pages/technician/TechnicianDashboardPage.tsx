@@ -19,6 +19,7 @@ import {
   FileDown,
   LayoutDashboard,
   MapPin,
+  Users,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import {
@@ -78,9 +79,16 @@ import { AnalitikaView } from "../../components/analytics";
 import { PinsalaView } from "../../components/pinsala";
 import { KonsultasyonView } from "../../components/konsultasyon";
 import { UlatView } from "../../components/ulat";
+import { AccountsView } from "../../components/accounts";
 
 // ─── Tab Keys ─────────────────────────────────────────────────────────────────
-export type TabKey = "BUOD" | "ANALITIKA" | "PINSALA" | "KONSULTASYON" | "ULAT";
+export type TabKey =
+  | "BUOD"
+  | "ANALITIKA"
+  | "PINSALA"
+  | "KONSULTASYON"
+  | "ULAT"
+  | "ACCOUNTS";
 type MapLayer = "TANIMAN" | "PINSALA" | "KONSULTASYON";
 
 function formatHa(value: number): string {
@@ -437,7 +445,7 @@ export const TechnicianDashboardPage: React.FC = () => {
               : "Na-update ang katayuan ng claim.",
       );
       await fetchPipeline(true);
-    } catch {
+    } catch {    
       toast.error("Hindi na-update ang katayuan. Pakisubukan muli.");
     } finally {
       setActionLoading(false);
@@ -1008,6 +1016,7 @@ export const TechnicianDashboardPage: React.FC = () => {
       badge: pendingConsultations,
     },
     { key: "ULAT", label: "Ulat", icon: FileSpreadsheet },
+    { key: "ACCOUNTS", label: "Mga Account", icon: Users },
   ];
 
   return (
@@ -1189,7 +1198,7 @@ export const TechnicianDashboardPage: React.FC = () => {
           aria-label="Mobile Navigation"
           className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B2347] border-t border-slate-700"
         >
-          <div className="grid grid-cols-5 h-14">
+          <div className="grid grid-cols-6 h-14">
             {navItems.map(({ key, label, icon: Icon, badge }) => {
               const isActive = activeTab === key;
               return (
@@ -1614,6 +1623,11 @@ export const TechnicianDashboardPage: React.FC = () => {
               isLoading={pipelineLoading}
             />
           )}
+
+          {/* ══════════════════════════════════════════════════════════════════
+              TAB: MGA ACCOUNT
+          ══════════════════════════════════════════════════════════════════ */}
+          {activeTab === "ACCOUNTS" && <AccountsView />}
         </main>
       </div>
 

@@ -20,6 +20,7 @@ import officerRoutes from "./routes/officerRoutes";
 
 import { errorMiddleware } from "./middlewares/error.middleware";
 import { closeCache } from "./lib/cache";
+import { startInactivitySweep } from "./lib/inactivity";
 
 if (process.env.NODE_ENV === "production") {
   const backendRoot = path.resolve(__dirname, "..");
@@ -137,6 +138,7 @@ app.use(errorMiddleware);
 
 const server = app.listen(port, () => {
   console.info(`[Server] Running at http://localhost:${port}`);
+  startInactivitySweep();
 });
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────

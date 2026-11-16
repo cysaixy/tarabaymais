@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ChevronLeft, Save, MapPin, RefreshCw } from "lucide-react";
@@ -10,6 +10,7 @@ import {
   CAGAYAN_LOCATION_DATA,
   CAGAYAN_MUNICIPALITIES,
 } from "../../data/cagayanLocations";
+import { findNearestBarangay } from "../../lib/nearestBarangay";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 
@@ -82,6 +83,16 @@ function LocationMapController({
     };
   }, [map, mapRef, markerRef]);
 
+  // Tap anywhere on the map to drop the pin there.
+  useEffect(() => {
+    const handleClick = (e: L.LeafletMouseEvent) =>
+      onChange({ latitude: e.latlng.lat, longitude: e.latlng.lng });
+    map.on("click", handleClick);
+    return () => {
+      map.off("click", handleClick);
+    };
+  }, [map, onChange]);
+
   useEffect(() => {
     if (!value) {
       markerRef.current?.remove();
@@ -126,6 +137,7 @@ const AddFarmPage = () => {
     longitude: number;
   } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
   const isOffline = useNetworkStatus();
 
   const availableBarangays = useMemo(() => {
@@ -133,6 +145,29 @@ const AddFarmPage = () => {
   }, [municipality]);
 
   const err = (field: string) => fieldErrors[field]?.[0];
+
+  /** Sets the pin and auto-fills Munisipyo/Barangay from the nearest known barangay. */
+  const applyLocation = useCallback(
+    (next: { latitude: number; longitude: number }, fromGps = false) => {
+      setLocation(next);
+      const detected = findNearestBarangay(next.latitude, next.longitude);
+      if (detected) {
+        setMunicipality(detected.municipality);
+        setBarangay(detected.barangay);
+        setAutoFilled(true);
+        if (fromGps) {
+          toast.success("Nakuha ang lokasyon mula sa GPS.", {
+            description: `Brgy. ${detected.barangay}, ${detected.municipality}. Palitan kung mali.`,
+          });
+        }
+      } else if (fromGps) {
+        toast.success("Lokasyon na-set mula sa GPS.", {
+          description: "Pakipili na lang ang Munisipyo at Barangay.",
+        });
+      }
+    },
+    [],
+  );
 
   const handleUseMyLocation = async () => {
     if (!navigator.geolocation) {
@@ -148,11 +183,10 @@ const AddFarmPage = () => {
           maximumAge: 0,
         });
       });
-      setLocation({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-      });
-      toast.success("Lokasyon na-set mula sa GPS.");
+      applyLocation(
+        { latitude: pos.coords.latitude, longitude: pos.coords.longitude },
+        true,
+      );
     } catch {
       toast.error("Hindi makuha ang GPS lokasyon. Maaari pumindot sa mapa.");
     } finally {
@@ -258,81 +292,7 @@ const AddFarmPage = () => {
             )}
           </div>
 
-          <div>
-            <label className={labelClass}>Munisipyo</label>
-            <select
-              className={inputClass}
-              value={municipality}
-              onChange={(e) => {
-                setMunicipality(e.target.value);
-                setBarangay("");
-              }}
-              required
-            >
-              <option value="" disabled>
-                Pumili ng Munisipyo
-              </option>
-              {CAGAYAN_MUNICIPALITIES.map((mun) => (
-                <option key={mun} value={mun}>
-                  {mun}
-                </option>
-              ))}
-            </select>
-            {err("municipality") && (
-              <p className="mt-1 text-sm font-semibold text-red-600">
-                {err("municipality")}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className={labelClass}>Barangay</label>
-            <select
-              className={inputClass}
-              value={barangay}
-              onChange={(e) => setBarangay(e.target.value)}
-              required
-              disabled={!municipality}
-            >
-              <option value="" disabled>
-                {municipality
-                  ? "Pumili ng Barangay"
-                  : "Pumili muna ng Munisipyo"}
-              </option>
-              {availableBarangays.map((bg) => (
-                <option key={bg} value={bg}>
-                  {bg}
-                </option>
-              ))}
-            </select>
-            {err("barangay") && (
-              <p className="mt-1 text-sm font-semibold text-red-600">
-                {err("barangay")}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className={labelClass}>Laki (ektarya)</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              inputMode="decimal"
-              className={inputClass}
-              value={areaHectares}
-              onChange={(e) => setAreaHectares(e.target.value)}
-              required
-              placeholder="Hal. 2.5"
-            />
-            {err("areaHectares") && (
-              <p className="mt-1 text-sm font-semibold text-red-600">
-                {err("areaHectares")}
-              </p>
-            )}
-          </div>
-
-          {/* Location capture (optional) */}
+          {/* Location capture (optional) — placed first so GPS can fill Munisipyo/Barangay below */}
           <div>
             <label className={labelClass}>Lokasyon (Opsyonal)</label>
             <div className="flex flex-col gap-2">
@@ -363,7 +323,10 @@ const AddFarmPage = () => {
                   </span>
                   <button
                     type="button"
-                    onClick={() => setLocation(null)}
+                    onClick={() => {
+                      setLocation(null);
+                      setAutoFilled(false);
+                    }}
                     className="text-emerald-500 hover:text-emerald-700"
                     aria-label="Alisin ang lokasyon"
                   >
@@ -371,12 +334,95 @@ const AddFarmPage = () => {
                   </button>
                 </div>
               )}
-              <LocationPicker value={location} onChange={setLocation} />
+              <LocationPicker value={location} onChange={applyLocation} />
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              Opsyonal na lokasyon para sa mapa ng opisyal. Maaari ring pumindot
-              sa mapa upang itakda ang pin.
+              Pindutin ang GPS o ang mapa — kusang mapupunan ang Munisipyo at
+              Barangay.
             </p>
+          </div>
+
+          <div>
+            <label className={labelClass}>Munisipyo</label>
+            <select
+              className={inputClass}
+              value={municipality}
+              onChange={(e) => {
+                setMunicipality(e.target.value);
+                setBarangay("");
+                setAutoFilled(false);
+              }}
+              required
+            >
+              <option value="" disabled>
+                Pumili ng Munisipyo
+              </option>
+              {CAGAYAN_MUNICIPALITIES.map((mun) => (
+                <option key={mun} value={mun}>
+                  {mun}
+                </option>
+              ))}
+            </select>
+            {err("municipality") && (
+              <p className="mt-1 text-sm font-semibold text-red-600">
+                {err("municipality")}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className={labelClass}>Barangay</label>
+            <select
+              className={inputClass}
+              value={barangay}
+              onChange={(e) => {
+                setBarangay(e.target.value);
+                setAutoFilled(false);
+              }}
+              required
+              disabled={!municipality}
+            >
+              <option value="" disabled>
+                {municipality
+                  ? "Pumili ng Barangay"
+                  : "Pumili muna ng Munisipyo"}
+              </option>
+              {availableBarangays.map((bg) => (
+                <option key={bg} value={bg}>
+                  {bg}
+                </option>
+              ))}
+            </select>
+            {autoFilled && (
+              <p className="mt-1 text-sm font-semibold text-emerald-700">
+                Kusang napunan mula sa GPS. Palitan kung mali.
+              </p>
+            )}
+            {err("barangay") && (
+              <p className="mt-1 text-sm font-semibold text-red-600">
+                {err("barangay")}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className={labelClass}>Laki (ektarya)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              inputMode="decimal"
+              className={inputClass}
+              value={areaHectares}
+              onChange={(e) => setAreaHectares(e.target.value)}
+              required
+              placeholder="Hal. 2.5"
+            />
+            {err("areaHectares") && (
+              <p className="mt-1 text-sm font-semibold text-red-600">
+                {err("areaHectares")}
+              </p>
+            )}
           </div>
 
           {error && (

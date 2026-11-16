@@ -10,7 +10,7 @@ const exportQuerySchema = z.object({
   type: z
     .enum(["disaster-claims", "barangay-summary"])
     .default("disaster-claims"),
-  format: z.enum(["xlsx", "csv"]).default("xlsx"),
+  format: z.enum(["xlsx", "csv", "pdf"]).default("xlsx"),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   barangay: z.string().optional(),
@@ -60,7 +60,13 @@ export const exportAnalyticsReport = asyncHandler(
       fileName = `TarabayMais_Disaster_Claims_${Date.now()}`;
     }
 
-    if (filters.format === "csv") {
+    if (filters.format === "pdf") {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${fileName}.pdf"`,
+      );
+    } else if (filters.format === "csv") {
       res.setHeader("Content-Type", "text/csv");
       res.setHeader(
         "Content-Disposition",

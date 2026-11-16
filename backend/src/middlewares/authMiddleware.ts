@@ -3,6 +3,7 @@ import { Prisma, Role } from "@prisma/client";
 import { auth } from "../config/firebase";
 import prisma from "../config/prisma";
 import { sendError } from "../utils/apiResponse";
+import { touchUserActivity } from "../lib/inactivity";
 import {
   isDesignatedFarmerPhone,
   normalizePhilippinePhone,
@@ -164,6 +165,13 @@ export const authenticate = async (
     }
 
     if (user) {
+      try {
+        const activity = await touchUserActivity(user);
+        if (activity) user = { ...user, ...activity };
+      } catch (error: unknown) {
+        // Activity tracking must never block a legitimate request.
+        console.warn("[Auth] Could not record user activity:", error);
+      }
       req.user = user;
     }
 

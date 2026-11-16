@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { FirebaseError } from "firebase/app";
 import type { ConfirmationResult } from "firebase/auth";
@@ -35,6 +35,7 @@ import {
   CAGAYAN_LOCATION_DATA,
   CAGAYAN_MUNICIPALITIES,
 } from "../../data/cagayanLocations";
+import { findNearestBarangay } from "../../lib/nearestBarangay";
 
 // Approximate center of Cagayan Valley
 const CAGAYAN_CENTER: [number, number] = [17.6137, 121.7271];
@@ -185,6 +186,7 @@ export const FarmerOnboardingPage: React.FC = () => {
   const [rsbsaNumber, setRsbsaNumber] = useState("");
   const [municipality, setMunicipality] = useState("Solana");
   const [barangay, setBarangay] = useState("");
+  const [locationAutoFilled, setLocationAutoFilled] = useState(false);
 
   const availableBarangays = useMemo(() => {
     return CAGAYAN_LOCATION_DATA[municipality] || [];
@@ -194,6 +196,7 @@ export const FarmerOnboardingPage: React.FC = () => {
     const nextMun = e.target.value;
     setMunicipality(nextMun);
     setBarangay("");
+    setLocationAutoFilled(false);
   };
 
   // ── Step 2 State: Farm Information ────────────────────────────────────────
@@ -270,7 +273,36 @@ export const FarmerOnboardingPage: React.FC = () => {
     return { dap: diffDays, harvestDateStr, stageName };
   }, [plantingDate]);
 
-  // ── GPS handler for Step 2 ────────────────────────────────────────────────
+  // ── GPS / map pin → auto-fill Bayan & Barangay ────────────────────────────
+  const lastAppliedLocationRef = useRef<string | null>(null);
+  const applyFarmLocation = useCallback(
+    (next: { latitude: number; longitude: number }, fromGps = false) => {
+      setFarmLocation(next);
+      // The map re-emits the current pin when it mounts; only auto-fill on a
+      // real move so a barangay the farmer corrected by hand is kept.
+      const key = `${next.latitude.toFixed(6)},${next.longitude.toFixed(6)}`;
+      if (!fromGps && lastAppliedLocationRef.current === key) return;
+      lastAppliedLocationRef.current = key;
+
+      const detected = findNearestBarangay(next.latitude, next.longitude);
+      if (detected) {
+        setMunicipality(detected.municipality);
+        setBarangay(detected.barangay);
+        setLocationAutoFilled(true);
+        if (fromGps) {
+          toast.success("Nakuha ang lokasyon mula sa GPS.", {
+            description: `Brgy. ${detected.barangay}, ${detected.municipality}. Palitan kung mali.`,
+          });
+        }
+      } else if (fromGps) {
+        toast.success("Lokasyon na-set mula sa GPS.", {
+          description: "Pakipili na lang ang Bayan at Barangay.",
+        });
+      }
+    },
+    [],
+  );
+
   const handleUseFarmLocation = async () => {
     if (!navigator.geolocation) {
       toast.error("Hindi sinusuportahan ng browser ang GPS.");
@@ -285,8 +317,10 @@ export const FarmerOnboardingPage: React.FC = () => {
           maximumAge: 0,
         })
       );
-      setFarmLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-      toast.success("Lokasyon na-set mula sa GPS.");
+      applyFarmLocation(
+        { latitude: pos.coords.latitude, longitude: pos.coords.longitude },
+        true,
+      );
     } catch {
       toast.error("Hindi makuha ang GPS lokasyon. Maaari pumindot sa mapa.");
     } finally {
@@ -749,6 +783,22 @@ export const FarmerOnboardingPage: React.FC = () => {
                   />
                 </div>
 
+                <button
+                  type="button"
+                  onClick={handleUseFarmLocation}
+                  disabled={farmLocating}
+                  className={`flex w-full items-center justify-center gap-2 min-h-12 rounded-xl border-2 ${
+                    farmLocating
+                      ? "border-dashed border-slate-300 bg-slate-100 text-slate-500"
+                      : "border-emerald-500 bg-emerald-50 text-emerald-700"
+                  } px-4 text-sm font-bold transition hover:bg-emerald-100 disabled:opacity-60 cursor-pointer`}
+                >
+                  <MapPin className="h-4 w-4" aria-hidden="true" />
+                  {farmLocating
+                    ? "Naghahanap ng GPS..."
+                    : "Punan gamit ang GPS"}
+                </button>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -773,7 +823,10 @@ export const FarmerOnboardingPage: React.FC = () => {
                     </label>
                     <select
                       value={barangay}
-                      onChange={(e) => setBarangay(e.target.value)}
+                      onChange={(e) => {
+                        setBarangay(e.target.value);
+                        setLocationAutoFilled(false);
+                      }}
                       required
                       className="w-full rounded-2xl border-2 bg-slate-50/80 px-3.5 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white"
                     >
@@ -788,6 +841,11 @@ export const FarmerOnboardingPage: React.FC = () => {
                     </select>
                   </div>
                 </div>
+                {locationAutoFilled && (
+                  <p className="text-xs font-semibold text-emerald-700">
+                    Kusang napunan mula sa GPS. Palitan kung mali.
+                  </p>
+                )}
               </div>
 
               <button
@@ -942,7 +1000,10 @@ export const FarmerOnboardingPage: React.FC = () => {
                         </span>
                         <button
                           type="button"
-                          onClick={() => setFarmLocation(null)}
+                          onClick={() => {
+                            setFarmLocation(null);
+                            lastAppliedLocationRef.current = null;
+                          }}
                           className="text-emerald-500 hover:text-emerald-700"
                           aria-label="Alisin ang lokasyon"
                         >
@@ -950,10 +1011,17 @@ export const FarmerOnboardingPage: React.FC = () => {
                         </button>
                       </div>
                     )}
-                    <OnboardingLocationPicker value={farmLocation} onChange={setFarmLocation} />
+                    <OnboardingLocationPicker value={farmLocation} onChange={applyFarmLocation} />
                   </div>
                   <p className="mt-1 text-xs text-slate-500">
                     Opsyonal. Pumindot sa mapa o gamitin ang GPS para itakda ang pin.
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-700">
+                    Lugar ng sakahan: {barangay ? `Brgy. ${barangay}, ` : ""}
+                    {municipality}
+                    {locationAutoFilled && (
+                      <span className="text-emerald-700"> (mula sa GPS)</span>
+                    )}
                   </p>
                 </div>
               </div>

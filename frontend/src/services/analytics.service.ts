@@ -82,11 +82,11 @@ export const getBarangayDistribution = async (): Promise<
 };
 
 /**
- * Downloads an analytics report (xlsx or csv) as a Blob.
+ * Downloads an analytics report (xlsx, csv or pdf) as a Blob.
  * Endpoint: GET /api/v1/analytics/export (role: OFFICER | TECHNICIAN)
  */
 export type ExportType = "disaster-claims" | "barangay-summary";
-export type ExportFormat = "xlsx" | "csv";
+export type ExportFormat = "xlsx" | "csv" | "pdf";
 
 export interface ExportParams {
   type: ExportType;

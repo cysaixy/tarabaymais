@@ -10,6 +10,7 @@ import {
   getFarmsGeo,
   getQueue,
 } from "../controllers/officerAnalyticsController";
+import { listAccounts } from "../controllers/accountController";
 import { Role } from "@prisma/client";
 
 const router = Router();
@@ -57,6 +58,13 @@ router.get(
   "/queue",
   authorize([Role.OFFICER, Role.TECHNICIAN]),
   getQueue,
+);
+
+// Registered accounts with activity status (auto-inactive after 6 months)
+router.get(
+  "/accounts",
+  authorize([Role.OFFICER, Role.TECHNICIAN]),
+  listAccounts,
 );
 
 export default router;

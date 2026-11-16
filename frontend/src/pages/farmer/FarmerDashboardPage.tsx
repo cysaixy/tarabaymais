@@ -35,6 +35,12 @@ import {
   Package,
 } from "lucide-react";
 import { useWeather } from "../../hooks/useWeather";
+import {
+  HourlyStrip,
+  TopPrediction,
+  WeatherFullSheet,
+  WeatherGlyph,
+} from "../../components/weather";
 import { useNotifications } from "../../hooks/useNotifications";
 import { NotificationBell } from "../../components/NotificationBell";
 import { BottomNav } from "../../components/BottomNav";
@@ -44,8 +50,12 @@ import {
 } from "../../services/activity.service";
 import {
   createObservation,
+  listObservations,
+  type ObservationRecord,
   type SeverityLevel,
 } from "../../services/observation.service";
+import type { WeatherData } from "../../services/weather.service";
+import { resolveMaisyState } from "../../lib/maisyMood";
 import {
   scanPlantHealth,
   sendRagChat,
@@ -166,25 +176,6 @@ const resolveGrowthStage = (
   };
 };
 
-const WeatherIcon: React.FC<{ name: string; className?: string }> = ({
-  name,
-  className,
-}) => {
-  switch (name) {
-    case "Sun":
-      return <Sun className={className} />;
-    case "CloudSun":
-      return <CloudRain className={className} />;
-    case "Cloud":
-      return <Cloud className={className} />;
-    case "AlertTriangle":
-      return <AlertTriangle className={className} />;
-    case "CloudRain":
-    default:
-      return <CloudRain className={className} />;
-  }
-};
-
 // ─── DA Advisory Parser & Renderer ────────────────────────────────────────────
 interface AdvisoryItem {
   category: string;
@@ -283,30 +274,33 @@ const parseAdvisory = (text: string): AdvisoryItem[] => {
   return items;
 };
 
-const DAAdvisoryList: React.FC<{ advisory: string }> = ({ advisory }) => {
+const DAAdvisoryList: React.FC<{ advisory: string; tone?: "dark" | "light" }> = ({
+  advisory,
+  tone = "dark",
+}) => {
   const items = parseAdvisory(advisory);
-  
+  // "light" = rendered on a pale background, so use dark text.
+  const titleClass = tone === "light" ? "text-slate-900" : "text-white/95";
+  const bodyClass = tone === "light" ? "text-slate-700" : "text-white/80";
+  const iconBox = tone === "light" ? "bg-amber-100 text-amber-700" : "bg-white/20 text-amber-600";
+
   if (items.length === 0) {
-    return (
-      <p className="text-sm text-white/90 leading-relaxed">
-        {advisory}
-      </p>
-    );
+    return <p className={`text-sm leading-relaxed ${bodyClass}`}>{advisory}</p>;
   }
-  
+
   return (
     <div className="space-y-3">
       {items.map((item, index) => (
         <div key={index} className="flex items-start gap-3 group">
-          <div className="shrink-0 w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center text-amber-600">
+          <div className={`shrink-0 w-8 h-8 rounded-lg backdrop-blur-sm flex items-center justify-center ${iconBox}`}>
             {item.icon}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white/95 leading-snug">
+            <p className={`text-sm font-semibold leading-snug ${titleClass}`}>
               {item.category}
             </p>
             {item.description && (
-              <p className="text-sm text-white/80 leading-relaxed mt-0.5">
+              <p className={`text-sm leading-relaxed mt-0.5 ${bodyClass}`}>
                 {item.description}
               </p>
             )}
@@ -320,61 +314,72 @@ const DAAdvisoryList: React.FC<{ advisory: string }> = ({ advisory }) => {
 // ─── Dynamic Weather Card (uses Open-Meteo API) ──────────────────────────────
 
 /**
- * DynamicWeatherCard — displays live weather for the selected farm location.
- * Uses Open-Meteo (free, no API key) with geocoding for municipality lookup.
- * Falls back gracefully: municipality → province → region → static default.
- * Card gradient changes based on current weather condition.
+ * DynamicWeatherCard — current weather, predictions, 24-hour and 7-day
+ * forecast for the selected farm. Uses the farm's GPS pin when available,
+ * otherwise its barangay / municipality (see weather.service.ts).
+ * When offline, shows the last saved forecast with its age.
  */
+const LOCATION_SOURCE_LABEL: Record<string, string> = {
+  "farm-gps": "Ayon sa GPS ng sakahan",
+  barangay: "Ayon sa barangay",
+  municipality: "Ayon sa bayan",
+  geocode: "Ayon sa bayan",
+  default: "Tuguegarao (walang lokasyon ng sakahan)",
+};
+
 const DynamicWeatherCard: React.FC<{
   municipality: string;
+  barangay?: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   province: string;
   cropStage?: string;
-}> = ({ municipality, province = "Cagayan", cropStage }) => {
-  const {
-    weather,
-    loading,
-    error,
-    gradientClass,
-    iconName,
-    refresh,
-    isUsingFallback,
-  } = useWeather({
-    municipality,
-    province,
-    cropStage,
-    autoRefresh: true,
-    refreshIntervalMs: 30 * 60 * 1000, // 30 minutes
-  });
+  /** Full forecast sheet open state (owned by the page so Maisy can open it). */
+  showFull: boolean;
+  onShowFullChange: (open: boolean) => void;
+  /** Reports the latest weather so Maisy can react to it. */
+  onWeather?: (weather: WeatherData | null) => void;
+}> = ({
+  municipality,
+  barangay,
+  latitude,
+  longitude,
+  province = "Cagayan",
+  cropStage,
+  showFull,
+  onShowFullChange,
+  onWeather,
+}) => {
+  const { weather, loading, error, gradientClass, iconName, refresh, isStale } =
+    useWeather({
+      municipality,
+      province,
+      ...(barangay ? { barangay } : {}),
+      ...(latitude !== undefined ? { latitude } : {}),
+      ...(longitude !== undefined ? { longitude } : {}),
+      ...(cropStage ? { cropStage } : {}),
+      autoRefresh: true,
+      refreshIntervalMs: 30 * 60 * 1000, // 30 minutes
+    });
 
-  const [dateTime, setDateTime] = React.useState(() =>
-    new Date().toLocaleString("fil-PH", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }),
-  );
-
-  // Update clock every minute
+  const updatedLabel = weather
+    ? new Date(weather.lastUpdated).toLocaleString("fil-PH", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : "";
+  const rainNextHour = weather?.hourly[1]?.precipitationProbability ??
+    weather?.hourly[0]?.precipitationProbability ?? 0;
+  const locationLabel = weather
+    ? `${weather.barangay ? `Brgy. ${weather.barangay}, ` : ""}${weather.municipality}`
+    : "";
+  const closeFull = React.useCallback(() => onShowFullChange(false), [onShowFullChange]);
   React.useEffect(() => {
-    const id = setInterval(
-      () =>
-        setDateTime(
-          new Date().toLocaleString("fil-PH", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
-            hour12: true,
-          }),
-        ),
-      60_000,
-    );
-    return () => clearInterval(id);
-  }, []);
+    onWeather?.(weather);
+  }, [weather, onWeather]);
 
   const gradient = weather
     ? gradientClass
@@ -441,93 +446,94 @@ const DynamicWeatherCard: React.FC<{
       <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/10" />
       <div className="absolute bottom-4 -left-8 w-24 h-24 rounded-full bg-white/8" />
 
-      {/* Fallback indicator */}
-      {isUsingFallback && (
-        <div className="absolute top-2 right-2 z-10">
-          <span className="bg-amber-500/90 text-amber-950 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-            <RefreshCwIcon className="w-2.5 h-2.5" /> Default Cagayan
-          </span>
-        </div>
-      )}
-
       {/* Card content */}
       <div className="relative z-10 p-5 sm:p-6 space-y-4">
-        {/* ── Top row: label + location ── */}
-        <div className="flex justify-between items-start">
-          <div>
-            <p className="text-[10px] sm:text-[11px] font-black tracking-widest uppercase text-white/80">
-              Panahon Ngayon
-            </p>
-            <p className="text-[11px] sm:text-xs text-white/70 mt-0.5 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5" /> {weather.municipality},{" "}
-              {weather.province}
-            </p>
+        {/* Saved (offline) forecast notice */}
+        {isStale && (
+          <div className="rounded-xl bg-amber-400 text-amber-950 px-3 py-2 text-[12px] font-bold flex items-center gap-2">
+            <WifiOff className="w-4 h-4 shrink-0" aria-hidden="true" />
+            Walang koneksyon — huling hula noong {updatedLabel}
           </div>
-          <span className="text-4xl leading-none drop-shadow-md select-none text-white">
-            <WeatherIcon name={iconName} className="w-12 h-12" />
-          </span>
+        )}
+
+        {/* ── Location ── */}
+        <div className="min-w-0">
+          <p className="text-[10px] sm:text-[11px] font-black tracking-widest uppercase text-white/80">
+            Panahon Ngayon
+          </p>
+          <p className="text-[12px] sm:text-xs text-white/85 font-semibold mt-0.5 flex items-center gap-1">
+            <MapPin className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{locationLabel}</span>
+          </p>
+          <p className="text-[10px] text-white/60 mt-0.5">
+            {LOCATION_SOURCE_LABEL[weather.locationSource] ?? ""}
+          </p>
         </div>
 
-        {/* ── Temperature ── */}
-        <div>
-          <div className="flex items-end gap-1 leading-none">
-            <span className="text-6xl font-black text-white tracking-tighter">
-              {weather.temperatureCelsius}°
-            </span>
-            <span className="text-xl font-bold text-white/90 mb-2">C</span>
+        {/* ── Temperature + icon on one row (keeps the card short on phones) ── */}
+        <div className="flex items-center gap-3">
+          <WeatherGlyph
+            name={iconName}
+            className="w-14 h-14 shrink-0 text-white drop-shadow-md"
+          />
+          <div className="min-w-0">
+            <p className="text-5xl font-black text-white tracking-tighter leading-none">
+              {weather.temperatureCelsius}°C
+            </p>
+            <p className="text-sm text-white/90 font-semibold mt-1 truncate">
+              {weather.conditionLabel} · Nararamdaman {weather.feelsLikeCelsius}°
+            </p>
           </div>
-          <p className="text-sm text-white/90 font-semibold mt-1">
-            {weather.conditionLabel}
-          </p>
-          <p className="text-[11px] text-white/70 mt-0.5">
-            Nararamdaman: {weather.feelsLikeCelsius}°C
-          </p>
         </div>
 
         {/* ── Stats row ── */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-3 py-2.5 flex items-center gap-2">
-            <Droplets className="w-5 h-5 text-white" />
-            <div>
-              <p className="text-[9px] text-white/70 font-semibold uppercase tracking-wide">
-                Halumigmig
-              </p>
-              <p className="text-xs font-black text-white">
-                {weather.humidityPercent}%
-              </p>
-            </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-2.5 py-2.5">
+            <p className="text-[9px] text-white/75 font-semibold uppercase tracking-wide flex items-center gap-1">
+              <CloudRain className="w-3.5 h-3.5" aria-hidden="true" /> Ulan
+            </p>
+            <p className="text-sm font-black text-white mt-0.5">{rainNextHour}%</p>
+            <p className="text-[9px] text-white/65">susunod na oras</p>
           </div>
-          <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-3 py-2.5 flex items-center gap-2">
-            <Wind className="w-5 h-5 text-white" />
-            <div>
-              <p className="text-[9px] text-white/70 font-semibold uppercase tracking-wide">
-                Hangin
-              </p>
-              <p className="text-xs font-black text-white">
-                {weather.windKph} km/h
-              </p>
-            </div>
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-2.5 py-2.5">
+            <p className="text-[9px] text-white/75 font-semibold uppercase tracking-wide flex items-center gap-1">
+              <Wind className="w-3.5 h-3.5" aria-hidden="true" /> Hangin
+            </p>
+            <p className="text-sm font-black text-white mt-0.5">{weather.windKph} km/h</p>
+            <p className="text-[9px] text-white/65">bugso {weather.gustKph} km/h</p>
+          </div>
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-2.5 py-2.5">
+            <p className="text-[9px] text-white/75 font-semibold uppercase tracking-wide flex items-center gap-1">
+              <Droplets className="w-3.5 h-3.5" aria-hidden="true" /> Halumigmig
+            </p>
+            <p className="text-sm font-black text-white mt-0.5">{weather.humidityPercent}%</p>
           </div>
         </div>
 
-        {/* ── DA Advisory strip ── */}
-        <div className="bg-amber-400/15 border border-amber-300/40 rounded-2xl p-4">
-          <div className="flex items-start gap-3">
-            <div className="shrink-0 w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-3">
-                Payo ng DA
-              </p>
-              <DAAdvisoryList advisory={weather.daAdvisory} />
-            </div>
-          </div>   
-        </div>
+        {/* ── Most urgent prediction only ── */}
+        <TopPrediction predictions={weather.predictions} />
+
+        {/* ── Next 24 hours (scrolls sideways, adds little height) ── */}
+        <HourlyStrip weather={weather} showTitle={false} />
+
+        {/* ── Open the full forecast ── */}
+        <button
+          type="button"
+          onClick={() => onShowFullChange(true)}
+          className="w-full min-h-12 rounded-2xl bg-white text-slate-900 font-extrabold text-[15px] flex items-center justify-center gap-2 shadow-md hover:bg-white/90 active:scale-[0.99] transition cursor-pointer"
+        >
+          <Calendar className="w-5 h-5" aria-hidden="true" />
+          Buong Hula · 7 Araw
+          {weather.predictions.length > 1 && (
+            <span className="rounded-full bg-slate-900 text-white text-[11px] font-black px-2 py-0.5">
+              +{weather.predictions.length - 1} pang hula
+            </span>
+          )}
+        </button>
 
         {/* ── Timestamp + Refresh ── */}
         <div className="flex justify-between items-center">
-          <p className="text-[10px] text-white/60">{dateTime}</p>
+          <p className="text-[10px] text-white/60">Na-update: {updatedLabel}</p>
           <button
             onClick={refresh}
             disabled={loading}
@@ -541,6 +547,24 @@ const DynamicWeatherCard: React.FC<{
           </button>
         </div>
       </div>
+
+      {showFull && (
+        <WeatherFullSheet
+          weather={weather}
+          gradientClass={gradient}
+          locationLabel={locationLabel}
+          updatedLabel={updatedLabel}
+          onClose={closeFull}
+          advisory={
+            <div className="bg-amber-50 border-l-4 border-l-amber-500 rounded-2xl p-4">
+              <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mb-3">
+                Payo ng DA
+              </p>
+              <DAAdvisoryList advisory={weather.daAdvisory} tone="light" />
+            </div>
+          }
+        />
+      )}
     </div>
   );
 };
@@ -578,6 +602,34 @@ export const FarmerDashboardPage: React.FC = () => {
   } = useFarmSelection();
 
   const farmContextLoading = selectionLoading;
+
+  // ── Maisy follows the weather and corn alerts ─────────────────────────────
+  const [showForecast, setShowForecast] = useState(false);
+  const [dashboardWeather, setDashboardWeather] = useState<WeatherData | null>(null);
+  const [cycleObservations, setCycleObservations] = useState<ObservationRecord[]>([]);
+  useEffect(() => {
+    const cycleId = selectedCycle?.id;
+    if (!cycleId) {
+      setCycleObservations([]);
+      return;
+    }
+    let cancelled = false;
+    listObservations(cycleId)
+      .then((obs) => {
+        if (!cancelled) setCycleObservations(obs);
+      })
+      .catch(() => {
+        // Offline / error: Maisy just follows the weather.
+        if (!cancelled) setCycleObservations([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCycle?.id]);
+  const maisy = React.useMemo(
+    () => resolveMaisyState(dashboardWeather, cycleObservations),
+    [dashboardWeather, cycleObservations],
+  );
   const farmContext = React.useMemo(() => {
     if (!selectedFarm) return null;
     return {
@@ -1018,20 +1070,37 @@ export const FarmerDashboardPage: React.FC = () => {
             <div className="lg:col-span-5 space-y-4 sm:space-y-5">
               <MaisyGreeting
                 userName={profile?.firstName || "Magsasaka"}
+                mood={maisy.mood}
+                message={maisy.message}
+                {...(maisy.actionLabel ? { actionLabel: maisy.actionLabel } : {})}
+                onAction={() => {
+                  if (maisy.action === "forecast") setShowForecast(true);
+                  else if (maisy.action === "observations")
+                    navigate("/farmer/history/observations");
+                }}
               />
 
-              {/* Weather Card — Dynamic Open-Meteo API with municipality-level geocoding */}
-              {!farmContextLoading && farmContext ? (
+              {/* Weather Card — farm GPS / barangay based Open-Meteo forecast */}
+              {!farmContextLoading && farmContext && selectedFarm ? (
                 <DynamicWeatherCard
                   municipality={farmContext.municipality}
+                  barangay={farmContext.barangay}
+                  latitude={selectedFarm.latitude}
+                  longitude={selectedFarm.longitude}
                   province="Cagayan"
                   cropStage={growthStage?.tagalogLabel}
+                  showFull={showForecast}
+                  onShowFullChange={setShowForecast}
+                  onWeather={setDashboardWeather}
                 />
               ) : (
                 <DynamicWeatherCard
                   municipality="Iguig"
                   province="Cagayan"
                   cropStage={undefined}
+                  showFull={showForecast}
+                  onShowFullChange={setShowForecast}
+                  onWeather={setDashboardWeather}
                 />
               )}
 

@@ -75,6 +75,10 @@ model User {
   role         Role     @default(FARMER)
   fcmToken     String?  @map("fcm_token") @db.VarChar(255)
   passwordHash String?  @map("password_hash") @db.VarChar(255)
+  /// false once the account has had no activity for 6 months (see lib/inactivity.ts)
+  isActive     Boolean  @default(true) @map("is_active")
+  /// last authenticated request; refreshed at most once per hour
+  lastActiveAt DateTime @default(now()) @map("last_active_at") @db.Timestamptz
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -85,6 +89,7 @@ model User {
   verifiedDisasters DisasterReport[] @relation("VerifiedDisasters")
   plantScans        PlantScan[]
 
+  @@index([isActive, lastActiveAt], map: "idx_users_is_active_last_active_at")
   @@map("users")
 }
 

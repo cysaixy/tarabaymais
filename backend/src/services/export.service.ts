@@ -1,9 +1,10 @@
 import ExcelJS from "exceljs";
 import prisma from "../config/prisma";
+import { formatPeso, renderPdfTable } from "../lib/pdfTable";
 
 export interface ExportFilters {
   type?: "disaster-claims" | "barangay-summary";
-  format?: "xlsx" | "csv";
+  format?: "xlsx" | "csv" | "pdf";
   startDate?: string;
   endDate?: string;
   barangay?: string;
@@ -83,6 +84,37 @@ export class ExportService {
       },
       orderBy: { createdAt: "desc" },
     });
+
+    if (filters.format === "pdf") {
+      const totalLoss = reports.reduce(
+        (sum, r) => sum + Number(r.estimatedLoss || 0),
+        0,
+      );
+      return renderPdfTable({
+        title: "Ulat ng mga Disaster Claim",
+        subtitle: describeScope(filters),
+        landscape: true,
+        headerColor: "#1E40AF",
+        rows: reports,
+        columns: [
+          { header: "Petsa", width: 8, value: (r) => r.createdAt.toISOString().split("T")[0] ?? "" },
+          { header: "Magsasaka", width: 13, value: (r) => `${r.farm.farmer.firstName} ${r.farm.farmer.lastName}` },
+          { header: "Telepono", width: 10, value: (r) => r.farm.farmer.phone },
+          { header: "Sakahan", width: 11, value: (r) => r.farm.name },
+          { header: "Barangay", width: 11, value: (r) => r.farm.barangay },
+          { header: "Munisipyo", width: 11, value: (r) => r.farm.municipality },
+          { header: "Kalamidad", width: 9, value: (r) => r.disasterType },
+          { header: "Variety", width: 8, value: (r) => r.farm.cropCycles[0]?.variety || "N/A" },
+          { header: "Pinsala (%)", width: 7, align: "right", value: (r) => `${Number(r.damagePercentage || 0).toFixed(2)}%` },
+          { header: "Tinatayang Lugi", width: 11, align: "right", value: (r) => formatPeso(Number(r.estimatedLoss || 0)) },
+          { header: "Status", width: 8, value: (r) => r.status },
+        ],
+        footerLines: [
+          `Kabuuang report: ${reports.length}`,
+          `Kabuuang tinatayang lugi: ${formatPeso(totalLoss)}`,
+        ],
+      });
+    }
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "Tarabay-Mais System";
@@ -194,6 +226,26 @@ export class ExportService {
       ORDER BY total_financial_loss DESC;
     `;
 
+    if (filters.format === "pdf") {
+      const totalReports = summaryData.reduce((s, r) => s + Number(r.total_reports), 0);
+      const totalLoss = summaryData.reduce((s, r) => s + Number(r.total_financial_loss), 0);
+      return renderPdfTable({
+        title: "Buod ng Pinsala bawat Barangay",
+        subtitle: describeScope(filters),
+        rows: summaryData,
+        columns: [
+          { header: "Barangay", width: 30, value: (r) => r.barangay },
+          { header: "Bilang ng Report", width: 18, align: "right", value: (r) => String(Number(r.total_reports)) },
+          { header: "Avg Pinsala (%)", width: 18, align: "right", value: (r) => `${Number(r.avg_damage_pct).toFixed(2)}%` },
+          { header: "Kabuuang Tinatayang Lugi", width: 28, align: "right", value: (r) => formatPeso(Number(r.total_financial_loss)) },
+        ],
+        footerLines: [
+          `Kabuuang report: ${totalReports}`,
+          `Kabuuang tinatayang lugi: ${formatPeso(totalLoss)}`,
+        ],
+      });
+    }
+
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Barangay Summary");
 
@@ -236,4 +288,16 @@ export class ExportService {
     const xlsxBuffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(xlsxBuffer);
   }
+}
+
+/** Human-readable description of the filters, printed under PDF titles. */
+function describeScope(filters: ExportFilters): string {
+  const place =
+    [filters.barangay, filters.municipality].filter(Boolean).join(", ") ||
+    "Lahat ng lugar";
+  const range =
+    filters.startDate || filters.endDate
+      ? `${filters.startDate ?? "simula"} hanggang ${filters.endDate ?? "ngayon"}`
+      : "Lahat ng petsa";
+  return `Saklaw: ${place} · ${range}`;
 }

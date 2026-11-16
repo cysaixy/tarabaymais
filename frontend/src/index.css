@@ -1,1 +1,64 @@
 @import "tailwindcss";
+
+/* Maisy mascot: soft idle bob, plus a little pop when her mood changes. */
+@keyframes maisy-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-4px) rotate(-1.5deg); }
+}
+@keyframes maisy-pop {
+  0% { transform: scale(0.85); opacity: 0; }
+  70% { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes maisy-shiver {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1.5px); }
+  75% { transform: translateX(1.5px); }
+}
+.maisy-mascot {
+  transform-origin: 50% 100%;
+  animation: maisy-pop 0.35s ease-out, maisy-bob 3.2s ease-in-out 0.35s infinite;
+}
+.maisy-mascot[data-mood="night"] {
+  animation: maisy-pop 0.35s ease-out, maisy-bob 5s ease-in-out 0.35s infinite;
+}
+.maisy-mascot[data-mood="storm"],
+.maisy-mascot[data-mood="sick"] {
+  animation: maisy-pop 0.35s ease-out, maisy-shiver 0.5s ease-in-out 0.35s 4;
+}
+
+/* Falling rain behind Maisy (rain / storm moods). Slanted streaks, like wind-blown rain. */
+.maisy-raindrop {
+  position: absolute;
+  top: -24px;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to bottom, rgb(37 99 235 / 0), rgb(37 99 235));
+  transform: rotate(12deg);
+  animation: maisy-rain-fall 0.9s linear infinite;
+  will-change: transform;
+}
+@keyframes maisy-rain-fall {
+  from { transform: translate(0, 0) rotate(12deg); }
+  to { transform: translate(-56px, 260px) rotate(12deg); }
+}
+/* Storm: a brief double flash every few seconds (well under 3 flashes/sec). */
+.maisy-lightning {
+  position: absolute;
+  inset: 0;
+  background: white;
+  opacity: 0;
+  animation: maisy-lightning 6s linear infinite;
+}
+@keyframes maisy-lightning {
+  0%, 88%, 91%, 94%, 100% { opacity: 0; }
+  89% { opacity: 0.55; }
+  92.5% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maisy-mascot { animation: none !important; }
+  /* Still rain, no flashing: freeze drops mid-fall. */
+  .maisy-raindrop { animation-play-state: paused !important; }
+  .maisy-lightning { display: none; }
+}

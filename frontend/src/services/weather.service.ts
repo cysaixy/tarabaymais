@@ -1,71 +1,134 @@
 /**
- * Weather Service — Open-Meteo integration for Philippine municipalities
- * Free, no API key, 10k calls/day, Filipino language support
+ * Weather Service — Open-Meteo forecast for the farmer's actual farm location.
+ * Free, no API key. All values requested in metric units (°C, km/h, mm).
+ *
+ * Location priority (most accurate first):
+ *   1. The farm's own GPS pin
+ *   2. The farm's barangay reference point (offline table)
+ *   3. The centre of the farm's municipality (offline table)
+ *   4. Online geocoding of the municipality name (restricted to Cagayan)
+ *   5. Tuguegarao City
+ *
+ * When offline or the API fails, the last saved forecast is shown and marked
+ * as old. We never show made-up weather.
  */
 
-// ─── Types ────────────────────────────────────────────────────────────────
+import {
+  cagayanBarangays,
+  registeredLocationKey,
+} from "../data/cagayanBarangays";
+
+// ─── Public types ─────────────────────────────────────────────────────────
+
+export type LocationSource = "farm-gps" | "barangay" | "municipality" | "geocode" | "default";
+
+export interface HourlyPoint {
+  time: string; // ISO local time (Asia/Manila)
+  temperatureCelsius: number;
+  precipitationProbability: number; // %
+  precipitationMm: number;
+  weatherCode: number;
+  isDay: boolean;
+}
+
+export interface DailyPoint {
+  date: string; // YYYY-MM-DD
+  weatherCode: number;
+  maxCelsius: number;
+  minCelsius: number;
+  precipitationSumMm: number;
+  precipitationProbability: number; // max chance during the day, %
+  windMaxKph: number;
+  gustMaxKph: number;
+}
+
+export type PredictionLevel = "danger" | "warning" | "info" | "good";
+export type PredictionKind = "storm" | "heavyRain" | "rain" | "wind" | "heat" | "dry";
+
+/** A plain-language forecast insight, e.g. "Uulan bukas ng hapon". */
+export interface WeatherPrediction {
+  level: PredictionLevel;
+  kind: PredictionKind;
+  title: string;
+  description: string;
+}
 
 export interface WeatherData {
   temperatureCelsius: number;
   feelsLikeCelsius: number;
-  conditionLabel: string; // e.g. "Maliwanag, Maulan sa hapon"
+  conditionLabel: string;
   conditionIcon: string; // Lucide icon name
   humidityPercent: number;
   windKph: number;
-  daAdvisory: string; // Contextual farming tip from DA
+  gustKph: number;
+  precipitationMm: number; // rain in the current 15-min interval
+  isDay: boolean;
+  daAdvisory: string;
   municipality: string;
+  barangay?: string;
   province: string;
+  locationSource: LocationSource;
   weatherCode: number;
+  hourly: HourlyPoint[]; // next 24 hours from now
+  daily: DailyPoint[]; // today + 6 days
+  predictions: WeatherPrediction[];
+  /** Served from the saved copy (fresh cache, or stale because we're offline). */
   isCached: boolean;
+  /** Saved copy is older than the refresh window — show "huling update" warning. */
+  isStale: boolean;
+  /** When the forecast was fetched from Open-Meteo. */
   lastUpdated: string;
 }
 
-interface GeocodeResult {
-  id: number;
-  name: string;
-  latitude: number;
-  longitude: number;
-  elevation: number;
-  feature_code: string;
-  country_code: string;
-  admin1_id: number;
-  admin1: string; // Province (e.g., "Cagayan")
-  admin2_id?: number;
-  admin2?: string; // Municipality
-  admin3_id?: number;
-  admin3?: string;
-  admin4_id?: number;
-  admin4?: string;
-  timezone: string;
-  population: number;
-  country: string;
-  country_id: number;
+export interface FarmLocationInput {
+  municipality: string;
+  barangay?: string;
+  province?: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  cropStage?: string;
 }
 
-interface GeocodeResponse {
-  results?: GeocodeResult[];
-}
+// ─── API response shapes ──────────────────────────────────────────────────
 
-interface WeatherResponse {
+interface ForecastResponse {
   current?: {
+    time: string;
     temperature_2m: number;
     relative_humidity_2m: number;
     apparent_temperature: number;
     weather_code: number;
     wind_speed_10m: number;
+    wind_gusts_10m: number;
+    precipitation: number;
+    is_day: number;
   };
-  current_weather?: {
-    temperature: number;
-    windspeed: number;
-    winddirection: number;
-    weathercode: number;
-    time: string;
+  hourly?: {
+    time: string[];
+    temperature_2m: number[];
+    precipitation_probability: (number | null)[];
+    precipitation: number[];
+    weather_code: number[];
+    is_day: number[];
   };
   daily?: {
+    time: string[];
     weather_code: number[];
     temperature_2m_max: number[];
     temperature_2m_min: number[];
+    precipitation_sum: number[];
+    precipitation_probability_max: (number | null)[];
+    wind_speed_10m_max: number[];
+    wind_gusts_10m_max: number[];
   };
+}
+
+interface GeocodeResult {
+  name: string;
+  latitude: number;
+  longitude: number;
+  admin1?: string;
+  country_code: string;
 }
 
 interface CachedWeather {
@@ -75,472 +138,569 @@ interface CachedWeather {
 
 // ─── Constants ────────────────────────────────────────────────────────────
 
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
-const CACHE_KEY_PREFIX = "tarabaymais_weather_";
+const CACHE_TTL_MS = 30 * 60 * 1000; // refetch after 30 minutes
+const CACHE_KEY_PREFIX = "tarabaymais_weather_v2_";
 const OPEN_METEO_GEOCODE = "https://geocoding-api.open-meteo.com/v1/search";
-const OPEN_METEO_WEATHER = "https://api.open-meteo.com/v1/forecast";
+const OPEN_METEO_FORECAST = "https://api.open-meteo.com/v1/forecast";
+const TUGUEGARAO = { latitude: 17.6132, longitude: 121.727 };
 
-// Weather code → { label, icon, gradient, baseAdvisory }
-const WEATHER_MAP: Record<
-  number,
-  {
-    label: string;
-    icon: string;
-    gradient: string;
-    baseAdvisory: string;
-  }
-> = {
+// Thresholds (PAGASA rainfall/wind categories, simplified for farmers)
+const HEAVY_RAIN_MM_DAY = 50; // "malakas" — flooding possible in low areas
+const TORRENTIAL_RAIN_MM_DAY = 100; // "matindi" — flood/landslide danger
+const STRONG_WIND_KPH = 39; // sustained, Signal No. 1 range starts here
+const DAMAGING_GUST_KPH = 62; // gusts that can lodge (pabagsakin) corn
+const HOT_DAY_C = 35;
+const RAIN_LIKELY_PCT = 60;
+
+// ─── Weather codes (WMO) ──────────────────────────────────────────────────
+
+interface CodeInfo {
+  label: string;
+  icon: string;
+  nightIcon?: string;
+  gradient: string;
+  baseAdvisory: string;
+}
+
+const WEATHER_MAP: Record<number, CodeInfo> = {
   0: {
-    label: "Maliwanag",
+    label: "Maaraw",
     icon: "Sun",
+    nightIcon: "Moon",
     gradient: "from-amber-400 via-orange-500 to-red-500",
     baseAdvisory:
-      "Maaraw — mag-irig ng mais bago mag-alas dos ng hapon upang maiwasan ang pagkatuyo ng lupa.",
+      "Maaraw — mag-irig ng mais sa umaga o hapon, iwasan ang tanghaling tapat.",
   },
   1: {
-    label: "Bahagyang maulap",
+    label: "Halos maaraw",
     icon: "CloudSun",
+    nightIcon: "CloudMoon",
     gradient: "from-yellow-400 via-amber-500 to-orange-500",
     baseAdvisory:
-      "Maliwanag naman pero may kaunting ulap — okay para sa field work, mag-ingat sa init ng hapon.",
+      "Halos maaraw — maganda para sa gawain sa bukid, mag-ingat sa init ng tanghali.",
   },
   2: {
-    label: "Maulap",
+    label: "Bahagyang maulap",
     icon: "CloudSun",
+    nightIcon: "CloudMoon",
     gradient: "from-sky-400 via-blue-500 to-indigo-500",
-    baseAdvisory: "Maulap — masamang panahon posibleng dumating, maghanda na.",
+    baseAdvisory: "Bahagyang maulap — maayos para sa gawain sa bukid.",
   },
   3: {
-    label: "Katotohang maulap",
+    label: "Makulimlim",
     icon: "Cloud",
     gradient: "from-slate-400 via-slate-500 to-slate-600",
-    baseAdvisory:
-      "Sobrang maulap — bawasan ang field activity, monitor ang panahon.",
+    baseAdvisory: "Makulimlim — bantayan ang hula ng ulan bago mag-abono o mag-spray.",
   },
   45: {
-    label: "Mahinang paningin",
-    icon: "Cloud",
+    label: "Maulap at mahamog",
+    icon: "CloudFog",
     gradient: "from-gray-300 via-gray-400 to-gray-500",
-    baseAdvisory:
-      "Mahinang paningin (fog) — ingat sa pagmamaneho ng tractor, huwag mag-spray ng pesticide.",
+    baseAdvisory: "Mahamog — huwag munang mag-spray hanggang matuyo ang dahon.",
   },
   48: {
-    label: "Mahinang paningin (yelo)",
-    icon: "Cloud",
-    gradient: "from-cyan-300 via-blue-400 to-indigo-500",
-    baseAdvisory:
-      "Mahinang paningin na may yelo — delikado sa pananim, check for frost damage.",
+    label: "Makapal na hamog",
+    icon: "CloudFog",
+    gradient: "from-gray-300 via-gray-400 to-gray-500",
+    baseAdvisory: "Makapal na hamog — huwag munang mag-spray, mag-ingat sa pagmamaneho.",
   },
   51: {
-    label: "Maambon (kaunti)",
-    icon: "CloudRain",
+    label: "Bahagyang ambon",
+    icon: "CloudDrizzle",
     gradient: "from-blue-400 via-blue-600 to-blue-800",
-    baseAdvisory:
-      "Maambon — check drainage ng sakahan, huwag mag-fertilizer habang umuulan.",
+    baseAdvisory: "Maambon — huwag munang mag-abono habang umaambon.",
   },
   53: {
-    label: "Maambon",
-    icon: "CloudRain",
+    label: "Ambon",
+    icon: "CloudDrizzle",
     gradient: "from-blue-500 via-blue-700 to-indigo-800",
-    baseAdvisory:
-      "Maambon — tiyaking may sapat na drainage, monitor soil moisture.",
+    baseAdvisory: "Maambon — tiyaking maayos ang daluyan ng tubig sa bukid.",
   },
   55: {
-    label: "Malakas na ambon",
-    icon: "CloudRain",
+    label: "Makapal na ambon",
+    icon: "CloudDrizzle",
     gradient: "from-blue-600 via-blue-800 to-indigo-900",
-    baseAdvisory:
-      "Malakas na ambon — posibleng flash flood, alisin ang excess water sa field.",
-  },
-  56: {
-    label: "Yelong ambon (kaunti)",
-    icon: "CloudRain",
-    gradient: "from-cyan-400 via-blue-600 to-indigo-800",
-    baseAdvisory: "Malamig na ambon — protektahan ang binhi at batang pananim.",
-  },
-  57: {
-    label: "Malakas na yelong ambon",
-    icon: "CloudRain",
-    gradient: "from-cyan-500 via-blue-700 to-indigo-900",
-    baseAdvisory:
-      "Delikadong malamig na ambon — critical para sa young corn, consider covering.",
+    baseAdvisory: "Makapal na ambon — linisin ang kanal para hindi bumaha sa taniman.",
   },
   61: {
-    label: "Ulan (kaunti)",
+    label: "Mahinang ulan",
     icon: "CloudRain",
     gradient: "from-blue-400 via-blue-600 to-blue-800",
-    baseAdvisory:
-      "Umuulan nang kaunti — okay para sa natural irrigation, huwag mag-apply ng granular fertilizer.",
+    baseAdvisory: "Mahinang ulan — natural na dilig, huwag munang mag-abono.",
   },
   63: {
-    label: "Ulan",
+    label: "Katamtamang ulan",
     icon: "CloudRain",
     gradient: "from-blue-500 via-blue-700 to-indigo-800",
-    baseAdvisory:
-      "Umuulan — natural irrigation, check waterlogging sa low-lying areas.",
+    baseAdvisory: "Umuulan — bantayan ang pag-ipon ng tubig sa mababang bahagi ng bukid.",
   },
   65: {
     label: "Malakas na ulan",
-    icon: "CloudRain",
+    icon: "CloudRainWind",
     gradient: "from-blue-600 via-blue-800 to-indigo-900",
-    baseAdvisory:
-      "Malakas na ulan — flash flood risk, ensure drainage open, delay field operations.",
-  },
-  66: {
-    label: "Yelong ulan (kaunti)",
-    icon: "CloudRain",
-    gradient: "from-indigo-500 via-purple-700 to-purple-900",
-    baseAdvisory: "Malamig na ulan — monitor for cold stress sa pananim.",
-  },
-  67: {
-    label: "Malakas na yelong ulan",
-    icon: "CloudRain",
-    gradient: "from-indigo-600 via-purple-800 to-purple-950",
-    baseAdvisory:
-      "Matinding malamig na ulan — high risk sa corn, consider protective measures.",
-  },
-  71: {
-    label: "Niyebe (kaunti)",
-    icon: "Cloud",
-    gradient: "from-blue-200 via-blue-300 to-blue-400",
-    baseAdvisory: "Niyebe — irrerelevant sa Pilipinas, probably error.",
-  },
-  73: {
-    label: "Niyebe",
-    icon: "Cloud",
-    gradient: "from-blue-300 via-blue-400 to-blue-500",
-    baseAdvisory: "Niyebe — not applicable sa tropical climate.",
-  },
-  75: {
-    label: "Malakas na niyebe",
-    icon: "Cloud",
-    gradient: "from-blue-400 via-blue-500 to-blue-600",
-    baseAdvisory: "Heavy snow — data error for Philippines.",
+    baseAdvisory: "Malakas na ulan — buksan ang daluyan ng tubig, ipagpaliban ang gawain sa bukid.",
   },
   80: {
-    label: "Pagsasabog na ulan",
+    label: "Biglaang ulan",
     icon: "CloudRain",
     gradient: "from-sky-400 via-blue-500 to-blue-700",
-    baseAdvisory:
-      "Pagsasabog na ulan — sudden downpour risk, monitor flash flood.",
+    baseAdvisory: "Biglaang buhos ng ulan — posibleng umulan anumang oras.",
   },
   81: {
-    label: "Malakas na pagsasabog",
-    icon: "CloudRain",
+    label: "Malakas na biglaang ulan",
+    icon: "CloudRainWind",
     gradient: "from-sky-500 via-blue-600 to-indigo-800",
-    baseAdvisory:
-      "Matitinding pagsasabog na ulan — high flash flood risk, stay safe.",
+    baseAdvisory: "Malakas na biglaang ulan — mag-ingat sa biglaang baha.",
   },
   82: {
-    label: "Matinding pagsasabog",
-    icon: "CloudRain",
+    label: "Napakalakas na buhos ng ulan",
+    icon: "CloudRainWind",
     gradient: "from-blue-600 via-indigo-800 to-purple-900",
-    baseAdvisory:
-      "Violent rain showers — extreme flash flood danger, evacuate low areas.",
+    baseAdvisory: "Napakalakas na ulan — panganib ng baha, lumayo sa ilog at mababang lugar.",
   },
   95: {
-    label: "Kulog/Kidlat",
-    icon: "CloudRain",
+    label: "May kulog at kidlat",
+    icon: "CloudLightning",
     gradient: "from-purple-600 via-purple-800 to-purple-950",
-    baseAdvisory:
-      "⚡ KULOG AT KIDLAT — MAG-INGAT! Uwi na sa bahay, huwag tumayo sa bukid!",
+    baseAdvisory: "⚠️ Kulog at kidlat — umuwi muna, huwag manatili sa bukas na bukid.",
   },
   96: {
-    label: "Kulog na may yelo",
-    icon: "AlertTriangle",
+    label: "Kulog, kidlat at yelo",
+    icon: "CloudLightning",
     gradient: "from-red-600 via-red-800 to-red-950",
-    baseAdvisory:
-      "🌩️ KULOG NA MAY YELO — LUMIKAS AGAD! Delikado sa buhay at pananim!",
+    baseAdvisory: "⚠️ Kulog na may yelo — sumilong agad, delikado sa tao at pananim.",
   },
   99: {
-    label: "Matinding kulog+yelo",
-    icon: "AlertTriangle",
+    label: "Matinding kulog at yelo",
+    icon: "CloudLightning",
     gradient: "from-red-700 via-red-900 to-red-950",
-    baseAdvisory:
-      "🚨 MATINDING BAGYO NA MAY YELO — EMERGENCY! Sumunod sa evacuation orders!",
+    baseAdvisory: "⚠️ Matinding unos — sumilong at sundin ang abiso ng MDRRMO.",
   },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────
-
-function normalizeLocationKey(municipality: string, province: string): string {
-  return `${municipality.trim().toLowerCase()},${province.trim().toLowerCase()}`;
-}
-
-function getCacheKey(municipality: string, province: string): string {
-  return `${CACHE_KEY_PREFIX}${normalizeLocationKey(municipality, province)}`;
-}
-
-function isCacheValid(cached: CachedWeather | null): boolean {
-  if (!cached) return false;
-  return Date.now() - cached.timestamp < CACHE_TTL_MS;
-}
-
-function getWeatherInfo(code: number) {
+export function getWeatherInfo(code: number): CodeInfo {
   return (
     WEATHER_MAP[code] ?? {
-      label: "Hindi alam",
+      label: "Hindi tiyak",
       icon: "Cloud",
       gradient: "from-slate-400 via-slate-500 to-slate-600",
-      baseAdvisory:
-        "Walang available na weather data. Monitor ang lokal na balita.",
+      baseAdvisory: "Bantayan ang lokal na balita para sa lagay ng panahon.",
     }
   );
 }
 
-// Generate DA advisory based on weather + crop context
+export function getWeatherIconName(code: number, isDay = true): string {
+  const info = getWeatherInfo(code);
+  return !isDay && info.nightIcon ? info.nightIcon : info.icon;
+}
+
+// ─── Location resolution ──────────────────────────────────────────────────
+
+interface ResolvedLocation {
+  latitude: number;
+  longitude: number;
+  source: LocationSource;
+}
+
+const toNumber = (v: number | string | null | undefined): number | null => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+function resolveOffline(input: FarmLocationInput): ResolvedLocation | null {
+  const lat = toNumber(input.latitude);
+  const lng = toNumber(input.longitude);
+  if (lat !== null && lng !== null && !(lat === 0 && lng === 0)) {
+    return { latitude: lat, longitude: lng, source: "farm-gps" };
+  }
+
+  if (input.barangay) {
+    const key = registeredLocationKey(input.municipality, input.barangay);
+    const point = cagayanBarangays.find(
+      (b) => registeredLocationKey(b.municipality, b.name) === key,
+    );
+    if (point) return { latitude: point.lat, longitude: point.lng, source: "barangay" };
+  }
+
+  const munKey = input.municipality.trim().toLowerCase();
+  const points = cagayanBarangays.filter(
+    (b) => b.municipality.toLowerCase() === munKey,
+  );
+  if (points.length > 0) {
+    return {
+      latitude: points.reduce((s, p) => s + p.lat, 0) / points.length,
+      longitude: points.reduce((s, p) => s + p.lng, 0) / points.length,
+      source: "municipality",
+    };
+  }
+  return null;
+}
+
+async function geocodeMunicipality(
+  municipality: string,
+  province: string,
+): Promise<ResolvedLocation | null> {
+  try {
+    const params = new URLSearchParams({
+      name: municipality,
+      countryCode: "PH",
+      count: "10",
+      format: "json",
+    });
+    const response = await fetch(`${OPEN_METEO_GEOCODE}?${params}`);
+    if (!response.ok) return null;
+    const data: { results?: GeocodeResult[] } = await response.json();
+    // Only accept a match inside the farm's province — a same-named town
+    // elsewhere in the Philippines would give the wrong weather.
+    const match = data.results?.find(
+      (r) => r.admin1?.toLowerCase() === province.toLowerCase(),
+    );
+    return match
+      ? { latitude: match.latitude, longitude: match.longitude, source: "geocode" }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveLocation(input: FarmLocationInput): Promise<ResolvedLocation> {
+  return (
+    resolveOffline(input) ??
+    (await geocodeMunicipality(input.municipality, input.province ?? "Cagayan")) ?? {
+      ...TUGUEGARAO,
+      source: "default",
+    }
+  );
+}
+
+// ─── Forecast fetch ───────────────────────────────────────────────────────
+
+async function fetchForecast(lat: number, lon: number): Promise<ForecastResponse> {
+  const params = new URLSearchParams({
+    latitude: lat.toFixed(4),
+    longitude: lon.toFixed(4),
+    current:
+      "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,is_day",
+    hourly: "temperature_2m,precipitation_probability,precipitation,weather_code,is_day",
+    daily:
+      "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max",
+    timezone: "Asia/Manila",
+    forecast_days: "7",
+    // Explicit units so values are never silently converted twice.
+    wind_speed_unit: "kmh",
+    temperature_unit: "celsius",
+    precipitation_unit: "mm",
+  });
+  const response = await fetch(`${OPEN_METEO_FORECAST}?${params}`);
+  if (!response.ok) throw new Error(`Weather fetch failed: ${response.status}`);
+  return response.json();
+}
+
+// ─── Predictions ──────────────────────────────────────────────────────────
+
+const DAY_NAMES = ["Linggo", "Lunes", "Martes", "Miyerkules", "Huwebes", "Biyernes", "Sabado"];
+
+/** "Ngayon", "Bukas", or the weekday name for a YYYY-MM-DD date. */
+export function dayLabel(date: string, todayDate: string): string {
+  if (date === todayDate) return "Ngayon";
+  const d = new Date(`${date}T00:00:00`);
+  const t = new Date(`${todayDate}T00:00:00`);
+  const diff = Math.round((d.getTime() - t.getTime()) / 86_400_000);
+  if (diff === 1) return "Bukas";
+  return DAY_NAMES[d.getDay()] ?? date;
+}
+
+/** "Alas-3 ng hapon" style label for an ISO local time. */
+export function hourLabel(isoLocal: string): string {
+  const hour = Number(isoLocal.slice(11, 13));
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  const part =
+    hour < 5 ? "madaling-araw" : hour < 12 ? "umaga" : hour < 13 ? "tanghali" : hour < 18 ? "hapon" : "gabi";
+  return `${h12} ng ${part}`;
+}
+
+export function buildPredictions(
+  hourly: HourlyPoint[],
+  daily: DailyPoint[],
+  todayDate: string,
+): WeatherPrediction[] {
+  const out: WeatherPrediction[] = [];
+
+  // Thunderstorms in the next 24h
+  const storm = hourly.find((h) => h.weatherCode >= 95);
+  if (storm) {
+    out.push({
+      level: "danger",
+      kind: "storm",
+      title: `Posibleng kulog at kidlat bandang ${hourLabel(storm.time)}`,
+      description: "Umuwi bago dumating ito. Huwag sumilong sa ilalim ng puno sa bukid.",
+    });
+  }
+
+  // Heavy rain days this week
+  for (const d of daily) {
+    if (d.precipitationSumMm >= HEAVY_RAIN_MM_DAY) {
+      const torrential = d.precipitationSumMm >= TORRENTIAL_RAIN_MM_DAY;
+      out.push({
+        level: torrential ? "danger" : "warning",
+        kind: "heavyRain",
+        title: `${torrential ? "Napakalakas" : "Malakas"} na ulan ${dayLabel(d.date, todayDate) === "Ngayon" ? "ngayong araw" : dayLabel(d.date, todayDate)} (~${Math.round(d.precipitationSumMm)} mm)`,
+        description: torrential
+          ? "Panganib ng baha. Anihin na ang hinog na mais kung kaya, linisin ang kanal, at sundin ang abiso ng MDRRMO."
+          : "Linisin ang kanal at daluyan ng tubig. Huwag mag-abono 1–2 araw bago nito.",
+      });
+      break; // the first one is the most urgent; avoid a wall of warnings
+    }
+  }
+
+  // Strong wind this week
+  const windy = daily.find(
+    (d) => d.windMaxKph >= STRONG_WIND_KPH || d.gustMaxKph >= DAMAGING_GUST_KPH,
+  );
+  if (windy) {
+    out.push({
+      level: windy.gustMaxKph >= DAMAGING_GUST_KPH ? "danger" : "warning",
+      kind: "wind",
+      title: `Malakas na hangin ${dayLabel(windy.date, todayDate)} (bugso hanggang ${Math.round(windy.gustMaxKph)} km/h)`,
+      description:
+        "Maaaring mapabagsak ang mais. Bantayan ang abiso ng PAGASA tungkol sa bagyo.",
+    });
+  }
+
+  // Next likely rain in the coming 24h (if no stronger warning about it)
+  if (!storm) {
+    const nextRain = hourly.find((h) => h.precipitationProbability >= RAIN_LIKELY_PCT);
+    if (nextRain) {
+      const isToday = nextRain.time.slice(0, 10) === todayDate;
+      out.push({
+        level: "info",
+        kind: "rain",
+        title: `Malamang umulan ${isToday ? "mamayang" : "bukas,"} ${hourLabel(nextRain.time)} (${nextRain.precipitationProbability}%)`,
+        description: "Huwag mag-abono o mag-spray bago umulan — maaanod lang ito.",
+      });
+    }
+  }
+
+  // Hot days
+  const hot = daily.find((d) => d.maxCelsius >= HOT_DAY_C);
+  if (hot) {
+    out.push({
+      level: "warning",
+      kind: "heat",
+      title: `Matinding init ${dayLabel(hot.date, todayDate)} (${Math.round(hot.maxCelsius)}°C)`,
+      description: "Diligan sa umaga o hapon. Magpahinga sa lilim tuwing tanghali.",
+    });
+  }
+
+  // Dry window — good for fertilizer, spraying, drying harvest.
+  // From 3 PM on, today is nearly over, so start looking from tomorrow.
+  const currentHour = hourly[0] ? Number(hourly[0].time.slice(11, 13)) : 0;
+  const firstDry = daily.findIndex(
+    (d, i) =>
+      !(d.date === todayDate && currentHour >= 15) &&
+      d.precipitationProbability < 30 &&
+      d.precipitationSumMm < 1 &&
+      (daily[i + 1]?.precipitationProbability ?? 100) < 40,
+  );
+  if (firstDry !== -1) {
+    const d = daily[firstDry]!;
+    out.push({
+      level: "good",
+      kind: "dry",
+      title: `Magandang araw sa gawain sa bukid: ${dayLabel(d.date, todayDate)}`,
+      description: "Mababa ang tsansa ng ulan — mainam para mag-abono, mag-spray, o magpatuyo ng ani.",
+    });
+  }
+
+  // Most serious first, so a compact view can show just the top one.
+  const rank: Record<PredictionLevel, number> = { danger: 0, warning: 1, info: 2, good: 3 };
+  return out.sort((a, b) => rank[a.level] - rank[b.level]);
+}
+
+// DA advisory for the current conditions + crop stage
 function generateDAAdvisory(
   weatherCode: number,
   temp: number,
   humidity: number,
+  rainSoon: boolean,
   cropStage?: string,
 ): string {
-  const info = getWeatherInfo(weatherCode);
-  let advisory = info.baseAdvisory;
+  let advisory = getWeatherInfo(weatherCode).baseAdvisory;
 
-  // Temperature-based adjustments
-  if (temp >= 35) {
-    advisory +=
-      " 🌡️ Sobrang init (35°C+) — increase irrigation frequency, mulch around plants.";
-  } else if (temp <= 18) {
-    advisory +=
-      " 🌡️ Malamig (≤18°C) — monitor for cold stress, consider row covers.";
+  if (temp >= HOT_DAY_C) {
+    advisory += " 🌞 Sobrang init — dalasan ang pagdidilig at maglagay ng mulch.";
   }
-
-  // Humidity-based adjustments
   if (humidity >= 85) {
-    advisory +=
-      " 💧 Sobrang halumigmig (≥85%) — high fungal risk, scout for leaf diseases daily.";
-  } else if (humidity <= 50) {
-    advisory +=
-      " 💧 Mababang halumigmig (≤50%) — increase irrigation, watch for wilting.";
+    advisory += " 💧 Mataas na halumigmig — madaling magkasakit ang dahon, suriin araw-araw.";
   }
 
-  // Crop stage specific
   if (cropStage) {
     const stage = cropStage.toLowerCase();
-    if (stage.includes("binhi") || stage.includes("seedling")) {
-      advisory +=
-        " 🌱 Binhi stage — protect from heavy rain/wind, ensure soil moisture.";
+    if (stage.includes("binhi") || stage.includes("seedling") || stage.includes("pagsibol")) {
+      advisory += " 🌱 Pagsibol — protektahan ang punla sa malakas na ulan at baha.";
     } else if (stage.includes("paglaki") || stage.includes("vegetative")) {
-      advisory +=
-        " 🌿 Vegetative stage — optimal for fertilizer if no heavy rain forecast.";
-    } else if (stage.includes("tasseling") || stage.includes("butil")) {
-      advisory +=
-        " 🌾 Reproductive stage — critical water period, avoid stress.";
-    } else if (stage.includes("pag-ani") || stage.includes("harvest")) {
-      advisory +=
-        " 🌽 Harvest stage — need dry weather for harvesting, monitor rain forecast.";
+      advisory += rainSoon
+        ? " 🌿 Paglaki — ipagpaliban ang pag-abono, uulan sa loob ng 24 oras."
+        : " 🌿 Paglaki — magandang panahon para mag-abono ngayon.";
+    } else if (stage.includes("tasseling") || stage.includes("butil") || stage.includes("pamumulaklak")) {
+      advisory += " 🌾 Pamumulaklak/pagbubutil — kailangan ng sapat na tubig, iwasang matuyuan.";
+    } else if (stage.includes("pag-ani") || stage.includes("harvest") || stage.includes("hinog")) {
+      advisory += rainSoon
+        ? " 🌽 Anihan — uulan, anihin na at itago ang ani sa tuyong lugar."
+        : " 🌽 Anihan — tuyo ang panahon, magandang mag-ani at magpatuyo.";
     }
   }
-
   return advisory;
 }
 
-// ─── Core Functions ───────────────────────────────────────────────────────
+// ─── Build result ─────────────────────────────────────────────────────────
 
-/**
- * Search for municipality coordinates using Open-Meteo Geocoding API
- */
-export async function geocodeMunicipality(
-  municipality: string,
-  province = "Cagayan",
-): Promise<GeocodeResult | null> {
-  try {
-    const params = new URLSearchParams({
-      name: municipality,
-      country: "Philippines",
-      language: "fil",
-      count: "10",
-      format: "json",
-    });
-
-    const response = await fetch(`${OPEN_METEO_GEOCODE}?${params}`);
-    if (!response.ok) throw new Error(`Geocoding failed: ${response.status}`);
-
-    const data: GeocodeResponse = await response.json();
-    if (!data.results?.length) return null;
-
-    // Filter for exact province match (Cagayan)
-    const exactMatch = data.results.find(
-      (r) => r.admin1?.toLowerCase() === province.toLowerCase(),
-    );
-    if (exactMatch) return exactMatch;
-
-    // Fallback: first result in Philippines
-    const philippinesResult = data.results.find((r) => r.country_code === "PH");
-    if (philippinesResult) return philippinesResult;
-
-    // Last resort: first result
-    return data.results[0];
-  } catch (error) {
-    console.error("[Weather] Geocoding error:", error);
-    return null;
-  }
-}
-
-/**
- * Fetch current weather from Open-Meteo
- */
-export async function fetchWeather(
-  lat: number,
-  lon: number,
-): Promise<WeatherResponse | null> {
-  try {
-    const params = new URLSearchParams({
-      latitude: lat.toString(),
-      longitude: lon.toString(),
-      current:
-        "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
-      daily: "weather_code,temperature_2m_max,temperature_2m_min",
-      timezone: "Asia/Manila",
-      forecast_days: "1",
-    });
-
-    const response = await fetch(`${OPEN_METEO_WEATHER}?${params}`);
-    if (!response.ok)
-      throw new Error(`Weather fetch failed: ${response.status}`);
-
-    return await response.json();
-  } catch (error) {
-    console.error("[Weather] Fetch error:", error);
-    return null;
-  }
-}
-
-/**
- * Get weather for a farm location with fallback chain
- * Priority: Municipality → Province → Region Capital → Default
- */
-export async function getWeatherForFarm(
-  municipality: string,
-  province = "Cagayan",
-  cropStage?: string,
-): Promise<WeatherData> {
-  const cacheKey = getCacheKey(municipality, province);
-
-  // 1. Check cache
-  try {
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      const parsed: CachedWeather = JSON.parse(cached);
-      if (isCacheValid(parsed)) {
-        return { ...parsed.data, isCached: true };
-      }
-    }
-  } catch {
-    /* ignore cache errors */
-  }
-
-  // 2. Fallback chain
-  const locationsToTry = [
-    { municipality, province }, // Exact municipality
-    { municipality: province, province }, // Province capital
-    { municipality: "Tuguegarao", province }, // Regional capital
-    { municipality: "Tuguegarao", province: "" }, // Just Tuguegarao
-  ];
-
-  let weatherData: WeatherResponse | null = null;
-  let resolvedLocation: GeocodeResult | null = null;
-
-  for (const loc of locationsToTry) {
-    const geo = await geocodeMunicipality(loc.municipality, loc.province);
-    if (geo) {
-      resolvedLocation = geo;
-      weatherData = await fetchWeather(geo.latitude, geo.longitude);
-      if (weatherData) break;
-    }
-  }
-
-  // 3. Build result or use static fallback
-  if (weatherData?.current && resolvedLocation) {
-    const current = weatherData.current;
-    const info = getWeatherInfo(current.weather_code);
-
-    const result: WeatherData = {
-      temperatureCelsius: Math.round(current.temperature_2m),
-      feelsLikeCelsius: Math.round(current.apparent_temperature),
-      conditionLabel: info.label,
-      conditionIcon: info.icon,
-      humidityPercent: current.relative_humidity_2m,
-      windKph: Math.round(current.wind_speed_10m * 3.6), // m/s → km/h
-      daAdvisory: generateDAAdvisory(
-        current.weather_code,
-        current.temperature_2m,
-        current.relative_humidity_2m,
-        cropStage,
-      ),
-      municipality: resolvedLocation.admin2 || resolvedLocation.name,
-      province: resolvedLocation.admin1 || province,
-      weatherCode: current.weather_code,
-      isCached: false,
-      lastUpdated: new Date().toISOString(),
-    };
-
-    // Cache it
-    try {
-      localStorage.setItem(
-        cacheKey,
-        JSON.stringify({ data: result, timestamp: Date.now() }),
-      );
-    } catch {
-      /* ignore */
-    }
-
-    return result;
-  }
-
-  // 4. Static fallback (last resort)
-  return getStaticFallback(municipality, province);
-}
-
-/**
- * Static fallback when all APIs fail
- */
-function getStaticFallback(
-  municipality: string,
-  province: string,
+function buildWeatherData(
+  res: ForecastResponse,
+  input: FarmLocationInput,
+  location: ResolvedLocation,
 ): WeatherData {
+  const c = res.current!;
+  const nowKey = c.time.slice(0, 13); // "YYYY-MM-DDTHH"
+  const todayDate = c.time.slice(0, 10);
+
+  const hourly: HourlyPoint[] = [];
+  if (res.hourly) {
+    const start = Math.max(
+      0,
+      res.hourly.time.findIndex((t) => t.slice(0, 13) === nowKey),
+    );
+    for (let i = start; i < Math.min(start + 24, res.hourly.time.length); i++) {
+      hourly.push({
+        time: res.hourly.time[i]!,
+        temperatureCelsius: res.hourly.temperature_2m[i] ?? 0,
+        precipitationProbability: res.hourly.precipitation_probability[i] ?? 0,
+        precipitationMm: res.hourly.precipitation[i] ?? 0,
+        weatherCode: res.hourly.weather_code[i] ?? 0,
+        isDay: (res.hourly.is_day[i] ?? 1) === 1,
+      });
+    }
+  }
+
+  const daily: DailyPoint[] = (res.daily?.time ?? []).map((date, i) => ({
+    date,
+    weatherCode: res.daily!.weather_code[i] ?? 0,
+    maxCelsius: res.daily!.temperature_2m_max[i] ?? 0,
+    minCelsius: res.daily!.temperature_2m_min[i] ?? 0,
+    precipitationSumMm: res.daily!.precipitation_sum[i] ?? 0,
+    precipitationProbability: res.daily!.precipitation_probability_max[i] ?? 0,
+    windMaxKph: res.daily!.wind_speed_10m_max[i] ?? 0,
+    gustMaxKph: res.daily!.wind_gusts_10m_max[i] ?? 0,
+  }));
+
+  const isDay = c.is_day === 1;
+  const info = getWeatherInfo(c.weather_code);
+  const rainSoon = hourly.some((h) => h.precipitationProbability >= RAIN_LIKELY_PCT);
+
   return {
-    temperatureCelsius: 32,
-    feelsLikeCelsius: 36,
-    conditionLabel: "Maliwanag, Maulan sa hapon",
-    conditionIcon: "CloudSun",
-    humidityPercent: 78,
-    windKph: 12,
-    daAdvisory:
-      "Maaraw ngayon — mag-irig ng mais bago mag-alas dos ng hapon. (Default Cagayan weather — API unavailable)",
-    municipality,
-    province,
-    weatherCode: 1,
+    temperatureCelsius: Math.round(c.temperature_2m),
+    feelsLikeCelsius: Math.round(c.apparent_temperature),
+    conditionLabel: info.label,
+    conditionIcon: getWeatherIconName(c.weather_code, isDay),
+    humidityPercent: Math.round(c.relative_humidity_2m),
+    windKph: Math.round(c.wind_speed_10m),
+    gustKph: Math.round(c.wind_gusts_10m),
+    precipitationMm: c.precipitation,
+    isDay,
+    daAdvisory: generateDAAdvisory(
+      c.weather_code,
+      c.temperature_2m,
+      c.relative_humidity_2m,
+      rainSoon,
+      input.cropStage,
+    ),
+    municipality: input.municipality || "Tuguegarao City",
+    ...(input.barangay ? { barangay: input.barangay } : {}),
+    province: input.province ?? "Cagayan",
+    locationSource: location.source,
+    weatherCode: c.weather_code,
+    hourly,
+    daily,
+    predictions: buildPredictions(hourly, daily, todayDate),
     isCached: false,
+    isStale: false,
     lastUpdated: new Date().toISOString(),
   };
 }
 
+// ─── Cache ────────────────────────────────────────────────────────────────
+
+function cacheKey(input: FarmLocationInput): string {
+  const lat = toNumber(input.latitude);
+  const lng = toNumber(input.longitude);
+  const where =
+    lat !== null && lng !== null
+      ? `${lat.toFixed(3)},${lng.toFixed(3)}`
+      : `${input.municipality}|${input.barangay ?? ""}`.toLowerCase();
+  return `${CACHE_KEY_PREFIX}${where}|${input.cropStage ?? ""}`;
+}
+
+function readCache(key: string): CachedWeather | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as CachedWeather) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(key: string, data: WeatherData): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch {
+    /* storage full or blocked — non-fatal */
+  }
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────
+
 /**
- * Get gradient class for weather card background
+ * Current weather + 24-hour and 7-day forecast for a farm.
+ * Throws only when there is no network AND no saved forecast.
  */
+export async function getWeatherForFarm(
+  input: FarmLocationInput,
+  { forceRefresh = false }: { forceRefresh?: boolean } = {},
+): Promise<WeatherData> {
+  const key = cacheKey(input);
+  const cached = readCache(key);
+
+  if (!forceRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return { ...cached.data, isCached: true, isStale: false };
+  }
+
+  try {
+    const location = await resolveLocation(input);
+    const res = await fetchForecast(location.latitude, location.longitude);
+    if (!res.current) throw new Error("Walang current weather sa sagot ng API");
+    const data = buildWeatherData(res, input, location);
+    writeCache(key, data);
+    return data;
+  } catch (error) {
+    if (cached) {
+      // Offline or API down — show the last real forecast, clearly marked as old.
+      return { ...cached.data, isCached: true, isStale: true };
+    }
+    throw error instanceof Error
+      ? error
+      : new Error("Hindi makuha ang lagay ng panahon");
+  }
+}
+
 export function getWeatherGradient(weatherCode: number): string {
   return getWeatherInfo(weatherCode).gradient;
 }
 
-/**
- * Get Lucide icon component name for weather code
- */
-export function getWeatherIcon(weatherCode: number): string {
-  return getWeatherInfo(weatherCode).icon;
-}
-
-/**
- * Clear weather cache (for testing or manual refresh)
- */
 export function clearWeatherCache(): void {
   try {
     Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith(CACHE_KEY_PREFIX)) {
-        localStorage.removeItem(key);
-      }
+      if (key.startsWith("tarabaymais_weather_")) localStorage.removeItem(key);
     });
   } catch {
     /* ignore */

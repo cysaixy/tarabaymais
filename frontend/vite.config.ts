@@ -22,7 +22,12 @@ export default defineConfig({
         enabled: true,
         type: "module",
       },
-      includeAssets: ["favicon.ico", "apple-touch-icon.png"],
+      // Maisy's mood images are precached so she still shows when offline.
+      includeAssets: [
+        "favicon.ico",
+        "apple-touch-icon.png",
+        "assets/maisy/*.png",
+      ],
       manifest: {
         id: "/",
         name: "TarabayMais - AI Farming Assistant",

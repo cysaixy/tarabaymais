@@ -1,15 +1,17 @@
 /**
- * useWeather Hook — Reactive weather data for farmer dashboard
- * Handles loading, error, caching, and auto-refresh
+ * useWeather Hook — current weather + forecast for the selected farm.
+ * Handles loading, errors, offline (stale saved forecast) and auto-refresh.
  */
 
-import { useState, useEffect, useCallback } from "react";
-import { getWeatherForFarm, getWeatherGradient, getWeatherIcon, clearWeatherCache, type WeatherData } from "../services/weather.service";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  getWeatherForFarm,
+  getWeatherGradient,
+  type FarmLocationInput,
+  type WeatherData,
+} from "../services/weather.service";
 
-interface UseWeatherOptions {
-  municipality: string;
-  province?: string;
-  cropStage?: string;
+interface UseWeatherOptions extends FarmLocationInput {
   autoRefresh?: boolean;
   refreshIntervalMs?: number;
 }
@@ -21,76 +23,86 @@ interface UseWeatherReturn {
   gradientClass: string;
   iconName: string;
   refresh: () => Promise<void>;
-  isUsingFallback: boolean;
+  /** Showing a saved forecast because the latest one couldn't be fetched. */
+  isStale: boolean;
 }
 
 export function useWeather({
   municipality,
+  barangay,
   province = "Cagayan",
+  latitude,
+  longitude,
   cropStage,
   autoRefresh = false,
-  refreshIntervalMs = 30 * 60 * 1000, // 30 min default
+  refreshIntervalMs = 30 * 60 * 1000,
 }: UseWeatherOptions): UseWeatherReturn {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
 
-  const fetchWeather = useCallback(async () => {
-    if (!municipality) {
-      setError("Walang municipality na nakapili");
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await getWeatherForFarm(municipality, province, cropStage);
-      setWeather(data);
-      if (data.isCached) {
-        setError(null); // Cached data is fine
+  const load = useCallback(
+    async (forceRefresh = false) => {
+      const id = ++requestId.current;
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getWeatherForFarm(
+          {
+            municipality,
+            province,
+            ...(barangay ? { barangay } : {}),
+            ...(latitude !== undefined ? { latitude } : {}),
+            ...(longitude !== undefined ? { longitude } : {}),
+            ...(cropStage ? { cropStage } : {}),
+          },
+          { forceRefresh },
+        );
+        // Ignore results from an older request (e.g. farm switched mid-fetch).
+        if (id === requestId.current) setWeather(data);
+      } catch {
+        if (id === requestId.current) {
+          setError(
+            typeof navigator !== "undefined" && !navigator.onLine
+              ? "Walang koneksyon at wala pang naka-save na hula ng panahon."
+              : "Hindi makuha ang lagay ng panahon. Subukan muli.",
+          );
+        }
+      } finally {
+        if (id === requestId.current) setLoading(false);
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Hindi nakakuha ng weather data";
-      setError(msg);
-      console.error("[useWeather] Error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [municipality, province, cropStage]);
+    },
+    [municipality, barangay, province, latitude, longitude, cropStage],
+  );
 
-  // Initial fetch
   useEffect(() => {
-    fetchWeather();
-  }, [fetchWeather]);
+    void load();
+  }, [load]);
 
-  // Auto-refresh
   useEffect(() => {
     if (!autoRefresh) return;
+    const interval = setInterval(() => void load(), refreshIntervalMs);
+    // Fetch fresh data as soon as the connection comes back.
+    const onOnline = () => void load(true);
+    window.addEventListener("online", onOnline);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [autoRefresh, load, refreshIntervalMs]);
 
-    const interval = setInterval(fetchWeather, refreshIntervalMs);
-    return () => clearInterval(interval);
-  }, [autoRefresh, fetchWeather, refreshIntervalMs]);
-
-  // Refresh function for manual trigger
-  const refresh = useCallback(async () => {
-    // Clear cache for this location to force fresh fetch
-    clearWeatherCache();
-    await fetchWeather();
-  }, [fetchWeather]);
-
-  const gradientClass = weather ? getWeatherGradient(weather.weatherCode) : "from-slate-400 via-slate-500 to-slate-600";
-  const iconName = weather ? getWeatherIcon(weather.weatherCode) : "Cloud";
-  const isUsingFallback = weather?.conditionLabel.includes("Default") ?? false;
+  const refresh = useCallback(() => load(true), [load]);
 
   return {
     weather,
     loading,
     error,
-    gradientClass,
-    iconName,
+    gradientClass: weather
+      ? getWeatherGradient(weather.weatherCode)
+      : "from-slate-400 via-slate-500 to-slate-600",
+    iconName: weather?.conditionIcon ?? "Cloud",
     refresh,
-    isUsingFallback,
+    isStale: weather?.isStale ?? false,
   };
 }
