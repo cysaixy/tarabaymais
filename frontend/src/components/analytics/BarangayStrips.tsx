@@ -96,7 +96,7 @@ export const BarangayStrips: React.FC<BarangayStripsProps> = ({
       </div>
 
       {/* STRIP LIST */}
-      <div className="space-y-3">
+      <div className="max-h-[60vh] space-y-3 overflow-y-auto overscroll-contain pr-1">
         {sorted.map((item, index) => {
           const isRank1 = index === 0;
           const riskColor = getRiskColor(item.risk);

@@ -101,7 +101,7 @@ export const SelectedCaseCard: React.FC<SelectedCaseCardProps> = ({
           </p>
           <h2
             id="selected-case-title"
-            className="text-[26px] sm:text-[30px] font-extrabold text-[#14213d] leading-tight"
+            className="break-words text-[26px] sm:text-[30px] font-extrabold text-[#14213d] leading-tight"
           >
             {selectedCase.damageType}
           </h2>
@@ -172,11 +172,11 @@ export const SelectedCaseCard: React.FC<SelectedCaseCardProps> = ({
 
       {/* Note box (hidden if no note) */}
       {selectedCase.farmNote ? (
-        <div className="bg-[#f4f6f2] rounded-[14px] p-[12px_16px] text-left">
+        <div className="max-h-[30vh] overflow-y-auto overscroll-contain bg-[#f4f6f2] rounded-[14px] p-[12px_16px] text-left">
           <p className="text-[13px] font-extrabold text-[#14213d] mb-1">
             Tala sa Sakahan
           </p>
-          <p className="text-[14px] text-[#4b5563] leading-relaxed whitespace-pre-wrap">
+          <p className="break-words text-[14px] text-[#4b5563] leading-relaxed whitespace-pre-wrap">
             {selectedCase.farmNote}
           </p>
         </div>

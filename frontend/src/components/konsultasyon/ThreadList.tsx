@@ -18,7 +18,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
     <div
       role="list"
       aria-label="Mga thread ng konsultasyon"
-      className="flex flex-row lg:flex-col gap-2.5 overflow-x-auto lg:overflow-visible no-scrollbar w-full pb-2 lg:pb-0"
+      className="flex flex-row lg:max-h-[60vh] lg:flex-col gap-2.5 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-contain no-scrollbar w-full pb-2 lg:pb-0 lg:pr-1"
     >
       {threads.map((item) => {
         const isSelected = item.id === selectedId;
@@ -81,7 +81,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
 
               {/* Row 3: Subject */}
               <div className="text-[15px] font-semibold text-[#14213d] leading-snug">
-                <p className="line-clamp-2">{item.subject}</p>
+                <p className="line-clamp-2 break-words">{item.subject}</p>
                 {item.hasTechnicianRequest && (
                   <p className="text-[12px] font-bold text-[#b45309] mt-0.5">
                     hinihingi ang tulong ng LGU Technician
@@ -90,7 +90,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
               </div>
 
               {/* Row 4: Barangay */}
-              <p className="text-[13px] text-[#4b5563]">{item.barangay}</p>
+              <p className="break-words text-[13px] text-[#4b5563]">{item.barangay}</p>
             </div>
           );
         }

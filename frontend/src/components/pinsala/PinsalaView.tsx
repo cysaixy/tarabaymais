@@ -198,7 +198,7 @@ export const PinsalaView: React.FC<PinsalaViewProps> = ({
                 <div className="order-4 w-full flex flex-col gap-2">
                   <ul
                     role="list"
-                    className="flex flex-col gap-2 w-full m-0 p-0"
+                    className="flex max-h-[60vh] flex-col gap-2 w-full m-0 overflow-y-auto overscroll-contain p-0 pr-1"
                   >
                     {otherCases.map((item) => (
                       <CaseRow

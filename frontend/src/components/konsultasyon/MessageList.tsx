@@ -24,9 +24,9 @@ export const MessageList: React.FC<MessageListProps> = ({
   }, [messages, subject]);
 
   return (
-    <div className="px-5 sm:px-7 pt-5 flex flex-col gap-3.5 flex-1 overflow-y-auto w-full">
+    <div className="min-h-0 max-h-[50vh] px-5 sm:px-7 pt-5 flex flex-col gap-3.5 flex-1 overflow-y-auto overscroll-contain w-full">
       {/* Subject as h2 */}
-      <h2 className="text-[20px] font-extrabold text-[#14213d] leading-snug">
+      <h2 className="break-words text-[20px] font-extrabold text-[#14213d] leading-snug">
         {subject}
       </h2>
 
@@ -44,13 +44,13 @@ export const MessageList: React.FC<MessageListProps> = ({
               return (
                 <div
                   key={msg.id}
-                  className="flex flex-col items-start max-w-[85%] sm:max-w-[80%]"
+                  className="flex min-w-0 flex-col items-start max-w-[85%] sm:max-w-[80%]"
                 >
                   <span className="text-[12px] font-bold text-[#4b5563] mb-1 pl-1">
                     Magsasaka
                   </span>
-                  <div className="bg-[#eef3e8] text-[#14213d] rounded-[18px_18px_18px_4px] p-[12px_16px] text-[15px] leading-relaxed shadow-2xs">
-                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                  <div className="max-w-full break-words bg-[#eef3e8] text-[#14213d] rounded-[18px_18px_18px_4px] p-[12px_16px] text-[15px] leading-relaxed shadow-2xs">
+                    <p className="whitespace-pre-wrap break-words">{msg.text}</p>
                     {msg.tag && (
                       <span className="inline-block mt-2 px-2.5 py-[3px] rounded-full text-[12px] font-extrabold bg-[#fde8e8] text-[#9b1c1c]">
                         {msg.tag}
@@ -65,13 +65,13 @@ export const MessageList: React.FC<MessageListProps> = ({
             return (
               <div
                 key={msg.id}
-                className="flex flex-col items-end max-w-[85%] sm:max-w-[80%] ml-auto"
+                className="flex min-w-0 flex-col items-end max-w-[85%] sm:max-w-[80%] ml-auto"
               >
                 <span className="text-[12px] font-bold text-[#4b5563] mb-1 pr-1">
                   Ikaw
                 </span>
-                <div className="bg-[#0f2a5c] text-white rounded-[18px_18px_4px_18px] p-[12px_16px] text-[15px] leading-relaxed shadow-2xs">
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                <div className="max-w-full break-words bg-[#0f2a5c] text-white rounded-[18px_18px_4px_18px] p-[12px_16px] text-[15px] leading-relaxed shadow-2xs">
+                  <p className="whitespace-pre-wrap break-words">{msg.text}</p>
                 </div>
               </div>
             );

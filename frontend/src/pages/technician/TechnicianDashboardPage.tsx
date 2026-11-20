@@ -1206,7 +1206,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                   key={key}
                   type="button"
                   onClick={() => setActiveTab(key)}
-                  className={`relative flex flex-col items-center justify-center gap-0.5 transition ${
+                  className={`relative flex min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden transition ${
                     isActive ? "text-white" : "text-slate-400"
                   }`}
                 >
@@ -1225,7 +1225,7 @@ export const TechnicianDashboardPage: React.FC = () => {
                     )}
                   </div>
                   <span
-                    className={`text-[10px] ${isActive ? "font-extrabold" : "font-medium"}`}
+                    className={`max-w-full truncate px-0.5 text-[10px] ${isActive ? "font-extrabold" : "font-medium"}`}
                   >
                     {label}
                   </span>
